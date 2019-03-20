@@ -1,23 +1,32 @@
 class Array {
     function __init__() {
-        self.array = anew()
+        this._buffer = _ARGS_
     }
-
-    function push(value) {
-        apush(self.array,value)
+    function len() {
+        return len(this._buffer)
+    }
+    function push(val) {
+        apush(this._buffer,val)
     }
     function pop() {
-        return apop(self.array)
+        return apop(this._buffer)
+    }
+    function get(x) {
+        return aget(this._buffer,x)
     }
 
+    function set(idx,val) {
+        aset(this._buffer,idx,val)
+    }
 
-    function get_raw() {
-        return self.array
+    function display() {
+        return string(this._buffer)
     }
-    function set(idx,value) {
-        aset(self.array,idx,value)
+    function raw() {
+        return this._buffer
     }
-    function get(idx) {
-        return aget(self.array,idx)
+
+    function _eq_(rhs) {
+        this.raw() == rhs.raw()
     }
 }

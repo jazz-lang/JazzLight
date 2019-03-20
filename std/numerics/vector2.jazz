@@ -1,0 +1,34 @@
+class Vector2 {
+    function __init__(x,y) {
+        this.x = x
+        this.y = y
+    }
+    function display() {
+        concat("(",this.x,";",this.y,")")
+    }
+    function dot(val2) {
+        return this.x * val2.x + this.y * val2.y
+    }
+    function _add_(rhs) {
+        return new Vector2(this.x + rhs.x,this.y + rhs.y)
+    }
+    function _sub_(rhs) {
+        return new Vector2(this.x - rhs.x,this.y - rhs.y)
+    }
+    function _div_(rhs) {
+        return new Vector2(this.x / rhs.x,this.y / rhs.y)
+    }
+
+    function length() {
+        var ls = this.dot(this)
+        return builtin_sqrt(ls)
+    }
+    function length_squared() {
+        return this.dot(this)
+    }
+
+    function normalize() {
+        var length = this.length()
+        return this / (new Vector2(length,length))
+    }
+}

@@ -452,12 +452,28 @@ impl<'a> Parser<'a>
                     let ident = self.expect_identifier()?;
                     expr!(ExprKind::Access(left, ident), tok.position)
                 }
+
                 TokenKind::LBracket =>
                 {
                     let tok = self.advance_token()?;
-                    let index = self.parse_expression()?;
-                    self.expect_token(TokenKind::RBracket)?;
-                    expr!(ExprKind::ArrayIndex(left, index), tok.position)
+                    let val_or_index = self.parse_expression()?;
+                    if self.token.is(TokenKind::Comma)
+                    {
+                        self.advance_token()?;
+                        let mut vals = vec![val_or_index];
+
+                        while !self.token.is(TokenKind::RBracket)
+                        {
+                            vals.push(self.parse_expression()?);
+                        }
+                        self.expect_token(TokenKind::RBracket)?;
+                        expr!(ExprKind::Array(vals), tok.position)
+                    }
+                    else
+                    {
+                        self.expect_token(TokenKind::RBracket)?;
+                        expr!(ExprKind::ArrayIndex(left, val_or_index), tok.position)
+                    }
                 }
                 _ =>
                 {
@@ -556,6 +572,37 @@ impl<'a> Parser<'a>
         let expr = match self.token.kind
         {
             TokenKind::Fun => self.parse_function(),
+            TokenKind::LBracket =>
+            {
+                let skip_contents = self.advance_token()?;
+                let skip = if skip_contents.is(TokenKind::RBracket)
+                {
+                    true
+                }
+                else
+                {
+                    false
+                };
+                let mut vals = vec![];
+                if !skip
+                {
+                    loop
+                    {
+                        vals.push(self.parse_expression()?);
+                        if self.token.is(TokenKind::Comma)
+                        {
+                            self.advance_token()?;
+                        }
+                        if self.token.is(TokenKind::RBracket)
+                        {
+                            //self.advance_token()?;
+                            break;
+                        }
+                    }
+                }
+                self.expect_token(TokenKind::RBracket)?;
+                Ok(expr!(ExprKind::Array(vals), skip_contents.position))
+            }
             TokenKind::LParen => self.parse_parentheses(),
             TokenKind::LitChar(_) => self.lit_char(),
             TokenKind::LitInt(_, _, _) => self.lit_int(),
@@ -567,6 +614,7 @@ impl<'a> Parser<'a>
             TokenKind::True => self.parse_bool_literal(),
             TokenKind::False => self.parse_bool_literal(),
             TokenKind::Nil => self.parse_nil(),
+
             _ => Err(MsgWithPos::new(self.token.position,
                                      Msg::ExpectedFactor(self.token
                                                              .name()

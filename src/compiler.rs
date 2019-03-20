@@ -71,7 +71,8 @@ impl<'a> Compiler<'a>
 
     pub fn compile_ast(&mut self, ast: Vec<Box<Expr>>)
     {
-        //self.register_stdlib();
+        crate::runtime::builtins(self);
+
         for expr in ast.iter()
         {
             match &expr.expr
@@ -336,6 +337,15 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                 }
                 self.locals.insert(name.to_string(), id);
             }
+            ExprKind::Array(values) =>
+            {
+                for val in values.iter().rev()
+                {
+                    self.compile(val);
+                }
+                self.emit(Instruction::MakeArray(values.len() as u16));
+            }
+
             ExprKind::Ident(name) =>
             {
                 if self.compiler.globals.contains_key(name)
@@ -345,6 +355,11 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                 }
                 else
                 {
+                    if name == "_ARGS_"
+                    {
+                        self.emit(Instruction::LdArgs);
+                        return;
+                    }
                     let id = self.locals.get(name);
                     if id.is_none()
                     {
@@ -406,6 +421,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                     "+" => Instruction::Add,
                     "-" => Instruction::Sub,
                     "*" => Instruction::Mul,
+                    "%" => Instruction::Rem,
                     "/" => Instruction::Div,
                     ">" => Instruction::Gt,
                     ">=" => Instruction::Gte,
@@ -416,6 +432,16 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                     _ => unimplemented!(),
                 };
                 self.emit(ins);
+            }
+            ExprKind::Unop(op, val) =>
+            {
+                self.compile(&val);
+                let op: &str = op;
+                match op
+                {
+                    "-" => self.emit(Instruction::Neg),
+                    _ => unimplemented!(),
+                }
             }
             ExprKind::If(cond, then, or) =>
             {

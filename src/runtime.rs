@@ -86,6 +86,19 @@ pub fn string(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
     GcValue::new(Value::Str(string))
 }
 
+fn to_string(val: &GcValue) -> String
+{
+    let val: &Value = &val.get();
+    if let Value::Str(s) = val
+    {
+        return s.to_string();
+    }
+    else
+    {
+        panic!("String value expected");
+    }
+}
+
 pub fn println(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
 {
     let s = string(frame, args);
@@ -101,6 +114,145 @@ pub fn println(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
     GcValue::new(Value::Null)
 }
 
+pub fn apush(_frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let vref = args[0].clone();
+    let array: &mut Value = &mut vref.get_mut();
+    let val = args[1].clone();
+    if let Value::Array(values) = array
+    {
+        values.push(val);
+    }
+    GcValue::new(Value::Null)
+}
+
+pub fn apop(_frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let array: &mut Value = &mut args.get(0).unwrap().get_mut();
+    if let Value::Array(values) = array
+    {
+        return values.pop().unwrap_or(GcValue::new(Value::Null));
+    }
+    else
+    {
+        panic!("Array expected; apop,found: {:?}", array);
+    }
+}
+
+pub fn len(_frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let val: &Value = &args[0].get();
+
+    match val
+    {
+        Value::Str(s) => GcValue::new(Value::Int(s.len() as i64)),
+        Value::Array(arr) => GcValue::new(Value::Int(arr.len() as i64)),
+        _ => GcValue::new(Value::Int(-1)),
+    }
+}
+pub fn aget(_frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let array: &Value = &args[0].get();
+    let idx: &Value = &args[1].get();
+    let idx_usize = if let Value::Int(i) = idx
+    {
+        *i as usize
+    }
+    else
+    {
+        panic!("Integer expected")
+    };
+    if let Value::Array(values) = array
+    {
+        return values[idx_usize].clone();
+    }
+    else
+    {
+        panic!("Array expected")
+    }
+}
+
+pub fn aset(_frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let vref = args[0].clone();
+    let array: &mut Value = &mut vref.get_mut();
+    let vref = args[1].clone();
+    let idx: &Value = &vref.get();
+    let val = args[2].clone();
+    let idx_usize = if let Value::Int(i) = idx
+    {
+        *i as usize
+    }
+    else
+    {
+        panic!("Integer expected")
+    };
+    if let Value::Array(values) = array
+    {
+        values[idx_usize] = val;
+    }
+    else
+    {
+        panic!("Array expected");
+    }
+    GcValue::new(Value::Null)
+}
+
+pub fn strtrim(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let s = to_string(&args[0]);
+    GcValue::new(Value::Str(s.trim().to_owned()))
+}
+
+pub fn str2chars(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let s = to_string(&args[0]);
+    let mut buff = vec![];
+    for ch in s.chars()
+    {
+        buff.push(GcValue::new(Value::Str(format!("{}", ch))));
+    }
+
+    GcValue::new(Value::Array(buff))
+}
+
+pub fn open_file(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let s = to_string(&args[0]);
+    let mut buff = String::new();
+    use std::io::Read;
+    std::fs::File::open(&s).unwrap()
+                           .read_to_string(&mut buff)
+                           .unwrap();
+    return GcValue::new(Value::Str(buff));
+}
+
+pub fn builtin_sqrt(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let val = &args[0];
+    let val_ref: &Value = &val.get();
+
+    let val = match val_ref
+    {
+        Value::Int(i) => Value::Float((*i as f64).sqrt()),
+        Value::Float(f) => Value::Float(f.sqrt()),
+        _ => unreachable!(),
+    };
+    GcValue::new(val)
+}
+
+pub fn builtin_sin(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let val = &args[0];
+    let val_ref: &Value = &val.get();
+    let val = match val_ref
+    {
+        Value::Float(f) => Value::Float(f.sin()),
+        Value::Int(i) => Value::Float((*i as f64).sin()),
+        _ => unreachable!(),
+    };
+    GcValue::new(val)
+}
 pub fn builtins(cmpl: &mut Compiler)
 {
     fn concat(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
@@ -140,4 +292,25 @@ pub fn builtins(cmpl: &mut Compiler)
     let val = GcValue::new(Value::Func(f));
     let idx = cmpl.vm.new_global(val);
     cmpl.globals.insert(String::from("println"), idx);
+
+    macro_rules! reg_fn {
+        ($compiler: expr,$name: ident) => {
+            let f = Function { name: String::from(stringify!($name)),
+                               var: FuncVar::Native($name as i64) };
+            let val = GcValue::new(Value::Func(f));
+            let cmpl: &mut Compiler = $compiler;
+            let idx = cmpl.vm.new_global(val);
+            cmpl.globals.insert(String::from(stringify!($name)), idx);
+        };
+    }
+    reg_fn!(cmpl, apop);
+    reg_fn!(cmpl, apush);
+    reg_fn!(cmpl, aget);
+    reg_fn!(cmpl, aset);
+    reg_fn!(cmpl, len);
+    reg_fn!(cmpl, str2chars);
+    reg_fn!(cmpl, strtrim);
+    reg_fn!(cmpl, open_file);
+    reg_fn!(cmpl, builtin_sin);
+    reg_fn!(cmpl, builtin_sqrt);
 }

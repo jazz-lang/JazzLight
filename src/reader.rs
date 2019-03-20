@@ -6,7 +6,7 @@ use crate::token::Position;
 pub struct Reader
 {
     filename: String,
-    src: String,
+    pub src: String,
 
     pos: usize,
     next_pos: usize,

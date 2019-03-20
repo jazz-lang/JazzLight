@@ -5,5 +5,5 @@ function main() {
     var arr = new Array()
 
     arr.push(2)
-    Console.WriteLine(arr.get_raw())
+    println(arr)
 }

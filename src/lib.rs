@@ -1,3 +1,6 @@
+#![allow(unused_variables)]
+#![allow(unused_macros)]
+
 #[macro_use]
 pub mod macros;
 pub mod ast;

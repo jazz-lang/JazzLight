@@ -1,0 +1,11 @@
+function fac(x) {
+    if x < 2 {
+        return x
+    } else {
+        return fac(x - 1) * x
+    }
+}
+
+function main() {
+    println(fac(5))
+}

@@ -1,5 +1,6 @@
 #[derive(Clone, Debug, Trace, Finalize, Hash, PartialEq)]
-pub enum Instruction {
+pub enum Instruction
+{
     LdLoc(u16),
     StLoc(u16),
     LdGlob(u32),
@@ -11,6 +12,7 @@ pub enum Instruction {
     LdNull,
     LdConst(u32),
     LdThis,
+    LdArgs,
     Dup,
     Nop,
 
@@ -18,6 +20,7 @@ pub enum Instruction {
     Sub,
     Div,
     Mul,
+    Neg,
     Rem,
     Shr,
     Shl,

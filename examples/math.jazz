@@ -5,18 +5,18 @@ function add(x,y)
 
 class Point {
     function __init__(x,y) {
-        self.x = x
-        self.y = y
+        this.x = x
+        this.y = y
     }
 
     function display() {
-        print("Point(",self.x,",",self.y,")")
+        concat("Point(",this.x,",",this.y,")")
     }
 
-    function add(other) {
+    function _add_(other) {
         var result = new Point(0,0)
-        result.x = self.x + other.x
-        result.y = self.y + other.y
+        result.x = this.x + other.x
+        result.y = this.y + other.y
 
         return result
 

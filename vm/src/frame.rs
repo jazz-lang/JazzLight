@@ -9,6 +9,7 @@ pub struct Frame<'a>
     ip: usize,
     code: Vec<Instruction>,
     this: &'a GcValue,
+    args: GcValue,
 }
 
 use crate::instruction::*;
@@ -27,7 +28,8 @@ impl<'a> Frame<'a>
                 vm,
                 ip: 0,
                 code,
-                this }
+                this,
+                args: GcValue::new(Value::Null) }
     }
 
     pub fn next_ins(&mut self) -> Instruction
@@ -55,6 +57,7 @@ impl<'a> Frame<'a>
         {
             args.push(self.pop());
         }
+        let args_v = GcValue::new(Value::Array(args.clone()));
         match val
         {
             Value::Func(f) => match &f.var
@@ -69,10 +72,15 @@ impl<'a> Frame<'a>
                 FuncVar::Code(code, max_locals) =>
                 {
                     let mut frame = Frame::new(self.vm, code.clone(), *max_locals, &this);
+                    if args.len() > *max_locals as usize
+                    {
+                        frame.locals.resize(args.len(), GcValue::new(Value::Null));
+                    }
                     for (idx, arg) in args.iter().enumerate()
                     {
                         frame.locals[idx] = arg.clone();
                     }
+                    frame.args = args_v;
 
                     frame.run()
                 }
@@ -111,7 +119,7 @@ impl<'a> Frame<'a>
                         self.stack.push(y_clon);
                         self.invoke(f, x.clone(), 1)
                     }
-                    _ => unimplemented!(),
+                value => panic!("op: {} {:?}",stringify!($op),value),
                 };
                 self.push(val);
                 }
@@ -142,7 +150,7 @@ impl<'a> Frame<'a>
                         self.stack.push(y_clon);
                         self.invoke(f, x.clone(), 1)
                     }
-                    _ => unimplemented!(),
+                    v => panic!("{:?}",v),
                 };
                 self.push(val);
                 }
@@ -182,9 +190,10 @@ impl<'a> Frame<'a>
                     (Value::Float(f),Value::Float(f2)) => GcValue::new(Value::Bool((*f) $op (*f2))),
                     (Value::Int(i),Value::Float(f2)) => GcValue::new(Value::Bool((*i as f64) $op (*f2))),
                     (Value::Float(f),Value::Int(i2)) => GcValue::new(Value::Bool((*f) $op (*i2 as f64))),
-                    (Value::Str(s),Value::Str(s2)) => GcValue::new(Value::Str(format!("{}{}",s,s2))),
+                    (Value::Str(s),Value::Str(s2)) => GcValue::new(Value::Bool(s $op s2)),
                     (Value::Null,_v) => GcValue::new(Value::Bool(true)),
                     (_v,Value::Null) => GcValue::new(Value::Bool(true)),
+                    (Value::Array(a1),Value::Array(a2)) => GcValue::new(Value::Bool(a1 == a2)),
                     (Value::Object(obj),_v) => {
                         let obj: &Object = obj;
                         let f = obj.find(&GcValue::new(Value::Str($fname.to_string())));
@@ -211,6 +220,7 @@ impl<'a> Frame<'a>
             match &ins
             {
                 Nop => (),
+                LdArgs => self.push(self.args.clone()),
                 LdNull => self.push(GcValue::new(Value::Null)),
                 LdBool(b) => self.push(GcValue::new(Value::Bool(*b))),
                 LdInt(i) => self.push(GcValue::new(Value::Int(*i))),
@@ -231,7 +241,8 @@ impl<'a> Frame<'a>
                         {
                             args.push(self.pop());
                         }
-                        let _result = match val
+                        let args_v = GcValue::new(Value::Array(args.clone()));
+                        match val
                         {
                             Value::Func(f) => match &f.var
                             {
@@ -241,24 +252,30 @@ impl<'a> Frame<'a>
                                     let f: fn(&mut Frame, Vec<GcValue>) -> GcValue =
                                         unsafe { transmute(*ptr) };
 
-                                    f(self, args)
+                                    f(self, args);
                                 }
                                 FuncVar::Code(code, max_locals) =>
                                 {
                                     let mut frame =
                                         Frame::new(self.vm, code.clone(), *max_locals, &new_obj);
+                                    frame.args = args_v;
+                                    if args.len() > *max_locals as usize
+                                    {
+                                        frame.locals.resize(args.len(), GcValue::new(Value::Null));
+                                    }
                                     for (idx, arg) in args.iter().enumerate()
                                     {
                                         frame.locals[idx] = arg.clone();
                                     }
 
-                                    frame.run()
+                                    frame.run();
+
+                                    self.push(new_obj);
                                 }
                             },
 
                             v => panic!("Function expected {:?}", v),
                         };
-                        self.push(new_obj);
                     }
                     else
                     {
@@ -309,7 +326,11 @@ impl<'a> Frame<'a>
                     let last = self.stack.last().unwrap();
                     self.push(last.clone());
                 }
-                Br(to) => self.ip = *to as usize,
+                Br(to) =>
+                {
+                    self.ip = *to as usize;
+                    continue;
+                }
                 Brz(to) =>
                 {
                     let val_p = self.pop();
@@ -319,6 +340,7 @@ impl<'a> Frame<'a>
                         Value::Int(0) | Value::Bool(false) => self.ip = *to as usize,
                         _ => (),
                     };
+                    continue;
                 }
                 Brnz(to) =>
                 {
@@ -337,6 +359,7 @@ impl<'a> Frame<'a>
 
                         _ => (),
                     }
+                    continue;
                 }
                 Add => bin_op!(with_str+, "_add_"),
                 Sub => bin_op!(-,"_sub_"),
@@ -349,6 +372,18 @@ impl<'a> Frame<'a>
                 Gte => bin_op!(cmpo>=,"_gte_"),
                 Eq => bin_op!(cmpo==,"_eq_"),
                 Neq => bin_op!(cmpo!=,"_neq_"),
+                Neg =>
+                {
+                    let val = self.pop();
+                    let val: &Value = &val.get();
+                    let res = match val
+                    {
+                        Value::Int(i) => Value::Int(-(*i)),
+                        Value::Float(f) => Value::Float(-(*f)),
+                        _ => unimplemented!(),
+                    };
+                    self.push(GcValue::new(res));
+                }
                 Invoke(argc) =>
                 {
                     let f = self.pop();
@@ -384,6 +419,6 @@ impl<'a> Frame<'a>
                 _ => unimplemented!(),
             }
         }
-        self.pop()
+        self.stack.pop().unwrap_or(GcValue::new(Value::Null))
     }
 }
