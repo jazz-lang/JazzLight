@@ -14,8 +14,8 @@ pub struct Parser<'a>
 
 macro_rules! expr {
     ($e:expr,$pos:expr) => {
-    Box::new(Expr { pos: $pos,
-                    expr: $e })
+        Box::new(Expr { pos: $pos,
+                        expr: $e })
     };
 }
 
@@ -63,14 +63,16 @@ impl<'a> Parser<'a>
         }
     }
 
-    fn parse_top_level(&mut self) -> Result<(),MsgWithPos> {
-        let expr = match &self.token.kind {
+    fn parse_top_level(&mut self) -> Result<(), MsgWithPos>
+    {
+        let expr = match &self.token.kind
+        {
             TokenKind::Fun => self.parse_function()?,
             TokenKind::Let | TokenKind::Var => self.parse_let()?,
             TokenKind::Class => self.parse_class()?,
             TokenKind::Import => self.parse_import()?,
             TokenKind::Include => self.parse_include()?,
-            v => panic!("{:?} {}",v,self.token.position)
+            v => panic!("{:?} {}", v, self.token.position),
         };
 
         self.ast.push(expr);
@@ -109,23 +111,24 @@ impl<'a> Parser<'a>
         }
     }
 
-    fn parse_class(&mut self) -> EResult {
+    fn parse_class(&mut self) -> EResult
+    {
         let pos1 = self.expect_token(TokenKind::Class)?.position;
         let name = self.expect_identifier()?;
-        let impls = if self.token.is(TokenKind::Colon) || self.token.is(TokenKind::Implements) {
+        let impls = if self.token.is(TokenKind::Colon) || self.token.is(TokenKind::Implements)
+        {
             self.advance_token()?;
             let impls = self.parse_expression()?;
             Some(impls)
-        } else {
+        }
+        else
+        {
             None
         };
-        
+
         let block = self.parse_class_block()?;
 
-
-        Ok(expr!(ExprKind::Class(name,block,impls),pos1))
-        
-
+        Ok(expr!(ExprKind::Class(name, block, impls), pos1))
     }
 
     fn parse_function(&mut self) -> EResult
@@ -140,9 +143,11 @@ impl<'a> Parser<'a>
         else
         {
             let mut tmp = vec![];
-            while !self.token.is(TokenKind::RParen) {
+            while !self.token.is(TokenKind::RParen)
+            {
                 tmp.push(self.expect_identifier()?);
-                if !self.token.is(TokenKind::RParen) {
+                if !self.token.is(TokenKind::RParen)
+                {
                     self.expect_token(TokenKind::Comma)?;
                 }
             }
@@ -150,7 +155,7 @@ impl<'a> Parser<'a>
         };
         self.expect_token(TokenKind::RParen)?;
         let block = self.parse_block()?;
-        Ok(expr!(ExprKind::Function(name,params, block), pos))
+        Ok(expr!(ExprKind::Function(name, params, block), pos))
     }
 
     fn parse_let(&mut self) -> EResult
@@ -183,17 +188,14 @@ impl<'a> Parser<'a>
     {
         match self.token.kind
         {
-            TokenKind::New => {
-                
+            TokenKind::New =>
+            {
                 let pos = self.advance_token()?.position;
                 let calling = self.parse_expression()?;
-                Ok(expr!(
-                    ExprKind::New(calling),
-                    pos
-                ))
+                Ok(expr!(ExprKind::New(calling), pos))
             }
             TokenKind::Fun => self.parse_function(),
-            
+
             TokenKind::Match => self.parse_match(),
             TokenKind::Let | TokenKind::Var => self.parse_let(),
             TokenKind::LBrace => self.parse_block(),
@@ -304,19 +306,22 @@ impl<'a> Parser<'a>
         Ok(expr!(ExprKind::If(cond, then_block, else_block), pos))
     }
 
-    fn parse_class_block(&mut self) -> EResult {
+    fn parse_class_block(&mut self) -> EResult
+    {
         let pos = self.expect_token(TokenKind::LBrace)?.position;
         let mut exprs = vec![];
-        while !self.token.is(TokenKind::RBrace) && !self.token.is_eof() {
-            let expr = match self.token.kind {
+        while !self.token.is(TokenKind::RBrace) && !self.token.is_eof()
+        {
+            let expr = match self.token.kind
+            {
                 TokenKind::Fun => self.parse_function()?,
                 TokenKind::Let | TokenKind::Var => self.parse_let()?,
-                _ => return Err(MsgWithPos::new(pos,Msg::ExpectedClassElement("".to_owned()))),
+                _ => return Err(MsgWithPos::new(pos, Msg::ExpectedClassElement("".to_owned()))),
             };
             exprs.push(expr);
         }
         self.expect_token(TokenKind::RBrace)?;
-        Ok(expr!(ExprKind::Block(exprs),pos))
+        Ok(expr!(ExprKind::Block(exprs), pos))
     }
 
     fn parse_block(&mut self) -> EResult
@@ -423,7 +428,7 @@ impl<'a> Parser<'a>
         self.parse_binary(0)
     }*/
 
-    fn parse_call(&mut self) -> EResult
+    /*fn parse_call(&mut self) -> EResult
     {
         let expr = self.parse_expression()?;
 
@@ -432,7 +437,7 @@ impl<'a> Parser<'a>
         let args = self.parse_comma_list(TokenKind::RParen, |p| p.parse_expression())?;
 
         Ok(expr!(ExprKind::Call(expr, args), expr.pos))
-    }
+    }*/
 
     pub fn parse_primary(&mut self) -> EResult
     {

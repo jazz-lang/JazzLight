@@ -1,0 +1,24 @@
+
+class Point {
+    function __init__(x,y) {
+        this.x = x
+        this.y = y
+    }
+
+    function _add_(other) {
+        var n = new Point(0,0)
+        n.x = this.x + other.x
+        n.y = this.y + other.y
+        n
+    }
+    function display() {
+        return concat("(",this.x,";",this.y,")")
+    }
+}
+
+import "std/option.jazz"
+
+function main() {
+    println(new Point(2,3))
+    return 0
+}

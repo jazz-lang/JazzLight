@@ -9,9 +9,9 @@ hmap = "0.1.0"
 fxhash = "0.2.1"
 rand = "0.6.5"
 walkdir = "2.2.7"
-waffle = {git = "https://github.com/jazz-lang/waffle"}
+jazzvm = {path = "vm"}
 hashbrown = "0.1.8"
-gc = "0.3.2"
+gc = {path = "gc/gc"}
 time = "0.1.42"
-structopt = "0.2.14"
+structopt = "0.2.15"
 crossterm = "0.6.0"

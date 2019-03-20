@@ -1,0 +1,20 @@
+class Option {
+    function __init__() {
+        this.is_some = false
+        this.val = null
+    }
+
+    function unwrap() {
+        return this.val
+    }
+}
+
+function none() {
+    return new Option()
+}
+function some(x) {
+    var o = new Option()
+    o.is_some = true
+    o.val = x
+    return o
+} 

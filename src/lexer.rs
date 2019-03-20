@@ -21,7 +21,7 @@ impl Lexer
     pub fn new(reader: Reader) -> Lexer
     {
         let keywords = hmap!(
-            "self" => TokenKind::This,
+            "this" => TokenKind::This,
             "function" => TokenKind::Fun,
             "let" => TokenKind::Let,
             "var" => TokenKind::Var,
@@ -38,7 +38,7 @@ impl Lexer
             "return" => TokenKind::Return,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
-            "nil" => TokenKind::Nil,
+            "null" => TokenKind::Nil,
             "type" => TokenKind::Type,
             "throw" => TokenKind::Throw,
             "do" => TokenKind::Do,
