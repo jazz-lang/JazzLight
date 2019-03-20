@@ -11,7 +11,7 @@ rand = "0.6.5"
 walkdir = "2.2.7"
 jazzvm = {path = "vm"}
 hashbrown = "0.1.8"
-gc = {path = "gc/gc"}
+gc = {path = "gc-rs/gc"}
 time = "0.1.42"
 structopt = "0.2.15"
 crossterm = "0.6.0"

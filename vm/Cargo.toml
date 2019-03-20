@@ -7,6 +7,6 @@ edition = "2018"
 [profile.release]
 panic = "abort"
 [dependencies]
-gc = {path = "../gc/gc"}
+gc = {path = "../gc-rs/gc"}
 gc_derive = "0.3.2"
 fnv = "1.0.6"
