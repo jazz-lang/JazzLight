@@ -15,8 +15,8 @@ pub enum ExprKind
     Unop(String, Box<Expr>),
     Access(Box<Expr>, String),
     Ident(String),
-    Function(String,Vec<String>, Box<Expr>),
-    Class(String,Box<Expr>,Option<Box<Expr>>),
+    Function(String, Vec<String>, Box<Expr>),
+    Class(String, Box<Expr>, Option<Box<Expr>>),
     Lambda(Vec<String>, Box<Expr>),
     Match(Box<Expr>, Vec<(Box<Expr>, Box<Expr>)>, Option<Box<Expr>>),
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
@@ -41,6 +41,7 @@ pub enum ExprKind
     This,
     Import(String),
     Include(String),
+    For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
 }
 
 use std::fmt;

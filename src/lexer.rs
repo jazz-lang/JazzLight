@@ -47,7 +47,8 @@ impl Lexer
             "class" => TokenKind::Class,
             "implements" => TokenKind::Implements,
             "new" => TokenKind::New,
-            "include" => TokenKind::Include
+            "include" => TokenKind::Include,
+            "for" => TokenKind::For
         );
 
         Lexer { reader: reader,

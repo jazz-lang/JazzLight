@@ -5,6 +5,10 @@ class MapEntry {
         this.K = key
         this.V = val
     }
+
+    function display() {
+        concat("MapEntry\n","key: ",this.K,"\n","val: ",this.V,"\n")
+    }
 }
 
 class Map {
@@ -12,7 +16,9 @@ class Map {
         this.entries = (new Array())
     }
 
-    function contains(key) {
+
+
+    function Contains(key) {
         var i = 0
         while i < this.entries.len() {
             var K = this.entries.get(i).K 
@@ -24,23 +30,25 @@ class Map {
         return false
     }
 
-    function insert(key,val) {
-        if this.contains(key) {
+    function Insert(key,val) {
+        if this.Contains(key) {
             var i = 0
             while i < this.entries.len() {
                 var K = this.entries.get(i).K
                 if K == key {
                     this.entries.get(i).V = val
                 }
+                i = i + 1
             }
         } else {
+            
             var entry = (new MapEntry(key,val))
             this.entries.push(entry)
         }
     }
 
-    function get(key) {
-        if this.contains(key) {
+    function Get(key) {
+        if this.Contains(key) {
             var i = 0
             while i < this.entries.len() {
                 var K = this.entries.get(i).K

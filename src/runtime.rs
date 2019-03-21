@@ -99,6 +99,21 @@ fn to_string(val: &GcValue) -> String
     }
 }
 
+pub fn print(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    let s = string(frame, args);
+    let s_ref: &Value = &s.get();
+    if let Value::Str(s) = s_ref
+    {
+        print!("{}", s);
+    }
+    else
+    {
+        panic!("String expected");
+    }
+    GcValue::new(Value::Null)
+}
+
 pub fn println(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
 {
     let s = string(frame, args);
@@ -241,6 +256,138 @@ pub fn builtin_sqrt(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
     GcValue::new(val)
 }
 
+pub fn builtin_readline(_: &mut Frame, _: Vec<GcValue>) -> GcValue
+{
+    use std::io::stdin;
+    use std::io::Read;
+    let mut buff = String::new();
+
+    stdin().read_to_string(&mut buff)
+           .expect("Failed to read string");
+
+    GcValue::new(Value::Str(buff))
+}
+
+pub fn builtin_clear(_: &mut Frame, _: Vec<GcValue>) -> GcValue
+{
+    use crossterm::ClearType;
+    use crossterm::Terminal;
+
+    let term = Terminal::new();
+
+    term.clear(ClearType::All)
+        .expect("Failed to clear terminal");
+
+    GcValue::new(Value::Null)
+}
+
+pub fn rand_int(_: &mut Frame, _: Vec<GcValue>) -> GcValue
+{
+    use rand::random;
+    GcValue::new(Value::Int(random()))
+}
+
+pub fn rand_range(_: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    use rand::{thread_rng, Rng};
+    let start: i64 = args[0].map(&mut |val| match val
+                            {
+                                Value::Int(i) => *i,
+                                _ => panic!("Int value expected"),
+                            });
+    let end: i64 = args[1].map(&mut |val| match val
+                          {
+                              Value::Int(i) => *i,
+                              _ => panic!("Int value expected"),
+                          });
+    let mut rng = thread_rng();
+    GcValue::new(Value::Int(rng.gen_range(start, end)))
+}
+
+pub fn rand_float(_: &mut Frame, _: Vec<GcValue>) -> GcValue
+{
+    use rand::random;
+    GcValue::new(Value::Float(random()))
+}
+
+pub fn builtin_console_set_size(_: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    use crossterm::Terminal;
+    let x: i16 = args[0].map(&mut |val| match val
+                        {
+                            Value::Int(i) => *i as i16,
+                            Value::Float(f) => *f as i16,
+                            _ => unimplemented!(),
+                        });
+    let y: i16 = args[1].map(&mut |val| match val
+                        {
+                            Value::Int(i) => *i as i16,
+                            Value::Float(f) => *f as i16,
+                            _ => unimplemented!(),
+                        });
+
+    let term = Terminal::new();
+    term.set_size(x, y).expect("Failed to set size");
+    GcValue::new(Value::Null)
+}
+
+pub fn hash(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    use std::mem::transmute;
+    use jazzvm::hash::hash_bytes;
+    let val = args[0].clone();
+    let v_clon = val.clone();
+    let val_ref: &Value = &val.get();
+    
+    let hash = match val_ref {
+        Value::Int(i) => {
+            let bytes: [u8;8] = unsafe {transmute(*i)};
+            hash_bytes(&bytes) as i64
+        },
+        Value::Float(f) => {
+            let bytes: [u8;8] = unsafe {transmute(*f)};
+            hash_bytes(&bytes) as i64
+        }
+        Value::Str(s) => {
+            hash_bytes(s.as_bytes()) as i64
+        }
+        Value::Bool(b) => {
+            let bytes: [u8;1] = unsafe {transmute(*b)};
+            hash_bytes(&bytes) as i64
+        }
+        Value::Null => hash_bytes(&[0]) as i64,
+        Value::Object(obj) => {
+            let field = obj.find(&GcValue::new(Value::Str("_hash_".to_owned()))).clone();
+            let h = frame.invoke(&field,v_clon,0);
+            let hash = h.map(&mut |val| {
+                match val {
+                    Value::Int(i) => *i,
+                    _ => unimplemented!()
+                }
+            });
+            hash as i64
+        }
+        Value::Array(arr) => {
+            let mut res = 0;
+            for elem in arr.iter() {
+                
+                let h = hash(frame,vec![elem.clone()]);
+                h.map::<i32>(&mut |val| {
+                        match val {
+                            Value::Int(i) => res += i,
+                            _ => unimplemented!()
+                        }
+                    0
+                });
+            }
+            res as i64
+        }
+        Value::Func(_) => panic!("Can't hash function")
+    };
+    GcValue::new(Value::Int(hash))
+}
+
+
 pub fn builtin_sin(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
 {
     let val = &args[0];
@@ -313,4 +460,12 @@ pub fn builtins(cmpl: &mut Compiler)
     reg_fn!(cmpl, open_file);
     reg_fn!(cmpl, builtin_sin);
     reg_fn!(cmpl, builtin_sqrt);
+    reg_fn!(cmpl, print);
+    reg_fn!(cmpl, builtin_readline);
+    reg_fn!(cmpl, builtin_clear);
+    reg_fn!(cmpl, builtin_console_set_size);
+    reg_fn!(cmpl, rand_int);
+    reg_fn!(cmpl, rand_float);
+    reg_fn!(cmpl, rand_range);
+    reg_fn!(cmpl, hash);
 }

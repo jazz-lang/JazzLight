@@ -306,7 +306,7 @@ impl<'a> Frame<'a>
                             let val = obj.find(&key);
                             self.push(val.clone());
                         }
-                        _ => panic!("Object expected"),
+                        v => panic!("Object expected {:?}",v),
                     }
                 }
                 StFld =>

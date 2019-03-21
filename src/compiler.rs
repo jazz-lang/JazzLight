@@ -130,6 +130,7 @@ impl<'a> Compiler<'a>
                     if cfg!(debug_assertions)
                     {
                         println!("Disassemble of `{}` function", name);
+                        println!(".max_locals {}", max_locals);
                         for (idx, op) in code.iter().enumerate()
                         {
                             println!("{:04} {:?}", idx, op);
@@ -191,6 +192,7 @@ impl<'a> Compiler<'a>
                                     if cfg!(debug_assertions)
                                     {
                                         println!("Disassemble of `{}::{}` function", name, fname);
+                                        println!(".max_lcoals {}", max_locals);
                                         for (idx, op) in code.iter().enumerate()
                                         {
                                             println!("{:04} {:?}", idx, op);
@@ -324,18 +326,37 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
             ExprKind::ConstBool(b) => self.emit(Instruction::LdBool(*b)),
             ExprKind::Var(_, name, init) =>
             {
-                let id = self.new_varid();
-                if init.is_some()
+                if !self.locals.contains_key(name)
                 {
-                    let val = init.clone().unwrap();
-                    self.compile(&val);
-                    self.emit(Instruction::StLoc(id));
+                    let id = self.new_varid();
+                    if init.is_some()
+                    {
+                        let val = init.clone().unwrap();
+                        self.compile(&val);
+                        self.emit(Instruction::StLoc(id));
+                    }
+                    else
+                    {
+                        /* Do nothing */
+                    }
+                    self.locals.insert(name.to_string(), id);
                 }
                 else
                 {
-                    /* Do nothing */
+                    let id = *self.locals.get(name).unwrap();
+                    if init.is_some()
+                    {
+                        let val = init.clone().unwrap();
+                        self.compile(&val);
+                        self.emit(Instruction::StLoc(id));
+                    }
+                    else
+                    {
+                        /* Do nothing */
+                    }
                 }
-                self.locals.insert(name.to_string(), id);
+
+                
             }
             ExprKind::Array(values) =>
             {
@@ -376,6 +397,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                 self.emit(Instruction::LdString(field.to_string()));
                 self.emit(Instruction::LdFld);
             }
+            
             ExprKind::Assign(var, to) =>
             {
                 self.compile(&to);
@@ -456,6 +478,23 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                     let or = or.clone().unwrap();
                     self.compile(&or);
                 }
+            }
+
+            ExprKind::For(decl,cond,then,block) => {
+                let compare = self.new_empty_label();
+                let end = self.new_empty_label();
+                self.end_labels.push(end.clone());
+                
+                self.check_labels.push(compare.clone());
+                self.compile(&decl);
+                self.label_here(&compare);
+                self.compile(&cond);
+                self.ins.push(UOP::GotoF(end.clone()));
+                self.compile(&block);
+                self.compile(&then);
+                self.ins.push(UOP::Goto(compare));
+                self.label_here(&end);
+
             }
             ExprKind::While(cond, repeat) =>
             {

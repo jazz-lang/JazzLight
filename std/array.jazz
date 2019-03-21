@@ -15,6 +15,19 @@ class Array {
         return aget(this._buffer,x)
     }
 
+    function <(rhs) {
+        return this.len() < rhs.len()
+    }
+    function >(rhs) {
+        return this.len() > rhs.len()
+    }
+    function _gte_(rhs) {
+        return this.len() >= rhs.len()
+    }
+    function _lte_(rhs) {
+        return this.len() <= rhs.len()
+    }
+
     function set(idx,val) {
         aset(this._buffer,idx,val)
     }
@@ -28,5 +41,24 @@ class Array {
 
     function _eq_(rhs) {
         this.raw() == rhs.raw()
+    }
+    // Initialize array with some size
+    function with_size(size) {
+        var arr = new Array()
+        var i = 0
+        while i < size {
+            arr.push(null)
+            i = i + 1
+        }
+        return arr
+    }
+
+    // Extend current array with elements from other
+    function extend(other) {
+        var new_buff = this._buffer
+        for var i = 0; i < other.len();i = i + 1 {
+            apush(new_buff,other.get(i))
+        }
+        this._buffer = new_buff
     }
 }

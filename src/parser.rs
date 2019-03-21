@@ -134,7 +134,20 @@ impl<'a> Parser<'a>
     fn parse_function(&mut self) -> EResult
     {
         let pos = self.expect_token(TokenKind::Fun)?.position;
-        let name = self.expect_identifier()?;
+        let name = match &self.token.kind {
+            TokenKind::Identifier(ident) => ident.clone(),
+            TokenKind::Add => "_add_".to_owned(),
+            TokenKind::Sub => "_sub_".to_owned(),
+            TokenKind::Div => "_div_".to_owned(),
+            TokenKind::Mul => "_mul_".to_owned(),
+            TokenKind::Mod => "_mod_".to_owned(),
+            TokenKind::Gt => "_gt_".to_owned(),
+            TokenKind::Lt => "_lt_".to_owned(),
+            TokenKind::Eq => "_eq_".to_owned(),
+            _ => unimplemented!()
+        };
+        self.advance_token()?;
+            //self.expect_identifier()?;
         self.expect_token(TokenKind::LParen)?;
         let params = if self.token.kind == TokenKind::RParen
         {
@@ -200,6 +213,7 @@ impl<'a> Parser<'a>
             TokenKind::Let | TokenKind::Var => self.parse_let(),
             TokenKind::LBrace => self.parse_block(),
             TokenKind::If => self.parse_if(),
+            TokenKind::For => self.parse_for(),
             TokenKind::While => self.parse_while(),
             TokenKind::Break => self.parse_break(),
             TokenKind::Continue => self.parse_continue(),
@@ -239,6 +253,19 @@ impl<'a> Parser<'a>
         {
             panic!("String expected at {}", pos)
         }
+    }
+    fn parse_for(&mut self) -> EResult
+    {
+        let pos = self.expect_token(TokenKind::For)?.position;
+        let decl = self.parse_expression()?;
+        self.expect_token(TokenKind::Semicolon)?;
+
+        let cond = self.parse_expression()?;
+        self.expect_token(TokenKind::Semicolon)?;
+        let then = self.parse_expression()?;
+
+        let block = self.parse_block()?;
+        Ok(expr!(ExprKind::For(decl, cond, then, block), pos))
     }
 
     fn parse_while(&mut self) -> EResult
