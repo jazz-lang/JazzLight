@@ -60,6 +60,7 @@ pub enum TokenKind
     Nil,
     Throw,
     Do,
+    ForEach,
 
     Type,
     Const,
@@ -112,6 +113,7 @@ impl TokenKind
     {
         match *self
         {
+            TokenKind::ForEach => "foreach",
             TokenKind::String(_) => "string",
             TokenKind::LitInt(_, _, suffix) => match suffix
             {

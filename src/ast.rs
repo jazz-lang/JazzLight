@@ -42,6 +42,7 @@ pub enum ExprKind
     Import(String),
     Include(String),
     For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
+    ForIn(String, Box<Expr>, Box<Expr>),
 }
 
 use std::fmt;

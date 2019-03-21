@@ -27,6 +27,7 @@ impl Lexer
             "var" => TokenKind::Var,
             "while" => TokenKind::While,
             "for" => TokenKind::For,
+            "foreach" => TokenKind::ForEach,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "in" => TokenKind::In,

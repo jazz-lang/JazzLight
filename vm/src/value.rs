@@ -84,7 +84,7 @@ impl Object
                 }
             }
         }
-        panic!("Not found {:?}", key);
+        panic!("Not found {:?}\n{:#?}", key,self.entries);
     }
 
     pub fn contains(&self, key: &GcValue) -> bool

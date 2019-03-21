@@ -10,6 +10,22 @@ class MapEntry {
         concat("MapEntry\n","key: ",this.K,"\n","val: ",this.V,"\n")
     }
 }
+include "std/option.jazz"
+
+class MapIter {
+    function __init__(map) {
+        this.map = map 
+        this.i = 0
+    }
+    function next() {
+        if this.i < this.map.len() {
+            var ret = this.map.entries.get(this.i)
+            this.i = this.i + 1
+            return some(ret)
+        }
+        return none()
+    }   
+}
 
 class Map {
     function __init__() {

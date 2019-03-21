@@ -278,8 +278,9 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
     #[inline]
     fn new_varid(&mut self) -> u16
     {
+        let id = self.max_locals;
         self.max_locals += 1;
-        self.locals.len() as u16
+        self.max_locals
     }
     fn emit(&mut self, op: Instruction)
     {
@@ -355,8 +356,6 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                         /* Do nothing */
                     }
                 }
-
-                
             }
             ExprKind::Array(values) =>
             {
@@ -397,7 +396,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                 self.emit(Instruction::LdString(field.to_string()));
                 self.emit(Instruction::LdFld);
             }
-            
+
             ExprKind::Assign(var, to) =>
             {
                 self.compile(&to);
@@ -479,12 +478,58 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                     self.compile(&or);
                 }
             }
+            ExprKind::ForIn(var, in_, repeat) =>
+            {
+                let check_lbl = self.new_empty_label();
+                let end_lbl = self.new_empty_label();
+                let viter = self.new_varid();
 
-            ExprKind::For(decl,cond,then,block) => {
+                let id = if !self.locals.contains_key(var)
+                {
+                    let id = self.new_varid();
+                    self.locals.insert(var.to_owned(), id);
+                    id
+                }
+                else
+                {
+                    *self.locals.get(var).unwrap()
+                };
+                let vid = self.new_varid();
+
+                self.compile(&in_);
+                self.emit(Instruction::Dup);
+                self.emit(Instruction::LdString("iter".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::Invoke(0));
+                self.emit(Instruction::StLoc(viter));
+
+                self.label_here(&check_lbl);
+                self.emit(Instruction::LdLoc(viter));
+                self.emit(Instruction::Dup);
+                self.emit(Instruction::LdString("next".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::Invoke(0));
+                self.emit(Instruction::StLoc(vid));
+                self.emit(Instruction::LdLoc(vid));
+                self.emit(Instruction::LdString("is_some".into()));
+                self.emit(Instruction::LdFld);
+                self.ins.push(UOP::GotoF(end_lbl.clone()));
+
+                self.emit(Instruction::LdLoc(vid));
+                self.emit(Instruction::LdString("val".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::StLoc(id));
+                self.compile(&repeat);
+                self.ins.push(UOP::Goto(check_lbl));
+                self.label_here(&end_lbl);
+            }
+
+            ExprKind::For(decl, cond, then, block) =>
+            {
                 let compare = self.new_empty_label();
                 let end = self.new_empty_label();
                 self.end_labels.push(end.clone());
-                
+
                 self.check_labels.push(compare.clone());
                 self.compile(&decl);
                 self.label_here(&compare);
@@ -494,7 +539,6 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                 self.compile(&then);
                 self.ins.push(UOP::Goto(compare));
                 self.label_here(&end);
-
             }
             ExprKind::While(cond, repeat) =>
             {

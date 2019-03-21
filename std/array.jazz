@@ -1,3 +1,24 @@
+include "std/option.jazz"
+
+class ArrayIter {
+    function __init__(arr) {
+        this.arr = arr
+        this.i = 0
+    }
+    function next() {
+        if this.i < this.arr.len() {         
+            var ret =  some(this.arr.get(this.i))
+            this.i = this.i + 1
+            return ret
+
+        }
+        return none()
+    }
+
+    function display() {
+        return string(this.arr)
+    }
+}
 class Array {
     function __init__() {
         this._buffer = _ARGS_
@@ -28,6 +49,10 @@ class Array {
         return this.len() <= rhs.len()
     }
 
+    function iter() {
+        return new ArrayIter(this)
+    }
+
     function set(idx,val) {
         aset(this._buffer,idx,val)
     }
@@ -42,6 +67,14 @@ class Array {
     function _eq_(rhs) {
         this.raw() == rhs.raw()
     }
+    function map(f) {
+        var res = new Array()
+        for var i = 0;i < this.len(); i = i + 1 {
+            res.push(f(this.get(i)))
+        }
+        return res
+    }
+
     // Initialize array with some size
     function with_size(size) {
         var arr = new Array()

@@ -134,7 +134,8 @@ impl<'a> Parser<'a>
     fn parse_function(&mut self) -> EResult
     {
         let pos = self.expect_token(TokenKind::Fun)?.position;
-        let name = match &self.token.kind {
+        let name = match &self.token.kind
+        {
             TokenKind::Identifier(ident) => ident.clone(),
             TokenKind::Add => "_add_".to_owned(),
             TokenKind::Sub => "_sub_".to_owned(),
@@ -144,10 +145,10 @@ impl<'a> Parser<'a>
             TokenKind::Gt => "_gt_".to_owned(),
             TokenKind::Lt => "_lt_".to_owned(),
             TokenKind::Eq => "_eq_".to_owned(),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         };
         self.advance_token()?;
-            //self.expect_identifier()?;
+        //self.expect_identifier()?;
         self.expect_token(TokenKind::LParen)?;
         let params = if self.token.kind == TokenKind::RParen
         {
@@ -254,18 +255,38 @@ impl<'a> Parser<'a>
             panic!("String expected at {}", pos)
         }
     }
+
     fn parse_for(&mut self) -> EResult
     {
         let pos = self.expect_token(TokenKind::For)?.position;
+
         let decl = self.parse_expression()?;
-        self.expect_token(TokenKind::Semicolon)?;
+        if self.token.is(TokenKind::In)
+        {
+            self.advance_token()?;
+            let in_ = self.parse_expression()?;
+            let block = self.parse_expression()?;
+            let name = if let ExprKind::Ident(name) = decl.expr
+            {
+                name.clone()
+            }
+            else
+            {
+                unimplemented!()
+            };
+            Ok(expr!(ExprKind::ForIn(name, in_, block), pos))
+        }
+        else
+        {
+            self.expect_token(TokenKind::Semicolon)?;
 
-        let cond = self.parse_expression()?;
-        self.expect_token(TokenKind::Semicolon)?;
-        let then = self.parse_expression()?;
+            let cond = self.parse_expression()?;
+            self.expect_token(TokenKind::Semicolon)?;
+            let then = self.parse_expression()?;
 
-        let block = self.parse_block()?;
-        Ok(expr!(ExprKind::For(decl, cond, then, block), pos))
+            let block = self.parse_expression()?;
+            Ok(expr!(ExprKind::For(decl, cond, then, block), pos))
+        }
     }
 
     fn parse_while(&mut self) -> EResult
