@@ -69,8 +69,8 @@ class Array {
     }
     function map(f) {
         var res = new Array()
-        for var i = 0;i < this.len(); i = i + 1 {
-            res.push(f(this.get(i)))
+        for x in this {
+            res.push(f(x))
         }
         return res
     }
@@ -84,6 +84,13 @@ class Array {
             i = i + 1
         }
         return arr
+    }
+
+    function clone() {
+        var n = new Array()
+        n._buffer = clone(this._buffer)
+        
+        return n
     }
 
     // Extend current array with elements from other

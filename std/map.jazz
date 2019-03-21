@@ -9,6 +9,10 @@ class MapEntry {
     function display() {
         concat("MapEntry\n","key: ",this.K,"\n","val: ",this.V,"\n")
     }
+
+    function clone() {
+        return new MapEntry(clone(this.K),clone(this.V))
+    }
 }
 include "std/option.jazz"
 
@@ -25,6 +29,8 @@ class MapIter {
         }
         return none()
     }   
+
+    
 }
 
 class Map {
@@ -45,7 +51,12 @@ class Map {
         }
         return false
     }
-
+    
+    function clone() {
+        var map = new Map()
+        map.entries = this.entries.clone()
+        return map
+    }
     function Insert(key,val) {
         if this.Contains(key) {
             var i = 0

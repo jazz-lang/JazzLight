@@ -46,6 +46,7 @@ function sin(x) {
         );
         let mut buff = String::new();
         use std::io::Read;
+        let start = PreciseTime::now();
         std::fs::File::open(path).unwrap()
                                  .read_to_string(&mut buff)
                                  .unwrap();
@@ -62,12 +63,11 @@ function sin(x) {
         compiler.compile_ast(ast);
 
         let f = compiler.globals.get("main").unwrap();
-        let start = PreciseTime::now();
-        let result = compiler.vm.run_function(*f);
+
+        compiler.vm.run_function(*f);
         let end = PreciseTime::now();
 
-        println!("RESULT: {:?} in {} ms",
-                 result,
+        println!("Compiling and execution time {} ms",
                  start.to(end).num_milliseconds());
     }
     else

@@ -104,6 +104,34 @@ impl<'a> Compiler<'a>
                     self.globals.extend(defs);
                     self.functions.extend(fns);
                 }
+                ExprKind::IncludeUrl(name) =>
+                {
+                    use crate::parser::Parser;
+                    use crate::reader::Reader;
+                    use reqwest::get;
+                    let text = get(name).unwrap().text().unwrap();
+                    let reader = Reader::from_string(&text);
+                    let mut ast = vec![];
+
+                    let mut parser = Parser::new(reader, &mut ast);
+
+                    parser.parse().unwrap();
+                    use std::path::Path;
+                    let mname = Path::new(name).file_stem()
+                                                .unwrap()
+                                                .to_str()
+                                                .unwrap()
+                                                .to_owned();
+
+                    let mut compiler = Compiler::new(self.vm, mname);
+                    compiler.compile_ast(ast);
+
+                    let defs = compiler.get_definitions();
+                    let fns = compiler.get_functions();
+
+                    self.globals.extend(defs);
+                    self.functions.extend(fns);
+                }
                 _ => (),
             }
         }
@@ -478,6 +506,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b>
                     self.compile(&or);
                 }
             }
+
             ExprKind::ForIn(var, in_, repeat) =>
             {
                 let check_lbl = self.new_empty_label();

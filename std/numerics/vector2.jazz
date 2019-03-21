@@ -14,7 +14,7 @@ class Vector2 {
     function display() {
         concat("(",this.x,";",this.y,")")
     }
-    function dot(val2) {
+    function Dot(val2) {
         return this.x * val2.x + this.y * val2.y
     }
     function +(rhs) {

@@ -67,6 +67,7 @@ pub enum TokenKind
 
     Underscore,
     Import,
+    IncludeUrl,
 
     // Operators
     Add,
@@ -113,6 +114,7 @@ impl TokenKind
     {
         match *self
         {
+            TokenKind::IncludeUrl => "includeurl",
             TokenKind::ForEach => "foreach",
             TokenKind::String(_) => "string",
             TokenKind::LitInt(_, _, suffix) => match suffix

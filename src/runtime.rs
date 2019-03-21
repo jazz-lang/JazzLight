@@ -331,62 +331,84 @@ pub fn builtin_console_set_size(_: &mut Frame, args: Vec<GcValue>) -> GcValue
     GcValue::new(Value::Null)
 }
 
+pub fn exit(_: &mut Frame, _: Vec<GcValue>) -> GcValue
+{
+    std::process::exit(0);
+}
+
+pub fn assert(_: &mut Frame, args: Vec<GcValue>) -> GcValue
+{
+    args[0].map(&mut |val| {
+               match val
+               {
+                   Value::Bool(b) => assert!(b),
+                   _ => panic!("Assertion failed"),
+               };
+               0
+           });
+    GcValue::new(Value::Null)
+}
+
 pub fn hash(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
 {
-    use std::mem::transmute;
     use jazzvm::hash::hash_bytes;
+    use std::mem::transmute;
     let val = args[0].clone();
     let v_clon = val.clone();
     let val_ref: &Value = &val.get();
-    
-    let hash = match val_ref {
-        Value::Int(i) => {
-            let bytes: [u8;8] = unsafe {transmute(*i)};
-            hash_bytes(&bytes) as i64
-        },
-        Value::Float(f) => {
-            let bytes: [u8;8] = unsafe {transmute(*f)};
+
+    let hash = match val_ref
+    {
+        Value::Int(i) =>
+        {
+            let bytes: [u8; 8] = unsafe { transmute(*i) };
             hash_bytes(&bytes) as i64
         }
-        Value::Str(s) => {
-            hash_bytes(s.as_bytes()) as i64
+        Value::Float(f) =>
+        {
+            let bytes: [u8; 8] = unsafe { transmute(*f) };
+            hash_bytes(&bytes) as i64
         }
-        Value::Bool(b) => {
-            let bytes: [u8;1] = unsafe {transmute(*b)};
+        Value::Str(s) => hash_bytes(s.as_bytes()) as i64,
+        Value::Bool(b) =>
+        {
+            let bytes: [u8; 1] = unsafe { transmute(*b) };
             hash_bytes(&bytes) as i64
         }
         Value::Null => hash_bytes(&[0]) as i64,
-        Value::Object(obj) => {
-            let field = obj.find(&GcValue::new(Value::Str("_hash_".to_owned()))).clone();
-            let h = frame.invoke(&field,v_clon,0);
-            let hash = h.map(&mut |val| {
-                match val {
-                    Value::Int(i) => *i,
-                    _ => unimplemented!()
-                }
-            });
+        Value::Object(obj) =>
+        {
+            let field = obj.find(&GcValue::new(Value::Str("_hash_".to_owned())))
+                           .clone();
+            let h = frame.invoke(&field, v_clon, 0);
+            let hash = h.map(&mut |val| match val
+                        {
+                            Value::Int(i) => *i,
+                            _ => unimplemented!(),
+                        });
             hash as i64
         }
-        Value::Array(arr) => {
+        Value::Array(arr) =>
+        {
             let mut res = 0;
-            for elem in arr.iter() {
-                
-                let h = hash(frame,vec![elem.clone()]);
+            for elem in arr.iter()
+            {
+                let h = hash(frame, vec![elem.clone()]);
                 h.map::<i32>(&mut |val| {
-                        match val {
-                            Value::Int(i) => res += i,
-                            _ => unimplemented!()
-                        }
-                    0
-                });
+                     match val
+                     {
+                         Value::Int(i) => res += i,
+                         _ => unimplemented!(),
+                     }
+                     0
+                 });
             }
             res as i64
         }
-        Value::Func(_) => panic!("Can't hash function")
+        Value::Func(_) => panic!("Can't hash function"),
     };
     GcValue::new(Value::Int(hash))
 }
-
 
 pub fn builtin_sin(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
 {
@@ -400,6 +422,20 @@ pub fn builtin_sin(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
     };
     GcValue::new(val)
 }
+pub fn clone(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
+{   
+    let v_clon = args[0].clone();
+    let val: &Value = &args[0].get();
+    match val {
+        Value::Object(obj) => {
+            let f = obj.find(&GcValue::new(Value::Str("clone".to_owned()))).clone();
+            let v = frame.invoke(&f, v_clon, 0);
+            return v;
+        }
+        v => GcValue::new(v.clone())
+    }
+}
+
 pub fn builtins(cmpl: &mut Compiler)
 {
     fn concat(frame: &mut Frame, args: Vec<GcValue>) -> GcValue
@@ -468,4 +504,7 @@ pub fn builtins(cmpl: &mut Compiler)
     reg_fn!(cmpl, rand_float);
     reg_fn!(cmpl, rand_range);
     reg_fn!(cmpl, hash);
+    reg_fn!(cmpl, exit);
+    reg_fn!(cmpl, assert);
+    reg_fn!(cmpl, clone);
 }
