@@ -1,30 +1,24 @@
-extern crate jazz;
-extern crate structopt;
-
-use jazz::compiler::Compiler;
-use jazz::parser::Parser;
-use jazz::reader::Reader;
-
-use jazzvm::vm::VirtualMachine;
 use std::path::PathBuf;
+
 use structopt::StructOpt;
 use time::PreciseTime;
+
+use jazz::{compiler::Compiler, parser::Parser, reader::Reader};
+use jazzvm::vm::VirtualMachine;
+
 #[derive(StructOpt, Debug)]
-pub struct Options
-{
+pub struct Options {
     #[structopt(name = "FILE", parse(from_os_str))]
     file: Option<PathBuf>,
 }
 
-fn main()
-{
+fn main() {
     let ops = Options::from_args();
-    if let Some(path) = ops.file
-    {
+    if let Some(path) = ops.file {
         let path: PathBuf = path;
         let mut string = String::new();
         string.push_str(
-                        "
+            "
                     
                             function pow(x,y) {
     if y == 0 {
@@ -46,9 +40,10 @@ function sin(x) {
         );
         let mut buff = String::new();
         use std::io::Read;
-        std::fs::File::open(path).unwrap()
-                                 .read_to_string(&mut buff)
-                                 .unwrap();
+        std::fs::File::open(path)
+            .unwrap()
+            .read_to_string(&mut buff)
+            .unwrap();
         string.push_str(&buff);
         let reader = Reader::from_string(&string);
 
@@ -66,12 +61,12 @@ function sin(x) {
         let result = compiler.vm.run_function(*f);
         let end = PreciseTime::now();
 
-        println!("RESULT: {:?} in {} ms",
-                 result,
-                 start.to(end).num_milliseconds());
-    }
-    else
-    {
+        println!(
+            "RESULT: {:?} in {} ms",
+            result,
+            start.to(end).num_milliseconds()
+        );
+    } else {
         panic!("You should enter file path");
     }
 }
