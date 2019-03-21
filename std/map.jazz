@@ -1,0 +1,60 @@
+include "std/array.jazz"
+include "std/option.jazz"
+class MapEntry {
+    function __init__(key,val) {
+        this.K = key
+        this.V = val
+    }
+}
+
+class Map {
+    function __init__() {
+        this.entries = (new Array())
+    }
+
+    function contains(key) {
+        var i = 0
+        while i < this.entries.len() {
+            var K = this.entries.get(i).K 
+            if K == key {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+
+    function insert(key,val) {
+        if this.contains(key) {
+            var i = 0
+            while i < this.entries.len() {
+                var K = this.entries.get(i).K
+                if K == key {
+                    this.entries.get(i).V = val
+                }
+            }
+        } else {
+            var entry = (new MapEntry(key,val))
+            this.entries.push(entry)
+        }
+    }
+
+    function get(key) {
+        if this.contains(key) {
+            var i = 0
+            while i < this.entries.len() {
+                var K = this.entries.get(i).K
+                if K == key {
+                    return some(this.entries.get(i).V)
+                }
+            }
+        }
+
+        return none()
+    }
+
+    function len() {
+        return this.entries.len()
+    }
+}
+

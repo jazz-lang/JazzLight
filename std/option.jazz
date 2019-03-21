@@ -7,6 +7,14 @@ class Option {
     function unwrap() {
         return this.val
     }
+
+    function display() {
+        if this.is_some {
+            return concat("Some(",this.val,")")
+        } else {
+            return "None"
+        }
+    }
 }
 
 function none() {
