@@ -54,12 +54,14 @@ pub enum TokenKind {
     Nil,
     Throw,
     Do,
+    ForEach,
 
     Type,
     Const,
 
     Underscore,
     Import,
+    IncludeUrl,
 
     // Operators
     Add,

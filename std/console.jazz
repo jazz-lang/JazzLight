@@ -1,0 +1,33 @@
+class Console {
+    function WriteLine() {
+        var args = _ARGS_
+        var i = 0
+        while i < len(args) {
+            var v = aget(args,i)
+            print(v)
+            i = i + 1
+        }
+        println("")
+    } 
+    function Write() {
+        var args = _ARGS_
+        var i = 0
+        while i < len(args) {
+            var v = aget(args,i)
+            print(v)
+            i = i + 1
+        }
+    }    
+
+    function ReadLine() {
+        return builtin_readline()
+    } 
+
+    function Clear() {
+        builtin_clear()
+        return 0
+    }
+    function SetSize(x,y) {
+        builtin_console_set_size(x,y)
+    }
+}

@@ -39,6 +39,9 @@ pub enum ExprKind {
     This,
     Import(String),
     Include(String),
+    IncludeUrl(String),
+    For(Box<Expr>, Box<Expr>, Box<Expr>, Box<Expr>),
+    ForIn(String, Box<Expr>, Box<Expr>),
 }
 
 use std::fmt;

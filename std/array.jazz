@@ -1,3 +1,24 @@
+include "std/option.jazz"
+
+class ArrayIter {
+    function __init__(arr) {
+        this.arr = arr
+        this.i = 0
+    }
+    function next() {
+        if this.i < this.arr.len() {         
+            var ret =  some(this.arr.get(this.i))
+            this.i = this.i + 1
+            return ret
+
+        }
+        return none()
+    }
+
+    function display() {
+        return string(this.arr)
+    }
+}
 class Array {
     function __init__() {
         this._buffer = _ARGS_
@@ -15,6 +36,23 @@ class Array {
         return aget(this._buffer,x)
     }
 
+    function <(rhs) {
+        return this.len() < rhs.len()
+    }
+    function >(rhs) {
+        return this.len() > rhs.len()
+    }
+    function _gte_(rhs) {
+        return this.len() >= rhs.len()
+    }
+    function _lte_(rhs) {
+        return this.len() <= rhs.len()
+    }
+
+    function iter() {
+        return new ArrayIter(this)
+    }
+
     function set(idx,val) {
         aset(this._buffer,idx,val)
     }
@@ -28,5 +66,39 @@ class Array {
 
     function _eq_(rhs) {
         this.raw() == rhs.raw()
+    }
+    function map(f) {
+        var res = new Array()
+        for x in this {
+            res.push(f(x))
+        }
+        return res
+    }
+
+    // Initialize array with some size
+    function with_size(size) {
+        var arr = new Array()
+        var i = 0
+        while i < size {
+            arr.push(null)
+            i = i + 1
+        }
+        return arr
+    }
+
+    function clone() {
+        var n = new Array()
+        n._buffer = clone(this._buffer)
+        
+        return n
+    }
+
+    // Extend current array with elements from other
+    function extend(other) {
+        var new_buff = this._buffer
+        for var i = 0; i < other.len();i = i + 1 {
+            apush(new_buff,other.get(i))
+        }
+        this._buffer = new_buff
     }
 }

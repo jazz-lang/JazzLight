@@ -1,2 +1,2 @@
-# Jazz
-Simple dynamically typed language inspired by ML, Neko and Rust
+# JazzScript
+Simple dynamically typed language inspired by Rust, Neko, C# and Java

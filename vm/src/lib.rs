@@ -6,3 +6,5 @@ pub mod hash;
 pub mod instruction;
 pub mod value;
 pub mod vm;
+#[macro_use]
+pub mod api;

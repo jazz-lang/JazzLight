@@ -27,6 +27,8 @@ impl Lexer {
             "var" => TokenKind::Var,
             "while" => TokenKind::While,
             "for" => TokenKind::For,
+            "includeurl" => TokenKind::IncludeUrl,
+            "foreach" => TokenKind::ForEach,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "in" => TokenKind::In,
@@ -47,7 +49,8 @@ impl Lexer {
             "class" => TokenKind::Class,
             "implements" => TokenKind::Implements,
             "new" => TokenKind::New,
-            "include" => TokenKind::Include
+            "include" => TokenKind::Include,
+            "for" => TokenKind::For
         );
 
         Lexer {

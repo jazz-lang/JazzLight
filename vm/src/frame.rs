@@ -41,7 +41,11 @@ impl<'a> Frame<'a>
     #[inline]
     pub fn pop(&mut self) -> GcValue
     {
-        self.stack.pop().unwrap()
+        self.stack
+            .pop()
+            .expect(&format!("stack empty,cur opcode: {:?},ip: {}",
+                             self.code[self.ip - 1],
+                             self.ip - 1))
     }
     #[inline]
     pub fn push(&mut self, v: GcValue)
@@ -306,7 +310,7 @@ impl<'a> Frame<'a>
                             let val = obj.find(&key);
                             self.push(val.clone());
                         }
-                        _ => panic!("Object expected"),
+                        v => panic!("Object expected,found: {:?}\nkey: {:?}", v, key),
                     }
                 }
                 StFld =>
@@ -403,11 +407,21 @@ impl<'a> Frame<'a>
                 }
                 LdLoc(id) =>
                 {
+                    if *id >= self.locals.len() as u16 {
+                        for _ in 0..*id {
+                            self.locals.push(GcValue::new(Value::Null));
+                        }
+                    }
                     let val = self.locals[*id as usize].clone();
                     self.push(val);
                 }
                 StLoc(id) =>
                 {
+                    if *id >= self.locals.len() as u16 {
+                        for _ in 0..*id {
+                            self.locals.push(GcValue::new(Value::Null));
+                        }
+                    }
                     let val = self.pop();
                     self.locals[*id as usize] = val;
                 }

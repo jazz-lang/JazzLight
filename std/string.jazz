@@ -1,31 +1,3 @@
-class String {
-    function __init__(buffer) {
-        this._buffer = buffer
-    }
+include "std/option.jazz"
+include "std/array.jazz"
 
-    function len() {
-        return strlen(this._buffer)
-    }
-    function display() {
-        return this._buffer
-    }
-    function trim() {
-        var new_s = strtrim(this._buffer)
-        this._buffer = new_s
-    }
-    function push(ch) {
-        strpushc(this._buffer)
-    }
-    function push_str(s) {
-        strpush(this._buffer)
-    }
-    function raw() {
-        return this._buffer
-    }
-    function _add_(other) {
-        return concat(this,other)
-    }
-    function _eq_(other) {
-        return this.raw() == other.raw()
-    }
-}

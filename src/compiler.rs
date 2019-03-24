@@ -96,6 +96,34 @@ impl<'a> Compiler<'a> {
                     self.globals.extend(defs);
                     self.functions.extend(fns);
                 }
+                ExprKind::IncludeUrl(name) =>
+                {
+                    use crate::parser::Parser;
+                    use crate::reader::Reader;
+                    use reqwest::get;
+                    let text = get(name).unwrap().text().unwrap();
+                    let reader = Reader::from_string(&text);
+                    let mut ast = vec![];
+
+                    let mut parser = Parser::new(reader, &mut ast);
+
+                    parser.parse().unwrap();
+                    use std::path::Path;
+                    let mname = Path::new(name).file_stem()
+                                                .unwrap()
+                                                .to_str()
+                                                .unwrap()
+                                                .to_owned();
+
+                    let mut compiler = Compiler::new(self.vm, mname);
+                    compiler.compile_ast(ast);
+
+                    let defs = compiler.get_definitions();
+                    let fns = compiler.get_functions();
+
+                    self.globals.extend(defs);
+                    self.functions.extend(fns);
+                }
                 _ => (),
             }
         }
@@ -119,6 +147,7 @@ impl<'a> Compiler<'a> {
                     let code = fbuilder.finish();
                     if cfg!(debug_assertions) {
                         println!("Disassemble of `{}` function", name);
+                        println!(".max_locals {}", max_locals);
                         for (idx, op) in code.iter().enumerate() {
                             println!("{:04} {:?}", idx, op);
                         }
@@ -169,6 +198,7 @@ impl<'a> Compiler<'a> {
                                     let code = fbuilder.finish();
                                     if cfg!(debug_assertions) {
                                         println!("Disassemble of `{}::{}` function", name, fname);
+                                        println!(".max_lcoals {}", max_locals);
                                         for (idx, op) in code.iter().enumerate() {
                                             println!("{:04} {:?}", idx, op);
                                         }
@@ -249,13 +279,17 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
         }
     }
     #[inline]
+  
     fn new_varid(&mut self) -> u16 {
+        let id = self.max_locals;
         self.max_locals += 1;
-        self.locals.len() as u16
+        self.max_locals
     }
+    
     fn emit(&mut self, op: Instruction) {
         self.ins.push(UOP::Op(op));
     }
+    
     pub fn finish(&mut self) -> Vec<Instruction> {
         let ins = self
             .ins
@@ -270,6 +304,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
             .collect::<Vec<Instruction>>();
         ins
     }
+      
     pub fn new_empty_label(&mut self) -> String {
         let lab_name = self.labels.len().to_string();
         self.labels.insert(lab_name.clone(), None);
@@ -287,15 +322,35 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
             ExprKind::ConstStr(s) => self.emit(Instruction::LdString(s.clone())),
             ExprKind::ConstBool(b) => self.emit(Instruction::LdBool(*b)),
             ExprKind::Var(_, name, init) => {
-                let id = self.new_varid();
-                if init.is_some() {
-                    let val = init.clone().unwrap();
-                    self.compile(&val);
-                    self.emit(Instruction::StLoc(id));
-                } else {
-                    /* Do nothing */
+                if !self.locals.contains_key(name)
+                {
+                    let id = self.new_varid();
+                    if init.is_some()
+                    {
+                        let val = init.clone().unwrap();
+                        self.compile(&val);
+                        self.emit(Instruction::StLoc(id));
+                    }
+                    else
+                    {
+                        /* Do nothing */
+                    }
+                    self.locals.insert(name.to_string(), id);
                 }
-                self.locals.insert(name.to_string(), id);
+                else
+                {
+                    let id = *self.locals.get(name).unwrap();
+                    if init.is_some()
+                    {
+                        let val = init.clone().unwrap();
+                        self.compile(&val);
+                        self.emit(Instruction::StLoc(id));
+                    }
+                    else
+                    {
+                        /* Do nothing */
+                    }
+                }
             }
             ExprKind::Array(values) => {
                 for val in values.iter().rev() {
@@ -392,6 +447,65 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
                     let or = or.clone().unwrap();
                     self.compile(&or);
                 }
+            }
+            ExprKind::ForIn(var, in_, repeat) => {
+                let check_lbl = self.new_empty_label();
+                let end_lbl = self.new_empty_label();
+                let viter = self.new_varid();
+
+                let id = if !self.locals.contains_key(var)
+                {
+                    let id = self.new_varid();
+                    self.locals.insert(var.to_owned(), id);
+                    id
+                }
+                else
+                {
+                    *self.locals.get(var).unwrap()
+                };
+                let vid = self.new_varid();
+
+                self.compile(&in_);
+                self.emit(Instruction::Dup);
+                self.emit(Instruction::LdString("iter".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::Invoke(0));
+                self.emit(Instruction::StLoc(viter));
+
+                self.label_here(&check_lbl);
+                self.emit(Instruction::LdLoc(viter));
+                self.emit(Instruction::Dup);
+                self.emit(Instruction::LdString("next".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::Invoke(0));
+                self.emit(Instruction::StLoc(vid));
+                self.emit(Instruction::LdLoc(vid));
+                self.emit(Instruction::LdString("is_some".into()));
+                self.emit(Instruction::LdFld);
+                self.ins.push(UOP::GotoF(end_lbl.clone()));
+
+                self.emit(Instruction::LdLoc(vid));
+                self.emit(Instruction::LdString("val".into()));
+                self.emit(Instruction::LdFld);
+                self.emit(Instruction::StLoc(id));
+                self.compile(&repeat);
+                self.ins.push(UOP::Goto(check_lbl));
+                self.label_here(&end_lbl);
+            }
+            ExprKind::For(decl, cond, then, block) => {
+                let compare = self.new_empty_label();
+                let end = self.new_empty_label();
+                self.end_labels.push(end.clone());
+
+                self.check_labels.push(compare.clone());
+                self.compile(&decl);
+                self.label_here(&compare);
+                self.compile(&cond);
+                self.ins.push(UOP::GotoF(end.clone()));
+                self.compile(&block);
+                self.compile(&then);
+                self.ins.push(UOP::Goto(compare));
+                self.label_here(&end);
             }
             ExprKind::While(cond, repeat) => {
                 let compare = self.new_empty_label();
