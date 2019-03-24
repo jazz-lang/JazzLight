@@ -110,8 +110,7 @@ impl<'a> Parser<'a> {
 
     fn parse_function(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Fun)?.position;
-        let name = match &self.token.kind
-        {
+        let name = match &self.token.kind {
             TokenKind::Identifier(ident) => ident.clone(),
             TokenKind::Add => "_add_".to_owned(),
             TokenKind::Sub => "_sub_".to_owned(),
@@ -216,23 +215,17 @@ impl<'a> Parser<'a> {
         let pos = self.expect_token(TokenKind::For)?.position;
 
         let decl = self.parse_expression()?;
-        if self.token.is(TokenKind::In)
-        {
+        if self.token.is(TokenKind::In) {
             self.advance_token()?;
             let in_ = self.parse_expression()?;
             let block = self.parse_expression()?;
-            let name = if let ExprKind::Ident(name) = decl.expr
-            {
+            let name = if let ExprKind::Ident(name) = decl.expr {
                 name.clone()
-            }
-            else
-            {
+            } else {
                 unimplemented!()
             };
             Ok(expr!(ExprKind::ForIn(name, in_, block), pos))
-        }
-        else
-        {
+        } else {
             self.expect_token(TokenKind::Semicolon)?;
 
             let cond = self.parse_expression()?;
@@ -528,7 +521,7 @@ impl<'a> Parser<'a> {
         let block = self.parse_expression()?;
         Ok(expr!(ExprKind::Lambda(params, block), tok.position))
     }
-    
+
     pub fn parse_factor(&mut self) -> EResult {
         let expr = match self.token.kind {
             TokenKind::Fun => self.parse_function(),
@@ -618,7 +611,7 @@ impl<'a> Parser<'a> {
             unreachable!()
         }
     }
-    
+
     fn lit_float(&mut self) -> EResult {
         let tok = self.advance_token()?;
         let pos = tok.position;
@@ -628,7 +621,7 @@ impl<'a> Parser<'a> {
             unreachable!()
         }
     }
-    
+
     fn lit_str(&mut self) -> EResult {
         let tok = self.advance_token()?;
         let pos = tok.position;

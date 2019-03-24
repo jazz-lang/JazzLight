@@ -41,9 +41,10 @@ function sin(x) {
         let mut buff = String::new();
         use std::io::Read;
         let start = PreciseTime::now();
-        std::fs::File::open(path).unwrap()
-                                 .read_to_string(&mut buff)
-                                 .unwrap();
+        std::fs::File::open(path)
+            .unwrap()
+            .read_to_string(&mut buff)
+            .unwrap();
         string.push_str(&buff);
         let reader = Reader::from_string(&string);
 
@@ -61,8 +62,10 @@ function sin(x) {
         compiler.vm.run_function(*f);
         let end = PreciseTime::now();
 
-        println!("Compiling and execution time {} ms",
-                 start.to(end).num_milliseconds());
+        println!(
+            "Compiling and execution time {} ms",
+            start.to(end).num_milliseconds()
+        );
     } else {
         panic!("You should enter file path");
     }

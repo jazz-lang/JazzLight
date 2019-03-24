@@ -1,4 +1,4 @@
-use jazzvm::{frame::Frame, value::*, api::*};
+use jazzvm::{api::*, frame::Frame, value::*};
 use sdl2_sys::*;
 
 use crate::compiler::Compiler;

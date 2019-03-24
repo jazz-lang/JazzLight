@@ -96,8 +96,7 @@ impl<'a> Compiler<'a> {
                     self.globals.extend(defs);
                     self.functions.extend(fns);
                 }
-                ExprKind::IncludeUrl(name) =>
-                {
+                ExprKind::IncludeUrl(name) => {
                     use crate::parser::Parser;
                     use crate::reader::Reader;
                     use reqwest::get;
@@ -109,11 +108,12 @@ impl<'a> Compiler<'a> {
 
                     parser.parse().unwrap();
                     use std::path::Path;
-                    let mname = Path::new(name).file_stem()
-                                                .unwrap()
-                                                .to_str()
-                                                .unwrap()
-                                                .to_owned();
+                    let mname = Path::new(name)
+                        .file_stem()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_owned();
 
                     let mut compiler = Compiler::new(self.vm, mname);
                     compiler.compile_ast(ast);
@@ -279,17 +279,17 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
         }
     }
     #[inline]
-  
+
     fn new_varid(&mut self) -> u16 {
         let id = self.max_locals;
         self.max_locals += 1;
         self.max_locals
     }
-    
+
     fn emit(&mut self, op: Instruction) {
         self.ins.push(UOP::Op(op));
     }
-    
+
     pub fn finish(&mut self) -> Vec<Instruction> {
         let ins = self
             .ins
@@ -304,7 +304,7 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
             .collect::<Vec<Instruction>>();
         ins
     }
-      
+
     pub fn new_empty_label(&mut self) -> String {
         let lab_name = self.labels.len().to_string();
         self.labels.insert(lab_name.clone(), None);
@@ -322,32 +322,23 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
             ExprKind::ConstStr(s) => self.emit(Instruction::LdString(s.clone())),
             ExprKind::ConstBool(b) => self.emit(Instruction::LdBool(*b)),
             ExprKind::Var(_, name, init) => {
-                if !self.locals.contains_key(name)
-                {
+                if !self.locals.contains_key(name) {
                     let id = self.new_varid();
-                    if init.is_some()
-                    {
+                    if init.is_some() {
                         let val = init.clone().unwrap();
                         self.compile(&val);
                         self.emit(Instruction::StLoc(id));
-                    }
-                    else
-                    {
+                    } else {
                         /* Do nothing */
                     }
                     self.locals.insert(name.to_string(), id);
-                }
-                else
-                {
+                } else {
                     let id = *self.locals.get(name).unwrap();
-                    if init.is_some()
-                    {
+                    if init.is_some() {
                         let val = init.clone().unwrap();
                         self.compile(&val);
                         self.emit(Instruction::StLoc(id));
-                    }
-                    else
-                    {
+                    } else {
                         /* Do nothing */
                     }
                 }
@@ -453,14 +444,11 @@ impl<'a, 'b: 'a> FunctionBuilder<'a, 'b> {
                 let end_lbl = self.new_empty_label();
                 let viter = self.new_varid();
 
-                let id = if !self.locals.contains_key(var)
-                {
+                let id = if !self.locals.contains_key(var) {
                     let id = self.new_varid();
                     self.locals.insert(var.to_owned(), id);
                     id
-                }
-                else
-                {
+                } else {
                     *self.locals.get(var).unwrap()
                 };
                 let vid = self.new_varid();
