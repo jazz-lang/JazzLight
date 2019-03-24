@@ -1,25 +1,25 @@
-use crate::msg::{Msg, MsgWithPos};
-use crate::reader::Reader;
-use crate::token::*;
-
 use std::collections::HashMap;
-pub struct Lexer
-{
+
+use hmap::hmap;
+
+use crate::{
+    msg::{Msg, MsgWithPos},
+    reader::Reader,
+    token::*,
+};
+
+pub struct Lexer {
     reader: Reader,
     keywords: HashMap<&'static str, TokenKind>,
 }
-use hmap::hmap;
 
-impl Lexer
-{
-    pub fn from_str(code: &str) -> Lexer
-    {
+impl Lexer {
+    pub fn from_str(code: &str) -> Lexer {
         let reader = Reader::from_string(code);
         Lexer::new(reader)
     }
 
-    pub fn new(reader: Reader) -> Lexer
-    {
+    pub fn new(reader: Reader) -> Lexer {
         let keywords = hmap!(
             "this" => TokenKind::This,
             "function" => TokenKind::Fun,
@@ -53,29 +53,27 @@ impl Lexer
             "for" => TokenKind::For
         );
 
-        Lexer { reader: reader,
-                keywords: keywords }
+        Lexer {
+            reader: reader,
+            keywords: keywords,
+        }
     }
 
-    pub fn filename(&self) -> &str
-    {
+    pub fn filename(&self) -> &str {
         self.reader.filename()
     }
 
-    fn read_multi_comment(&mut self) -> Result<(), MsgWithPos>
-    {
+    fn read_multi_comment(&mut self) -> Result<(), MsgWithPos> {
         let pos = self.reader.pos();
 
         self.read_char();
         self.read_char();
 
-        while !self.cur().is_none() && !self.is_multi_comment_end()
-        {
+        while !self.cur().is_none() && !self.is_multi_comment_end() {
             self.read_char();
         }
 
-        if self.cur().is_none()
-        {
+        if self.cur().is_none() {
             return Err(MsgWithPos::new(pos, Msg::UnclosedComment));
         }
 
@@ -85,50 +83,32 @@ impl Lexer
         Ok(())
     }
 
-    pub fn read_token(&mut self) -> Result<Token, MsgWithPos>
-    {
-        loop
-        {
+    pub fn read_token(&mut self) -> Result<Token, MsgWithPos> {
+        loop {
             self.skip_white();
 
             let pos = self.reader.pos();
             let ch = self.cur();
 
-            if let None = ch
-            {
+            if let None = ch {
                 return Ok(Token::new(TokenKind::End, pos));
             }
 
-            if is_digit(ch)
-            {
+            if is_digit(ch) {
                 return self.read_number();
-            }
-            else if self.is_comment_start()
-            {
+            } else if self.is_comment_start() {
                 self.read_comment()?;
-            }
-            else if self.is_multi_comment_start()
-            {
+            } else if self.is_multi_comment_start() {
                 self.read_multi_comment()?;
-            }
-            else if is_identifier_start(ch)
-            {
+            } else if is_identifier_start(ch) {
                 return self.read_identifier();
-            }
-            else if is_quote(ch)
-            {
+            } else if is_quote(ch) {
                 return self.read_string();
-            }
-            else if is_char_quote(ch)
-            {
+            } else if is_char_quote(ch) {
                 return self.read_char_literal();
-            }
-            else if is_operator(ch)
-            {
+            } else if is_operator(ch) {
                 return self.read_operator();
-            }
-            else
-            {
+            } else {
                 let ch = ch.unwrap();
 
                 return Err(MsgWithPos::new(pos, Msg::UnknownChar(ch)));
@@ -136,21 +116,17 @@ impl Lexer
         }
     }
 
-    fn skip_white(&mut self)
-    {
-        while is_whitespace(self.cur())
-        {
+    fn skip_white(&mut self) {
+        while is_whitespace(self.cur()) {
             self.read_char();
         }
     }
 
-    fn read_identifier(&mut self) -> Result<Token, MsgWithPos>
-    {
+    fn read_identifier(&mut self) -> Result<Token, MsgWithPos> {
         let pos = self.reader.pos();
         let mut value = String::new();
 
-        while is_identifier(self.cur())
-        {
+        while is_identifier(self.cur()) {
             let ch = self.cur().unwrap();
             self.read_char();
             value.push(ch);
@@ -159,63 +135,47 @@ impl Lexer
         let lookup = self.keywords.get(&value[..]).cloned();
         let mut ttype;
 
-        if let Some(tok_type) = lookup
-        {
+        if let Some(tok_type) = lookup {
             ttype = tok_type;
-        }
-        else if value == "_"
-        {
+        } else if value == "_" {
             ttype = TokenKind::Underscore;
-        }
-        else
-        {
+        } else {
             ttype = TokenKind::Identifier(value);
         }
 
         Ok(Token::new(ttype, pos))
     }
 
-    fn read_char_literal(&mut self) -> Result<Token, MsgWithPos>
-    {
+    fn read_char_literal(&mut self) -> Result<Token, MsgWithPos> {
         let pos = self.reader.pos();
 
         self.read_char();
         let ch = self.read_escaped_char(pos, Msg::UnclosedChar)?;
 
-        if is_char_quote(self.cur())
-        {
+        if is_char_quote(self.cur()) {
             self.read_char();
 
             let ttype = TokenKind::LitChar(ch);
             Ok(Token::new(ttype, pos))
-        }
-        else
-        {
+        } else {
             Err(MsgWithPos::new(pos, Msg::UnclosedChar))
         }
     }
 
-    fn read_escaped_char(&mut self, pos: Position, unclosed: Msg) -> Result<char, MsgWithPos>
-    {
-        if let Some(ch) = self.cur()
-        {
+    fn read_escaped_char(&mut self, pos: Position, unclosed: Msg) -> Result<char, MsgWithPos> {
+        if let Some(ch) = self.cur() {
             self.read_char();
 
-            if ch == '\\'
-            {
-                let ch = if let Some(ch) = self.cur()
-                {
+            if ch == '\\' {
+                let ch = if let Some(ch) = self.cur() {
                     ch
-                }
-                else
-                {
+                } else {
                     return Err(MsgWithPos::new(pos, unclosed));
                 };
 
                 self.read_char();
 
-                match ch
-                {
+                match ch {
                     '\\' => Ok('\\'),
                     'n' => Ok('\n'),
                     't' => Ok('\t'),
@@ -223,70 +183,54 @@ impl Lexer
                     '\"' => Ok('\"'),
                     '\'' => Ok('\''),
                     '0' => Ok('\0'),
-                    _ =>
-                    {
+                    _ => {
                         let msg = Msg::InvalidEscapeSequence(ch);
                         Err(MsgWithPos::new(pos, msg))
                     }
                 }
-            }
-            else
-            {
+            } else {
                 Ok(ch)
             }
-        }
-        else
-        {
+        } else {
             Err(MsgWithPos::new(pos, unclosed))
         }
     }
 
-    fn read_string(&mut self) -> Result<Token, MsgWithPos>
-    {
+    fn read_string(&mut self) -> Result<Token, MsgWithPos> {
         let pos = self.reader.pos();
         let mut value = String::new();
 
         self.read_char();
 
-        while !self.cur().is_none() && !is_quote(self.cur())
-        {
+        while !self.cur().is_none() && !is_quote(self.cur()) {
             let ch = self.read_escaped_char(pos, Msg::UnclosedString)?;
             value.push(ch);
         }
 
-        if is_quote(self.cur())
-        {
+        if is_quote(self.cur()) {
             self.read_char();
 
             let ttype = TokenKind::String(value);
             Ok(Token::new(ttype, pos))
-        }
-        else
-        {
+        } else {
             Err(MsgWithPos::new(pos, Msg::UnclosedString))
         }
     }
 
-    fn read_operator(&mut self) -> Result<Token, MsgWithPos>
-    {
+    fn read_operator(&mut self) -> Result<Token, MsgWithPos> {
         let mut tok = self.build_token(TokenKind::End);
         let ch = self.cur().unwrap();
         self.read_char();
 
         let nch = self.cur().unwrap_or('x');
 
-        tok.kind = match ch
-        {
+        tok.kind = match ch {
             '+' => TokenKind::Add,
-            '-' =>
-            {
-                if nch == '>'
-                {
+            '-' => {
+                if nch == '>' {
                     self.read_char();
                     TokenKind::Arrow
-                }
-                else
-                {
+                } else {
                     TokenKind::Sub
                 }
             }
@@ -302,28 +246,20 @@ impl Lexer
             '{' => TokenKind::LBrace,
             '}' => TokenKind::RBrace,
 
-            '|' =>
-            {
-                if nch == '|'
-                {
+            '|' => {
+                if nch == '|' {
                     self.read_char();
                     TokenKind::Or
-                }
-                else
-                {
+                } else {
                     TokenKind::BitOr
                 }
             }
 
-            '&' =>
-            {
-                if nch == '&'
-                {
+            '&' => {
+                if nch == '&' {
                     self.read_char();
                     TokenKind::And
-                }
-                else
-                {
+                } else {
                     TokenKind::BitAnd
                 }
             }
@@ -332,42 +268,31 @@ impl Lexer
             '~' => TokenKind::Tilde,
             ',' => TokenKind::Comma,
             ';' => TokenKind::Semicolon,
-            ':' =>
-            {
-                if nch == ':'
-                {
+            ':' => {
+                if nch == ':' {
                     self.read_char();
                     TokenKind::Sep
-                }
-                else
-                {
+                } else {
                     TokenKind::Colon
                 }
             }
             '.' => TokenKind::Dot,
-            '=' =>
-            {
-                if nch == '='
-                {
+            '=' => {
+                if nch == '=' {
                     self.read_char();
                     TokenKind::EqEq
-                }
-                else
-                {
+                } else {
                     TokenKind::Eq
                 }
             }
 
-            '<' => match nch
-            {
-                '=' =>
-                {
+            '<' => match nch {
+                '=' => {
                     self.read_char();
                     TokenKind::Le
                 }
 
-                '<' =>
-                {
+                '<' => {
                     self.read_char();
                     TokenKind::LtLt
                 }
@@ -375,16 +300,13 @@ impl Lexer
                 _ => TokenKind::Lt,
             },
 
-            '>' => match nch
-            {
-                '=' =>
-                {
+            '>' => match nch {
+                '=' => {
                     self.read_char();
                     TokenKind::Ge
                 }
 
-                '>' =>
-                {
+                '>' => {
                     self.read_char();
 
                     TokenKind::GtGt
@@ -393,21 +315,16 @@ impl Lexer
                 _ => TokenKind::Gt,
             },
 
-            '!' =>
-            {
-                if nch == '='
-                {
+            '!' => {
+                if nch == '=' {
                     self.read_char();
                     TokenKind::Ne
-                }
-                else
-                {
+                } else {
                     TokenKind::Not
                 }
             }
 
-            _ =>
-            {
+            _ => {
                 return Err(MsgWithPos::new(tok.position, Msg::UnknownChar(ch)));
             }
         };
@@ -415,82 +332,66 @@ impl Lexer
         Ok(tok)
     }
 
-    fn read_comment(&mut self) -> Result<(), MsgWithPos>
-    {
-        while !self.cur().is_none() && !is_newline(self.cur())
-        {
+    fn read_comment(&mut self) -> Result<(), MsgWithPos> {
+        while !self.cur().is_none() && !is_newline(self.cur()) {
             self.read_char();
         }
 
         Ok(())
     }
 
-    fn read_digits(&mut self, buffer: &mut String, base: IntBase)
-    {
-        while is_digit_or_underscore(self.cur(), base)
-        {
+    fn read_digits(&mut self, buffer: &mut String, base: IntBase) {
+        while is_digit_or_underscore(self.cur(), base) {
             let ch = self.cur().unwrap();
             self.read_char();
             buffer.push(ch);
         }
     }
 
-    fn read_char(&mut self)
-    {
+    fn read_char(&mut self) {
         self.reader.advance();
     }
 
-    fn cur(&self) -> Option<char>
-    {
+    fn cur(&self) -> Option<char> {
         self.reader.cur()
     }
 
-    fn next(&self) -> Option<char>
-    {
+    fn next(&self) -> Option<char> {
         self.reader.next()
     }
 
-    fn build_token(&self, kind: TokenKind) -> Token
-    {
+    fn build_token(&self, kind: TokenKind) -> Token {
         Token::new(kind, self.reader.pos())
     }
 
-    fn is_comment_start(&self) -> bool
-    {
+    fn is_comment_start(&self) -> bool {
         self.cur() == Some('/') && self.next() == Some('/')
     }
 
-    fn is_multi_comment_start(&self) -> bool
-    {
+    fn is_multi_comment_start(&self) -> bool {
         self.cur() == Some('/') && self.next() == Some('*')
     }
 
-    fn is_multi_comment_end(&self) -> bool
-    {
+    fn is_multi_comment_end(&self) -> bool {
         self.cur() == Some('*') && self.next() == Some('/')
     }
 
-    fn read_number(&mut self) -> Result<Token, MsgWithPos>
-    {
+    fn read_number(&mut self) -> Result<Token, MsgWithPos> {
         let pos = self.reader.pos();
         let mut value = String::new();
 
-        let base = if self.cur() == Some('0')
-        {
+        let base = if self.cur() == Some('0') {
             let next = self.next();
 
-            match next
-            {
-                Some('x') =>
-                {
+            match next {
+                Some('x') => {
                     self.read_char();
                     self.read_char();
 
                     IntBase::Hex
                 }
 
-                Some('b') =>
-                {
+                Some('b') => {
                     self.read_char();
                     self.read_char();
 
@@ -499,28 +400,23 @@ impl Lexer
 
                 _ => IntBase::Dec,
             }
-        }
-        else
-        {
+        } else {
             IntBase::Dec
         };
 
         self.read_digits(&mut value, base);
 
-        if base == IntBase::Dec && self.cur() == Some('.') && is_digit(self.next())
-        {
+        if base == IntBase::Dec && self.cur() == Some('.') && is_digit(self.next()) {
             self.read_char();
             value.push('.');
 
             self.read_digits(&mut value, IntBase::Dec);
 
-            if self.cur() == Some('e') || self.cur() == Some('E')
-            {
+            if self.cur() == Some('e') || self.cur() == Some('E') {
                 value.push(self.cur().unwrap());
                 self.read_char();
 
-                if self.cur() == Some('+') || self.cur() == Some('-')
-                {
+                if self.cur() == Some('+') || self.cur() == Some('-') {
                     value.push(self.cur().unwrap());
                     self.read_char();
                 }
@@ -537,53 +433,43 @@ impl Lexer
     }
 }
 
-fn is_digit(ch: Option<char>) -> bool
-{
+fn is_digit(ch: Option<char>) -> bool {
     ch.map(|ch| ch.is_digit(10)).unwrap_or(false)
 }
 
-fn is_digit_or_underscore(ch: Option<char>, base: IntBase) -> bool
-{
+fn is_digit_or_underscore(ch: Option<char>, base: IntBase) -> bool {
     ch.map(|ch| ch.is_digit(base.num()) || ch == '_')
-      .unwrap_or(false)
+        .unwrap_or(false)
 }
 
-fn is_whitespace(ch: Option<char>) -> bool
-{
+fn is_whitespace(ch: Option<char>) -> bool {
     ch.map(|ch| ch.is_whitespace()).unwrap_or(false)
 }
 
-fn is_newline(ch: Option<char>) -> bool
-{
+fn is_newline(ch: Option<char>) -> bool {
     ch == Some('\n')
 }
 
-fn is_quote(ch: Option<char>) -> bool
-{
+fn is_quote(ch: Option<char>) -> bool {
     ch == Some('\"')
 }
 
-fn is_char_quote(ch: Option<char>) -> bool
-{
+fn is_char_quote(ch: Option<char>) -> bool {
     ch == Some('\'')
 }
 
-fn is_operator(ch: Option<char>) -> bool
-{
+fn is_operator(ch: Option<char>) -> bool {
     ch.map(|ch| "^+-*/%&|,=!~;:.()[]{}<>".contains(ch))
-      .unwrap_or(false)
+        .unwrap_or(false)
 }
 
-fn is_identifier_start(ch: Option<char>) -> bool
-{
-    match ch
-    {
+fn is_identifier_start(ch: Option<char>) -> bool {
+    match ch {
         Some(ch) => (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || ch == '_',
         _ => false,
     }
 }
 
-fn is_identifier(ch: Option<char>) -> bool
-{
+fn is_identifier(ch: Option<char>) -> bool {
     is_identifier_start(ch) || is_digit(ch)
 }

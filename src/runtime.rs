@@ -1,5 +1,7 @@
-use jazzvm::frame::Frame;
-use jazzvm::value::*;
+use jazzvm::{api::*, frame::Frame, value::*};
+use sdl2_sys::*;
+
+use crate::compiler::Compiler;
 
 macro_rules! func {
     ($compiler: expr ; function $name : ident ($framename: ident;$($arg:ident),*) $b:block ) => {
@@ -26,14 +28,7 @@ macro_rules! func {
     };
 }
 
-use crate::compiler::Compiler;
-
-use jazzvm::api::*;
-use sdl2_sys::*;
-
 fn val_as_cstr(val: &GcValue) -> *const i8 {
-    use std::ffi::CString;
-
     val.map(&mut |val| match val {
         Value::Str(s) => s.as_bytes().as_ptr() as *const i8,
         _ => panic!("String value expected"),
@@ -65,6 +60,7 @@ pub fn rsdl_init_video(_: &mut Frame, _: Vec<GcValue>) -> GcValue {
     };
     GcValue::new(Value::Null)
 }
+
 pub fn rsdl_init_everything(_: &mut Frame, _: Vec<GcValue>) -> GcValue {
     unsafe {
         SDL_Init(SDL_INIT_EVERYTHING);
@@ -398,6 +394,7 @@ pub fn builtin_sin(frame: &mut Frame, args: Vec<GcValue>) -> GcValue {
     };
     GcValue::new(val)
 }
+
 pub fn clone(frame: &mut Frame, args: Vec<GcValue>) -> GcValue {
     let v_clon = args[0].clone();
     let val: &Value = &args[0].get();
