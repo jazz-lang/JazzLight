@@ -29,8 +29,6 @@ macro_rules! func {
 }
 
 fn val_as_cstr(val: &GcValue) -> *const i8 {
-    use std::ffi::CString;
-
     val.map(&mut |val| match val {
         Value::Str(s) => s.as_bytes().as_ptr() as *const i8,
         _ => panic!("String value expected"),

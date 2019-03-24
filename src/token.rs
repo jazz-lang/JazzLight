@@ -105,6 +105,8 @@ pub enum TokenKind {
 impl TokenKind {
     pub fn name(&self) -> &str {
         match *self {
+            TokenKind::IncludeUrl => "includeurl",
+            TokenKind::ForEach => "foreach",
             TokenKind::String(_) => "string",
             TokenKind::LitInt(_, _, suffix) => match suffix {
                 IntSuffix::Byte => "byte number",
