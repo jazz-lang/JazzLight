@@ -1,5 +1,0 @@
-include "std/numerics/vector2.jazz"
-function main() {
-    var vec = new Vector2(3,4)
-    println(vec.length())
-}

@@ -27,7 +27,6 @@ impl Lexer {
             "var" => TokenKind::Var,
             "while" => TokenKind::While,
             "for" => TokenKind::For,
-            "includeurl" => TokenKind::IncludeUrl,
             "foreach" => TokenKind::ForEach,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
@@ -46,9 +45,6 @@ impl Lexer {
             "do" => TokenKind::Do,
             "import" => TokenKind::Import,
             "internal" => TokenKind::Internal,
-            "class" => TokenKind::Class,
-            "implements" => TokenKind::Implements,
-            "new" => TokenKind::New,
             "include" => TokenKind::Include,
             "for" => TokenKind::For
         );
@@ -58,9 +54,11 @@ impl Lexer {
             keywords: keywords,
         }
     }
-
-    pub fn filename(&self) -> &str {
-        self.reader.filename()
+    pub fn path(&self) -> String {
+        self.filename()
+    }
+    pub fn filename(&self) -> String {
+        self.reader.filename().to_owned()
     }
 
     fn read_multi_comment(&mut self) -> Result<(), MsgWithPos> {
@@ -74,7 +72,7 @@ impl Lexer {
         }
 
         if self.cur().is_none() {
-            return Err(MsgWithPos::new(pos, Msg::UnclosedComment));
+            return Err(MsgWithPos::new(self.path(), pos, Msg::UnclosedComment));
         }
 
         self.read_char();
@@ -108,10 +106,22 @@ impl Lexer {
                 return self.read_char_literal();
             } else if is_operator(ch) {
                 return self.read_operator();
+            } else if ch == Some('$') {
+                self.read_char();
+                let tok = self.read_identifier()?;
+                if let TokenKind::Identifier(ident) = tok.kind {
+                    return Ok(Token::new(TokenKind::Builtin(ident.clone()), pos));
+                } else {
+                    return Err(MsgWithPos::new(
+                        self.path(),
+                        pos,
+                        Msg::ExpectedIdentifier("builtin".into()),
+                    ));
+                }
             } else {
                 let ch = ch.unwrap();
 
-                return Err(MsgWithPos::new(pos, Msg::UnknownChar(ch)));
+                return Err(MsgWithPos::new(self.filename(), pos, Msg::UnknownChar(ch)));
             }
         }
     }
@@ -158,7 +168,7 @@ impl Lexer {
             let ttype = TokenKind::LitChar(ch);
             Ok(Token::new(ttype, pos))
         } else {
-            Err(MsgWithPos::new(pos, Msg::UnclosedChar))
+            Err(MsgWithPos::new(self.filename(), pos, Msg::UnclosedChar))
         }
     }
 
@@ -170,7 +180,7 @@ impl Lexer {
                 let ch = if let Some(ch) = self.cur() {
                     ch
                 } else {
-                    return Err(MsgWithPos::new(pos, unclosed));
+                    return Err(MsgWithPos::new(self.filename(), pos, unclosed));
                 };
 
                 self.read_char();
@@ -185,14 +195,14 @@ impl Lexer {
                     '0' => Ok('\0'),
                     _ => {
                         let msg = Msg::InvalidEscapeSequence(ch);
-                        Err(MsgWithPos::new(pos, msg))
+                        Err(MsgWithPos::new(self.filename(), pos, msg))
                     }
                 }
             } else {
                 Ok(ch)
             }
         } else {
-            Err(MsgWithPos::new(pos, unclosed))
+            Err(MsgWithPos::new(self.filename(), pos, unclosed))
         }
     }
 
@@ -213,7 +223,7 @@ impl Lexer {
             let ttype = TokenKind::String(value);
             Ok(Token::new(ttype, pos))
         } else {
-            Err(MsgWithPos::new(pos, Msg::UnclosedString))
+            Err(MsgWithPos::new(self.filename(), pos, Msg::UnclosedString))
         }
     }
 
@@ -325,7 +335,11 @@ impl Lexer {
             }
 
             _ => {
-                return Err(MsgWithPos::new(tok.position, Msg::UnknownChar(ch)));
+                return Err(MsgWithPos::new(
+                    self.path(),
+                    tok.position,
+                    Msg::UnknownChar(ch),
+                ));
             }
         };
 

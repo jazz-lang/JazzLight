@@ -25,6 +25,7 @@ pub enum TokenKind {
     LitInt(String, IntBase, IntSuffix),
     LitFloat(String),
     Identifier(String),
+    Builtin(String),
     End,
 
     LQuote,
@@ -32,12 +33,9 @@ pub enum TokenKind {
 
     // Keywords
     Include,
-    Class,
-    Implements,
     This,
     Match,
     Fun,
-    New,
     Let,
     Var,
     While,
@@ -55,13 +53,11 @@ pub enum TokenKind {
     Throw,
     Do,
     ForEach,
-
+    Import,
     Type,
     Const,
 
     Underscore,
-    Import,
-    IncludeUrl,
 
     // Operators
     Add,
@@ -105,7 +101,6 @@ pub enum TokenKind {
 impl TokenKind {
     pub fn name(&self) -> &str {
         match *self {
-            TokenKind::IncludeUrl => "includeurl",
             TokenKind::ForEach => "foreach",
             TokenKind::String(_) => "string",
             TokenKind::LitInt(_, _, suffix) => match suffix {
@@ -119,14 +114,13 @@ impl TokenKind {
             TokenKind::LitFloat(_) => "float number",
 
             TokenKind::Identifier(_) => "identifier",
+            TokenKind::Builtin(_) => "builtin",
             TokenKind::End => "<<EOF>>",
 
             TokenKind::LQuote => "<",
             TokenKind::RQuote => ">",
 
             // Keywords
-            TokenKind::Class => "class",
-            TokenKind::Implements => "implements",
             TokenKind::This => "self",
             TokenKind::Fun => "function",
             TokenKind::Let => "let",
@@ -148,7 +142,6 @@ impl TokenKind {
             TokenKind::Do => "do",
             TokenKind::Type => "type",
             TokenKind::Const => "const",
-            TokenKind::New => "new",
             TokenKind::Underscore => "_",
 
             TokenKind::Import => "import",

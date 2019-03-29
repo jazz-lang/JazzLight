@@ -1,9 +1,0 @@
-include "std/array.jazz"
-
-
-function main() {
-    var arr = new Array(1)
-    var arr2 = new Array(2,3)
-    arr.extend(arr2)
-    println(arr)
-}

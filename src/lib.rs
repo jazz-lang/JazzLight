@@ -1,29 +1,19 @@
-#![allow(unused_variables)]
-#![allow(unused_macros)]
+#![feature(const_string_new)]
 
+pub mod ast;
 #[macro_use]
 pub mod macros;
-pub mod ast;
-pub mod compiler;
+pub mod compile;
 pub mod lexer;
 pub mod msg;
 pub mod parser;
 pub mod reader;
-pub mod runtime;
 pub mod token;
-//pub mod codegen;
-//pub mod stdlib;
+use std::sync::Arc;
 
-/*pub macro rust_function($vm: expr,fn $name:ident ($($arg:ident),*) $b:block) {
-    pub fn $name (vm: &mut VirtualMachine,args: Vec<Value>) -> Value {
-        let mut idx = 0;
-        $(
-            let $arg = &args[idx];
-            idx += 1;
-        )*
+pub type P<T> = Arc<T>;
 
-        $b
-    }
-
-    $vm.pool.add_func()
-}*/
+#[allow(non_snake_case)]
+pub fn P<T>(value: T) -> Arc<T> {
+    Arc::new(value)
+}

@@ -47,6 +47,10 @@ impl Reader {
         &self.filename
     }
 
+    pub fn path(&self) -> &str {
+        &self.filename
+    }
+
     pub fn advance(&mut self) -> Option<char> {
         match self.cur {
             Some('\n') => {

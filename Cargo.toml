@@ -1,20 +1,9 @@
 [package]
-name = "jazz"
+name = "jazzc"
 version = "0.1.0"
-authors = ["playx"]
+authors = ["Adel Prokurov <adel.prokurov@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
 hmap = "0.1"
-fxhash = "0.2"
-rand = "0.6"
-walkdir = "2.2"
-hashbrown = "0.1"
-time = "0.1"
-structopt = "0.2"
-crossterm = "0.7"
-sdl2-sys = "0.32"
-reqwest = "0.9"
-
-jazzvm = {path = "vm"}
-gc = {path = "gc-rs/gc"}
+jazzvm = {path = "jazz-vm"}
