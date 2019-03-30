@@ -106,8 +106,9 @@ impl<'a> Parser<'a> {
             tmp
         };
         self.expect_token(TokenKind::RParen)?;
-        let block = self.parse_expression()?;
-        Ok(expr!(ExprDecl::Function(params, block), pos))
+        self.expect_token(TokenKind::Arrow);
+        let body = self.parse_expression()?;
+        Ok(expr!(ExprDecl::Function(params, body), pos))
     }
 
     fn parse_let(&mut self) -> EResult {

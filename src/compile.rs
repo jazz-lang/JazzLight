@@ -6,7 +6,8 @@ pub fn stack_delta(op: Opcode) -> i32 {
         AccNull | AccTrue | AccFalse | AccThis | AccInt(_) | AccStack(_) | AccGlobal(_)
         | AccEnv(_) | AccField(_) | AccBuiltin(_) | AccIndex(_) | JumpIf(_) | JumpIfNot(_)
         | Jump(_) | Ret(_) | SetGlobal(_) | SetStack(_) | SetEnv(_) | SetThis | Bool | IsNull
-        | IsNotNull | Not | Hash | TypeOf | New | AccStack0 | AccStack1 | AccStack2 => 0,
+        | IsNotNull | Not | Hash | TypeOf | New | AccStack0 | AccStack1 | AccStack2 | AccStr(_)
+        | AccFloat(_) => 0,
         Add | Sub | Mul | Div | Rem | Shl | Shr | UShr | Or | And | Xor | Eq | Neq | Gt | Gte
         | Lt | Lte | PhysCompare => -1,
         AccArray => -1,
@@ -42,6 +43,7 @@ pub enum Access {
 
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Globals {
     pub globals: HashMap<Global, i32>,
     pub objects: HashMap<String, Vec<i32>>,
@@ -90,7 +92,7 @@ impl Context {
         self.write(Opcode::Jump(0));
         return move |ctx: &mut Context| {
             let p2 = ctx.pos();
-            ctx.ops[p] = Opcode::Jump(p2 as u32 - p as u32);
+            ctx.ops[p] = Opcode::Jump(p2 as u32);
         };
     }
     pub fn cjmp(&mut self, cond: bool) -> impl FnOnce(&mut Context) {
@@ -98,10 +100,11 @@ impl Context {
         self.write(Opcode::Jump(0));
         return move |ctx: &mut Context| {
             let p2 = ctx.pos() as u32;
+            println!("jump {} {}", p, p2);
             ctx.ops[p] = if cond {
-                Opcode::JumpIf(p2 - p as u32)
+                Opcode::JumpIf(p2 as u32)
             } else {
-                Opcode::JumpIfNot(p2 - p as u32)
+                Opcode::JumpIfNot(p2 as u32)
             };
         };
     }
@@ -222,6 +225,7 @@ impl Context {
             Constant::Ident(s) => {
                 let s: &str = s;
                 let l = self.locals.get(s);
+                println!("{:?} {:#?}", self.stack, self.locals);
                 if l.is_some() {
                     let l = *l.unwrap();
                     if l < self.limit {
@@ -236,7 +240,7 @@ impl Context {
                         };
                         self.write(Opcode::AccEnv(e as u32));
                     } else {
-                        let p = l - 1;
+                        let p = l;
                         if p == 0 {
                             self.write(Opcode::AccStack0);
                         } else if p == 1 {
@@ -361,7 +365,7 @@ impl Context {
 
                 self.write(Opcode::Push);
 
-                self.locals.insert(name.to_owned(), self.stack);
+                self.locals.insert(name.to_owned(), self.stack - 1);
             }
             ExprDecl::Assign(e1, e2) => {
                 let a = self.compile_access(e1);
@@ -370,6 +374,9 @@ impl Context {
             }
             ExprDecl::Binop(op, e1, e2) => {
                 self.compile_binop(op, e1, e2);
+            }
+            ExprDecl::Function(params, e) => {
+                self.compile_function(params, e);
             }
             ExprDecl::Return(e) => {
                 match e {
@@ -381,8 +388,84 @@ impl Context {
                 self.write(Opcode::Ret((self.stack - self.limit) as u16));
                 self.stack = stack;
             }
+            ExprDecl::If(e, e1, e2) => {
+                let stack = self.stack;
+
+                self.compile(e);
+                let jelse = self.cjmp(false);
+                self.compile(e1);
+                self.check_stack(stack, "If");
+                match e2 {
+                    Some(e2) => {
+                        let jend = self.jmp();
+                        jelse(self);
+                        self.compile(e2);
+                        self.check_stack(stack, "if");
+                        jend(self);
+                    }
+                    None => jelse(self),
+                }
+            }
+            ExprDecl::Call(e, el) => {
+                for x in el.iter() {
+                    self.compile(x);
+                    self.write(Opcode::Push);
+                }
+                self.compile(e);
+                self.write(Opcode::Call(el.len() as _));
+            }
             _ => unimplemented!(),
         }
+    }
+
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>) {
+        let mut ctx = Context {
+            g: self.g.clone(),
+            ops: Vec::new(),
+            pos: Vec::new(),
+            limit: self.stack,
+            stack: self.stack,
+            locals: self.locals.clone(),
+            nenv: 0,
+            env: HashMap::new(),
+            cur_pos: (0, 0),
+            cur_file: self.cur_file.clone(),
+            continues: vec![],
+            breaks: vec![],
+            builtins: self.builtins.clone(),
+        };
+        for p in params.iter() {
+            ctx.stack += 1;
+            ctx.locals.insert(p.to_owned(), ctx.stack);
+        }
+        let s = ctx.stack.clone();
+        ctx.compile(e);
+        ctx.write(Opcode::Ret((ctx.stack - ctx.limit) as u16));
+        ctx.check_stack(s, "");
+
+        let gid = ctx.g.table.len();
+        ctx.g.functions.push((
+            ctx.ops.clone(),
+            ctx.pos.clone(),
+            gid as i32,
+            params.len() as i32,
+        ));
+        ctx.g.table.push(Global::Func(gid as i32, -1));
+        if ctx.nenv > 0 {
+            let mut a = vec!["".to_string(); ctx.nenv as usize];
+            for (v, i) in ctx.env.iter() {
+                a[*i as usize] = v.clone();
+            }
+            for x in a.iter() {
+                self.compile_const(&Constant::Ident(x.to_owned()), e.pos);
+                self.write(Opcode::Push);
+            }
+            self.write(Opcode::AccGlobal(gid as _));
+            self.write(Opcode::MakeEnv(ctx.nenv as _));
+        } else {
+            self.write(Opcode::AccGlobal(gid as _));
+        }
+        self.g = ctx.g.clone();
     }
 }
 
@@ -417,7 +500,28 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
 
     ctx.scan_labels(true, true, &ast);
     ctx.compile(&ast);
+    if ctx.g.functions.len() != 0 || ctx.g.objects.len() != 0 {
+        let ctxops = ctx.ops.clone();
+        let _ctxpos = ctx.pos.clone();
+        let ops = vec![];
+        let pos = vec![];
+        ctx.ops = ops;
+        ctx.pos = pos;
+        ctx.write(Opcode::Jump(0));
+        for (fops, fpos, gid, nargs) in ctx.g.functions.iter().rev() {
+            ctx.g.table[*gid as usize] = Global::Func(ctx.ops.len() as i32, *nargs);
 
-    //ctx.write(Opcode::Last);
+            for op in fops.iter() {
+                ctx.ops.push(op.clone());
+            }
+            ctx.ops[0] = Opcode::Jump(ctx.ops.len() as _);
+            for op in fpos.iter() {
+                ctx.pos.push(op.clone());
+            }
+        }
+        for op in ctxops.iter() {
+            ctx.ops.push(op.clone());
+        }
+    }
     ctx
 }

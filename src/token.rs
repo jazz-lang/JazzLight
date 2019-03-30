@@ -164,7 +164,7 @@ impl TokenKind {
             TokenKind::Dot => ".",
             TokenKind::Colon => ":",
             TokenKind::Sep => "::",
-            TokenKind::Arrow => "=>",
+            TokenKind::Arrow => "->",
             TokenKind::Tilde => "~",
             TokenKind::BitOr => "|",
             TokenKind::BitAnd => "&",

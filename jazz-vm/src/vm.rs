@@ -80,7 +80,8 @@ macro_rules! do_call {
             *$m = f.module.clone();
             match &f.var {
                 FuncVar::Offset(off) => {
-                    $vm.pc = *off;
+                    $vm.pc = *off - 1;
+
                     $vm.vthis = $this;
                     $vm.env = f.env.clone();
                 }
@@ -200,7 +201,7 @@ macro_rules! cmp {
         {
 
 
-        let v1 = $vm.pop().unwrap();
+        let v1 = $vm.pop().expect("Stack empty?");
         let v_clon = v1.clone();
         let v = v1.borrow();
         let acc = $acc.clone();
@@ -323,13 +324,8 @@ impl VM {
     pub fn interp(&mut self, m: &mut P<Module>) -> P<Value> {
         let mut acc = P(Value::Null);
         while self.pc < self.code.len() {
-            let op = self.next_op();
-            if op == Opcode::Last {
-                break;
-            }
-
             use Opcode::*;
-            match op {
+            match self.code[self.pc].clone() {
                 AccNull => {
                     if !val_is_null(&acc) {
                         acc = P(Value::Null)
@@ -484,6 +480,7 @@ impl VM {
                 Last => break,
                 Call(argc) => {
                     let vthis = self.vthis.clone();
+
                     do_call!(acc, self, m, vthis, argc);
                 }
                 ObjCall(argc) => {
@@ -495,11 +492,19 @@ impl VM {
                 Ret(count) => {
                     pop_macro!(self, count);
                     pop_infos!(true, m, self);
-
-                    continue;
                 }
                 Jump(to) => {
-                    self.pc = to as usize;
+                    self.pc = (to - 1) as usize;
+                }
+                JumpIf(to) => {
+                    if let Value::Bool(true) = acc.borrow() {
+                        self.pc = (to - 1) as usize;
+                    }
+                }
+                JumpIfNot(to) => {
+                    if let Value::Bool(false) = acc.borrow() {
+                        self.pc = (to - 1) as usize;
+                    }
                 }
                 Add => {
                     let val = self.pop().expect("<Add> Stack empty");
@@ -552,6 +557,7 @@ impl VM {
                 }
                 _ => unimplemented!(),
             }
+            self.pc += 1;
         }
 
         return acc;
