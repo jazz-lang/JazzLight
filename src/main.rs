@@ -54,29 +54,47 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
+#[structopt(name = "jazzc", version = "0.0.1")]
 pub struct Options {
-    #[structopt(name = "FILE", parse(from_os_str))]
-    file: Option<PathBuf>,
+    #[structopt(parse(from_os_str))]
+    files: Vec<PathBuf>,
+    #[structopt(short = "d", long = "disassemble")]
+    /// Print bytecode to stdout
+    dump_op: bool,
 }
 
+use std::fs::File;
+use std::io::Read;
+
 fn main() {
+    let mut buff = String::new();
+
     let ops = Options::from_args();
-    let reader =
-        Reader::from_file(ops.file.expect("Filename").as_os_str().to_str().unwrap()).unwrap();
+
+    for file in ops.files.iter() {
+        let mut b = String::new();
+
+        File::open(file).unwrap().read_to_string(&mut b).unwrap();
+        buff.push_str(&b);
+    }
+    let reader = Reader::from_string(&buff);
     let mut ast = vec![];
     let mut parser = Parser::new(reader, &mut ast);
+
     parser.parse().unwrap();
     let ctx = compile_ast(ast);
     let code = ctx.finish();
-
-    for (i, op) in code.iter().enumerate() {
-        println!("{:04}: {:?}", i, op)
+    if ops.dump_op {
+        for (i, op) in code.iter().enumerate() {
+            println!("{:04}: {:?}", i, op)
+        }
     }
 
     let mut m = module_from_ctx(&ctx);
 
     let mut vm = VM::new();
+    jazzvm::fields::init_fields();
     register_builtins(&mut vm);
     vm.code = ctx.finish();
-    println!("{:?}", vm.interp(&mut m));
+    vm.interp(&mut m);
 }

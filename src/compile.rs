@@ -558,7 +558,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
 
         for (fops, fpos, gid, nargs) in ctx.g.functions.iter().rev() {
             let g = ctx.g.borrow_mut();
-            println!("{}", gid);
+
             g.table[*gid as usize] = Global::Func(ctx.ops.len() as i32, *nargs);
 
             for op in fops.iter() {

@@ -21,6 +21,7 @@ fn hash_str(s: &str) -> i64 {
 pub fn init_fields() {
     unsafe {
         FIELD_ADD = hash_str("__add");
+
         FIELD_SUB = hash_str("__sub");
         FIELD_DIV = hash_str("__div");
         FIELD_MUL = hash_str("__mul");

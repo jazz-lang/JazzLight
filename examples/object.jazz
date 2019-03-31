@@ -1,0 +1,20 @@
+var point = $new(null)
+
+point.x = 3
+point.y = 6
+
+point.__add = function(point) -> {
+    var n = $new(null)
+    n.x = this.x + point.x
+    n.y = this.y + point.y
+    return n
+}
+
+var point2 = $new(point)
+
+point2.x = 2
+point2.y = 4
+
+
+
+$print(point + point2)

@@ -8,6 +8,7 @@ pub enum CSPVal {
     Module(P<Module>),
     Val(P<Value>),
     Locals(fnv::FnvHashMap<u32, P<Value>>),
+    Stack(Vec<P<Value>>),
 }
 
 use crate::fields::*;
@@ -34,16 +35,21 @@ macro_rules! push_infos {
         let pc = $vm.pc;
         let env = $vm.env.clone();
         let locals = $vm.locals.clone();
+        let stack = $vm.stack.clone();
         $vm.csp.push(CSPVal::Pc(pc));
         $vm.csp.push(CSPVal::Val(env));
         $vm.csp.push(CSPVal::Val(vthis));
         $vm.csp.push(CSPVal::Module($m.clone()));
         $vm.csp.push(CSPVal::Locals(locals));
+        //$vm.csp.push(CSPVal::Stack(stack));
     };
 }
 
 macro_rules! pop_infos {
     ($restpc: expr,$m: expr,$vm: expr) => {
+        /*if let Some(CSPVal::Stack(stack)) = $vm.csp.pop() {
+            $vm.stack = stack;
+        }*/
         if let Some(CSPVal::Locals(locals)) = $vm.csp.pop() {
             $vm.locals = locals;
         }
@@ -121,15 +127,15 @@ macro_rules! object_op_gen {
         let ob = val_object(&o);
         let obj = ob.borrow();
         let arg = $param;
-        let f = obj.find($id);
+        let f = obj.find($id).clone();
+
         if f.is_none() {
             $err;
         } else {
+            let f = f.unwrap();
             push_infos!($vm, $m);
-            println!("{:?}", f);
-            let v = callex(o, f.unwrap().clone(), vec![arg]);
-            pop_infos!(true, $m, $vm);
-            v
+            $vm.push(arg.clone());
+            do_call!(f, $vm, $m, o, 1);
         }
     }};
 }
@@ -142,6 +148,8 @@ macro_rules! object_op {
 
 macro_rules! op_ {
     ($op: tt,$vm: expr,$m: expr,$id: expr) => {{
+
+        assert!($vm.stack.len() >= 2,stringify!($op));
         let acc = $vm.pop().expect("Stack empty");
         let val = $vm.pop().expect("Stack empty");
         let acc_c = acc.clone();
@@ -152,8 +160,15 @@ macro_rules! op_ {
             (Value::Int(i), Value::Float(f2)) => $vm.push(P(Value::Float(*i as f64 $op *f2))),
             (Value::Float(f1), Value::Int(i)) => $vm.push(P(Value::Float(*f1 $op *i as f64))),
             //(Value::Str(s), Value::Str(s2)) => P(Value::Str(format!("{}{}", s, s2))),
-            (Value::Object(_), _) => $vm.push(object_op!($vm, acc_c, val_c, unsafe { $id }, $m)),
-            (_, Value::Object(_)) => $vm.push(object_op!($vm, val_c, acc_c, unsafe { $id }, $m)),
+            (Value::Object(_), _) =>
+            {
+                let _val = object_op!($vm, acc_c, val_c, unsafe { $id }, $m);
+                //$vm.push(val);
+            },
+            (_, Value::Object(_)) => {
+                let _val = object_op!($vm, val_c, acc_c, unsafe { $id }, $m);
+                //$vm.push(val);
+            }
             _ => unimplemented!(),
         };
     }};
@@ -171,7 +186,7 @@ macro_rules! cmp {
 
         let v = v1.borrow();
         let acc = v2.borrow();
-        match (acc,v) {
+        match (v,acc) {
             (Value::Int(i),Value::Int(i2)) => $vm.push(P(Value::Bool(i $op i2))),
             (Value::Int32(i),Value::Int32(i2)) => $vm.push(P(Value::Bool(i $op i2))),
             (Value::Int(i),Value::Int32(i2)) => $vm.push(P(Value::Bool(*i $op *i2 as i64))),
@@ -189,11 +204,13 @@ macro_rules! cmp {
             }
             (Value::Bool(b),Value::Bool(b1)) => $vm.push(P(Value::Bool((*b as u8) $op *b1 as u8))),
             (Value::Object(_),_) => {
-                $vm.push(object_op!($vm,acc_c,val,unsafe {$id},$m))
+                let _val = object_op!($vm,acc_c,val,unsafe {$id},$m);
+                //$vm.push(val);
             }
             (_,Value::Object(_)) =>
             {
-                $vm.push(object_op!($vm, val, acc_c, unsafe { $id }, $m))
+                let _val = object_op!($vm, val, acc_c, unsafe { $id }, $m);
+                //$vm.push(val);
             }
             _ => unimplemented!()
         };
@@ -235,9 +252,9 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
             FuncVar::Offset(off) => {
                 if args.len() as i32 == func.nargs {
                     for n in 0..args.len() {
-                        vm.stack[n] = args[n].clone();
+                        vm.locals.insert(n as _, args[n].clone());
                     }
-                    vm.pc = *off as usize;
+                    vm.pc = *off as usize - 1;
                     ret = vm.interp(&mut func.module);
                 }
             }
@@ -289,7 +306,7 @@ impl VM {
             use Opcode::*;
 
             let op = self.next_op();
-            println!("current: {:04} {:?}", self.pc - 1, op);
+            //println!("current: {:04} {:?}", self.pc - 1, op);
             match op {
                 LdNull => self.push(P(Value::Null)),
                 LdFloat(f) => self.push(P(Value::Float(f))),
@@ -457,8 +474,9 @@ impl VM {
 
                 Ret => {
                     let val = self.pop().unwrap_or(P(Value::Null));
+                    //self.stack.clear();
                     pop_infos!(true, m, self);
-                    self.stack.clear();
+
                     self.push(val);
                 }
                 Jump(to) => {
@@ -494,10 +512,12 @@ impl VM {
                             self.push(P(Value::Str(format!("{}{}", s, s2))))
                         }
                         (Value::Object(_), _) => {
-                            self.push(object_op!(self, acc_c, val_c, unsafe { FIELD_ADD }, m))
+                            let _val = object_op!(self, acc_c, val_c, unsafe { FIELD_ADD }, m);
+                            //self.push(val);
                         }
                         (_, Value::Object(_)) => {
-                            self.push(object_op!(self, val_c, acc_c, unsafe { FIELD_ADD }, m))
+                            let _val = object_op!(self, val_c, acc_c, unsafe { FIELD_ADD }, m);
+                            //self.push(val);
                         }
                         _ => unimplemented!(),
                     };

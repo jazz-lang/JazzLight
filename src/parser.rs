@@ -74,10 +74,9 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_include(&mut self) -> EResult {
-        let _pos = self.expect_token(TokenKind::Include)?.position;
-        if let ExprDecl::Const(Constant::Str(_s)) = &self.lit_str()?.decl {
-            unimplemented!()
-        //return Ok(expr!(ExprDecl::Include(s.clone()), pos));
+        let pos = self.expect_token(TokenKind::Include)?.position;
+        if let ExprDecl::Const(Constant::Str(s)) = &self.lit_str()?.decl {
+            return Ok(expr!(ExprDecl::Include(s.clone()), pos));
         } else {
             unreachable!()
         }
@@ -281,7 +280,7 @@ impl<'a> Parser<'a> {
             TokenKind::Mul => "*",
             TokenKind::Div => "/",
             TokenKind::LtLt => "<<",
-            TokenKind::GtGtGt => ">>>"
+            TokenKind::GtGtGt => ">>>",
             TokenKind::GtGt => ">>",
             TokenKind::Mod => "%",
             _ => unimplemented!(),
@@ -304,7 +303,11 @@ impl<'a> Parser<'a> {
                 | TokenKind::Gt
                 | TokenKind::Ge => 4,
                 TokenKind::BitOr | TokenKind::BitAnd | TokenKind::Caret => 6,
-                TokenKind::LtLt | TokenKind::GtGt | TokenKind::GtGtGt | TokenKind::Add | TokenKind::Sub => 8,
+                TokenKind::LtLt
+                | TokenKind::GtGt
+                | TokenKind::GtGtGt
+                | TokenKind::Add
+                | TokenKind::Sub => 8,
                 TokenKind::Mul | TokenKind::Div | TokenKind::Mod => 9,
                 _ => {
                     return Ok(left);

@@ -52,6 +52,7 @@ pub enum ExprDecl {
     Switch(P<Expr>, Vec<(P<Expr>, P<Expr>)>, Option<P<Expr>>),
     Unop(String, P<Expr>),
     Throw(String),
+    Include(String),
     Jazz(String),
 }
 
