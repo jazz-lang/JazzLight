@@ -1,4 +1,3 @@
-use crate::hash::*;
 use crate::module::*;
 use crate::opcode::Opcode;
 use crate::value::*;
@@ -8,9 +7,14 @@ pub enum CSPVal {
     Pc(usize),
     Module(P<Module>),
     Val(P<Value>),
+    Locals(fnv::FnvHashMap<u32, P<Value>>),
 }
 
 use crate::fields::*;
+use crate::Cell;
+lazy_static::lazy_static! {
+    pub static ref FIELDS: Cell<fnv::FnvHashMap<u64,String>> = Cell::new(fnv::FnvHashMap::default());
+}
 
 pub struct VM {
     pub pc: usize,
@@ -21,6 +25,7 @@ pub struct VM {
     pub vthis: P<Value>,
     pub builtins: Vec<P<Value>>,
     pub sp: usize,
+    pub locals: fnv::FnvHashMap<u32, P<Value>>,
 }
 
 macro_rules! push_infos {
@@ -28,15 +33,20 @@ macro_rules! push_infos {
         let vthis = $vm.vthis.clone();
         let pc = $vm.pc;
         let env = $vm.env.clone();
+        let locals = $vm.locals.clone();
         $vm.csp.push(CSPVal::Pc(pc));
         $vm.csp.push(CSPVal::Val(env));
         $vm.csp.push(CSPVal::Val(vthis));
         $vm.csp.push(CSPVal::Module($m.clone()));
+        $vm.csp.push(CSPVal::Locals(locals));
     };
 }
 
 macro_rules! pop_infos {
     ($restpc: expr,$m: expr,$vm: expr) => {
+        if let Some(CSPVal::Locals(locals)) = $vm.csp.pop() {
+            $vm.locals = locals;
+        }
         if let Some(CSPVal::Module(module)) = $vm.csp.pop() {
             *$m = module;
         }
@@ -63,37 +73,43 @@ macro_rules! pop_macro {
 }
 
 #[allow(non_camel_case_types)]
-type jazz_func = extern "C" fn(&mut VM, Vec<P<Value>>) -> P<Value>;
+pub type jazz_func = extern "C" fn(&mut VM, Vec<P<Value>>) -> P<Value>;
 
 macro_rules! do_call {
     ($acc: expr,$vm: expr,$m: expr,$this: expr,$argc: expr) => {
         if val_is_func(&$acc) {
             push_infos!($vm, $m);
-
             let f = val_func(&$acc);
-            let f = f.borrow_mut();
-            if f.nargs != -1 && $argc as i32 != f.nargs {
-                panic!("Wrong call");
-            }
+            let fun: &Function = f.borrow();
+            $vm.env = fun.env.clone();
+            *$m = fun.module.clone();
+            $vm.vthis = $this;
 
-            let argcc = f.nargs;
-            *$m = f.module.clone();
-            match &f.var {
+            match &fun.var {
                 FuncVar::Offset(off) => {
-                    $vm.pc = *off - 1;
+                    let mut args = vec![];
+                    for _ in 0..$argc {
+                        args.push($vm.pop().expect("Stack empty"));
+                    }
 
-                    $vm.vthis = $this;
-                    $vm.env = f.env.clone();
+                    for (idx, arg) in args.iter().enumerate() {
+                        $vm.locals.insert(idx as u32, arg.clone());
+                    }
+                    $vm.pc = *off;
                 }
                 FuncVar::Native(ptr) => {
-                    let func: jazz_func = unsafe { std::mem::transmute(*ptr) };
+                    let f: jazz_func = unsafe { std::mem::transmute(*ptr) };
                     let mut args = vec![];
-                    for _ in 0..argcc {
+
+                    for _ in 0..$argc {
                         args.push($vm.pop().expect("Stack empty. <native call>"));
                     }
-                    $acc = func($vm, args);
+                    let v = f($vm, args);
+                    $vm.push(v);
                 }
             }
+        } else {
+            panic!("Invalid call");
         }
     };
 }
@@ -109,7 +125,7 @@ macro_rules! object_op_gen {
             $err;
         } else {
             push_infos!($vm, $m);
-            $acc = callex(o, f.unwrap().clone(), vec![arg]);
+            $vm.push(callex(o, f.unwrap().clone(), vec![arg]));
             pop_infos!(false, $m, $vm);
         }
     };
@@ -130,65 +146,68 @@ macro_rules! object_op {
 }
 
 macro_rules! op_ {
-    ($op: tt,$vm: expr,$acc: expr,$m: expr,$id: expr) => {
+    ($op: tt,$vm: expr,$m: expr,$id: expr) => {
         {
-        let val = $vm.pop().expect("<Add> Stack empty");
-        if val_is_any_int(&$acc) && val_is_any_int(&val) {
-            $acc = P(Value::Int(val_int(&val) $op val_int(&$acc)));
-        } else if val_is_int(&$acc) {
+            let acc = $vm.pop().expect("Stack empty");
+        let val = $vm.pop().expect("Stack empty");
+        if val_is_any_int(&acc) && val_is_any_int(&val) {
+            $vm.push(P(Value::Int(val_int(&val) $op val_int(&acc))));
+        } else if val_is_int(&acc) {
             if val_is_float(&val) {
-                $acc = P(Value::Float(val_float(&val) $op val_int(&$acc) as f64));
+                $vm.push(P(Value::Float(val_float(&val) $op val_int(&acc) as f64)));
             } else if val_is_int32(&val) {
-                $acc = P(Value::Int32(val_int32(&val) $op val_int32(&$acc)));
-            } else if val_is_str(&$acc) {
+                $vm.push(P(Value::Int32(val_int32(&val) $op val_int32(&acc))));
+            } else if val_is_str(&acc) {
                 unimplemented!()
-            } else if val_is_obj(&$acc) {
-                let acc2 = $acc.clone();
-                object_op!($acc, $vm, acc2, val, unsafe { $id }, $m);
+            } else if val_is_obj(&acc) {
+                let acc2 = acc.clone();
+                object_op!(acc, $vm, acc2, val, unsafe { $id }, $m);
             } else {
                 panic!("Invalid operation `{}`",stringify!($op));
             }
         } else if val_is_any_int(&val) {
-            if val_is_float(&$acc) {
-                $acc = P(Value::Float(val_int(&val) as f64 $op val_float(&$acc)));
+            if val_is_float(&acc) {
+                $vm.push(P(Value::Float(val_int(&val) as f64 $op val_float(&acc))));
             }
         } else {
             if val_is_obj(&val) {
                 let v2 = val.clone();
-                object_op!($acc, $vm, v2, $acc, unsafe { $id }, $m);
-            } else if val_is_str(&val) && val_is_str(&$acc) {
+                object_op!(acc, $vm, v2, acc, unsafe { $id }, $m);
+            } else if val_is_str(&val) && val_is_str(&acc) {
                 unimplemented!()
             }
         }
         }
     };
-    (cmp $op: tt,$vm: expr,$acc: expr,$m: expr,$id: expr) => {
+    (cmp $op: tt,$vm: expr,$m: expr,$id: expr) => {
         {
-        let val = $vm.pop().expect("<Add> Stack empty");
-        if val_is_any_int(&$acc) && val_is_any_int(&val) {
-            $acc = P(Value::Bool(val_int(&val) $op (val_int(&$acc))));
-        } else if val_is_int(&$acc) {
+            let acc = $vm.pop().expect("Stack empty");
+        let val = $vm.pop().expect("Stack empty");
+
+        if val_is_any_int(&acc) && val_is_any_int(&val) {
+            $acc = P(Value::Bool(val_int(&val) $op (val_int(&acc))));
+        } else if val_is_int(&acc) {
             if val_is_float(&val) {
-                $acc = P(Value::Bool(val_float(&val) $op (val_int(&$acc) as f64)));
+                $acc = P(Value::Bool(val_float(&val) $op (val_int(&acc) as f64)));
             } else if val_is_int32(&val) {
-                $acc = P(Value::Bool(val_int32(&val) $op val_int32(&$acc)));
-            } else if val_is_str(&$acc) {
+                $acc = P(Value::Bool(val_int32(&val) $op val_int32(&acc)));
+            } else if val_is_str(&acc) {
                 unimplemented!()
-            } else if val_is_obj(&$acc) {
+            } else if val_is_obj(&acc) {
                 let acc2 = $acc.clone();
                 object_op!($acc, $vm, acc2, val, unsafe { $id }, $m);
             } else {
                 panic!("Invalid operation `+`");
             }
         } else if val_is_any_int(&val) {
-            if val_is_float(&$acc) {
-                $acc = P(Value::Bool((val_int(&val) as f64) $op val_float(&$acc)));
+            if val_is_float(&acc) {
+                $acc = P(Value::Bool((val_int(&val) as f64) $op val_float(&acc)));
             }
         } else {
             if val_is_obj(&val) {
                 let v2 = val.clone();
                 object_op!($acc, $vm, v2, $acc, unsafe { $id }, $m);
-            } else if val_is_str(&val) && val_is_str(&$acc) {
+            } else if val_is_str(&val) && val_is_str(&acc) {
                 unimplemented!()
             }
         }
@@ -197,15 +216,15 @@ macro_rules! op_ {
 }
 
 macro_rules! cmp {
-    ($op: tt,$vm: expr,$acc: expr,$m: expr,$id: expr) => {
+    ($op: tt,$vm: expr,$m: expr,$id: expr) => {
         {
 
 
-        let v1 = $vm.pop().expect("Stack empty?");
+        let v2 = $vm.pop().expect("Stack empty");
+        let v1 = $vm.pop().expect("Stack empty");
         let v_clon = v1.clone();
         let v = v1.borrow();
-        let acc = $acc.clone();
-        let acc = acc.borrow();
+        let acc = v2.borrow();
         let val = match (v,acc) {
             (Value::Int(i),Value::Int(i2)) => Value::Bool(i $op i2),
             (Value::Int32(i),Value::Int32(i2)) => Value::Bool(i $op i2),
@@ -229,13 +248,13 @@ macro_rules! cmp {
                 if tmp.is_none() {
                     panic!("Invalid comparison");
                 }
-                callex($acc, tmp.unwrap().clone(), vec![v_clon]).borrow().clone()
+                callex(v1, tmp.unwrap().clone(), vec![v_clon]).borrow().clone()
 
 
             },
             _ => unimplemented!()
         };
-        $acc = P(val);
+        $vm.push(P(val));
         }
     };
 }
@@ -302,6 +321,7 @@ impl VM {
             env: P(Value::Array(P(vec![]))),
             vthis: P(Value::Null),
             sp: 0,
+            locals: fnv::FnvHashMap::default(),
         }
     }
     pub fn push(&mut self, val: P<Value>) {
@@ -322,146 +342,148 @@ impl VM {
     }
 
     pub fn interp(&mut self, m: &mut P<Module>) -> P<Value> {
-        let mut acc = P(Value::Null);
         while self.pc < self.code.len() {
             use Opcode::*;
-            match self.code[self.pc].clone() {
-                AccNull => {
-                    if !val_is_null(&acc) {
-                        acc = P(Value::Null)
-                    }
+
+            let op = self.next_op();
+            //println!("current: {:04} {:?}", self.pc - 1, op);
+            match op {
+                LdNull => self.push(P(Value::Null)),
+                LdFloat(f) => self.push(P(Value::Float(f))),
+                LdStr(s) => self.push(P(Value::Str(s))),
+                LdInt(i) => {
+                    self.push(P(Value::Int(i)));
                 }
-                AccFloat(f) => acc = P(Value::Float(f)),
-                AccStr(s) => acc = P(Value::Str(s)),
-                AccInt(i) => {
-                    acc = P(Value::Int(i));
+                LdTrue => self.push(P(Value::Bool(true))),
+                LdFalse => self.push(P(Value::Bool(false))),
+                LdThis => self.push(self.vthis.clone()),
+
+                LdLocal(idx) => {
+                    self.push(self.locals.get(&idx).unwrap_or(&P(Value::Null)).clone());
                 }
-                AccTrue => acc = P(Value::Bool(true)),
-                AccFalse => acc = P(Value::Bool(false)),
-                AccThis => acc = self.vthis.clone(),
-                AccStack0 => {
-                    acc = self.stack[0].clone();
-                }
-                AccStack1 => {
-                    acc = self.stack[1].clone();
-                }
-                AccStack2 => {
-                    acc = self.stack[2].clone();
-                }
-                AccStack(idx) => {
-                    acc = self.stack[idx as usize].clone();
-                }
-                AccGlobal(idx) => {
+                LdGlobal(idx) => {
                     let module: &mut Module = m.borrow_mut();
-                    acc = module.globals[idx as usize].clone();
+                    self.push(module.globals[idx as usize].clone());
                 }
-                AccEnv(at) => {
+                LdEnv(at) => {
                     let env = val_array(&self.env);
                     let env = env.borrow_mut();
                     if at >= env.len() as u32 {
                         panic!("Reading outside env");
                     }
-                    acc = env[at as usize].clone();
+                    self.push(env[at as usize].clone());
                 }
-                AccField(field) => {
+                LdField(field) => {
+                    let acc = self.pop().unwrap();
                     if val_is_obj(&acc) {
                         let obj_p = val_object(&acc);
                         let obj: &Object = obj_p.borrow();
                         let f = obj.find(field as i64);
                         if f.is_some() {
-                            acc = f.unwrap().clone();
+                            self.push(f.unwrap().clone());
                         } else {
-                            acc = P(Value::Null);
+                            self.push(P(Value::Null));
                         }
                     } else {
                         panic!("Invalid field access");
                     }
                 }
-                AccArray => {
+                LdArray => {
+                    let acc = self.pop().unwrap();
                     let arr_p = self.pop().unwrap();
                     if (val_is_int(&acc) || val_is_int32(&acc)) && val_is_array(&arr_p) {
                         let k = val_int(&acc);
-                        let arr = val_array(&acc);
+                        let arr = val_array(&arr_p);
                         let arr: &Vec<P<Value>> = arr.borrow();
                         if k < 0 || k as usize > arr.len() {
-                            acc = P(Value::Null);
+                            self.push(P(Value::Null));
                         } else {
-                            acc = arr.get(k as usize).unwrap_or(&P(Value::Null)).clone();
+                            self.push(arr.get(k as usize).unwrap_or(&P(Value::Null)).clone());
                         }
                     }
                 }
-                AccIndex(idx) => {
+                LdIndex(idx) => {
+                    let acc = self.pop().unwrap();
                     if val_is_array(&acc) {
                         let arr = val_array(&acc);
                         let arr = arr.borrow();
                         if idx as usize >= arr.len() {
-                            acc = P(Value::Null);
+                            self.push(P(Value::Null));
                         } else {
-                            acc = arr.get(idx as usize).unwrap_or(&P(Value::Null)).clone();
+                            self.push(arr.get(idx as usize).unwrap_or(&P(Value::Null)).clone());
                         }
                     }
                 }
-                AccBuiltin(idx) => {
-                    acc = self.builtins[idx as usize].clone();
+                LdBuiltin(idx) => {
+                    let builtin = self.builtins[idx as usize].clone();
+                    self.push(builtin);
                 }
-                SetStack(at) => {
-                    self.stack[at as usize] = acc.clone();
-                }
+
                 SetGlobal(at) => {
+                    let acc = self.pop().unwrap();
                     let module = m.borrow_mut();
-                    module.globals[at as usize] = acc.clone();
+                    module.globals[at as usize] = acc;
                 }
                 SetEnv(at) => {
+                    let acc = self.pop().unwrap();
                     let env = val_array(&self.env);
                     let env = env.borrow_mut();
                     if at >= env.len() as u32 {
                         panic!("Writing outside env");
                     }
-                    env[at as usize] = acc.clone();
+                    env[at as usize] = acc;
+                }
+                SetLocal(idx) => {
+                    let acc = self.pop().expect("SetLocal: stack empty");
+                    self.locals.insert(idx, acc);
                 }
                 SetField(hash) => {
+                    let acc = self.pop().unwrap();
                     let val = self.pop().expect("<SetField> Stack empty");
                     if val_is_obj(&val) {
                         let obj = val_object(&val);
                         let obj = obj.borrow_mut();
-                        obj.insert(hash as i64, acc.clone());
+                        obj.insert(hash as i64, acc);
                     }
                 }
                 SetArray => {
                     let v1 = self.pop().expect("<SetArray> Stack empty");
                     let v2 = self.pop().expect("<SetArray> Stack empty");
+                    let acc = self.pop().unwrap();
                     if val_is_array(&v1) && (val_is_int(&v2) || val_is_int32(&v2)) {
                         let array = val_array(&v1);
                         let array = array.borrow_mut();
                         let k = val_int(&v2) as usize;
                         if k < array.len() {
-                            array[k] = acc.clone();
+                            array[k] = acc;
                         }
                     }
                 }
                 SetIndex(i) => {
+                    let acc = self.pop().unwrap();
                     let val = self.pop().expect("<SetIndex> Stack empty");
                     if val_is_array(&val) {
                         let arr = val_array(&val);
                         let arr = arr.borrow_mut();
-                        arr[i as usize] = acc.clone();
+                        arr[i as usize] = acc;
                     }
                 }
                 SetThis => {
-                    self.vthis = acc.clone();
+                    let acc = self.pop().unwrap();
+                    self.vthis = acc;
                 }
-                Push => {
-                    self.push(acc.clone());
-                }
+
                 Pop(count) => {
                     pop_macro!(self, count);
                 }
                 MakeEnv(mut count) => {
+                    let acc = self.pop().unwrap();
                     let mut tmp = vec![];
                     while count > 0 {
                         tmp.push(self.pop().expect("<Stack empty> Make env"));
                         count -= 1;
                     }
+
                     if !val_is_func(&acc) {
                         panic!("Invalid environment");
                     }
@@ -477,45 +499,51 @@ impl VM {
                     }
                     self.push(P(Value::Array(P(tmp))));
                 }
-                Last => break,
                 Call(argc) => {
                     let vthis = self.vthis.clone();
+                    let acc = self.pop().unwrap();
 
                     do_call!(acc, self, m, vthis, argc);
                 }
                 ObjCall(argc) => {
                     let vtmp = self.pop().expect("Stack empty");
+                    let acc = self.pop().unwrap();
                     do_call!(acc, self, m, vtmp, argc);
                 }
                 TailCall(_) => unimplemented!(),
 
-                Ret(count) => {
-                    pop_macro!(self, count);
+                Ret => {
+                    let val = self.pop().expect("stack empty");
                     pop_infos!(true, m, self);
+                    self.stack.clear();
+                    self.push(val);
                 }
                 Jump(to) => {
-                    self.pc = (to - 1) as usize;
+                    self.pc = (to) as usize;
                 }
                 JumpIf(to) => {
+                    let acc = self.pop().unwrap();
                     if let Value::Bool(true) = acc.borrow() {
                         self.pc = (to - 1) as usize;
                     }
                 }
                 JumpIfNot(to) => {
+                    let acc = self.pop().unwrap();
                     if let Value::Bool(false) = acc.borrow() {
-                        self.pc = (to - 1) as usize;
+                        self.pc = (to) as usize;
                     }
                 }
                 Add => {
-                    let val = self.pop().expect("<Add> Stack empty");
+                    let acc = self.pop().expect("Stack empty");
+                    let val = self.pop().expect("Stack empty");
 
                     if val_is_any_int(&acc) && val_is_any_int(&val) {
-                        acc = P(Value::Int(val_int(&val) + val_int(&acc)));
+                        self.push(P(Value::Int(val_int(&val) + val_int(&acc))));
                     } else if val_is_int(&acc) {
                         if val_is_float(&val) {
-                            acc = P(Value::Float(val_float(&val) + val_int(&acc) as f64));
+                            self.push(P(Value::Float(val_float(&val) + val_int(&acc) as f64)));
                         } else if val_is_int32(&val) {
-                            acc = P(Value::Int32(val_int32(&val) + val_int32(&acc)));
+                            self.push(P(Value::Int32(val_int32(&val) + val_int32(&acc))));
                         } else if val_is_str(&acc) {
                             unimplemented!()
                         } else if val_is_obj(&acc) {
@@ -526,7 +554,7 @@ impl VM {
                         }
                     } else if val_is_any_int(&val) {
                         if val_is_float(&acc) {
-                            acc = P(Value::Float(val_int(&val) as f64 + val_float(&acc)));
+                            self.push(P(Value::Float(val_int(&val) as f64 + val_float(&acc))));
                         }
                     } else {
                         if val_is_obj(&val) {
@@ -537,29 +565,48 @@ impl VM {
                         }
                     }
                 }
-                Sub => op_!(-,self,acc,m,FIELD_SUB),
-                Mul => op_!(*,self,acc,m,FIELD_MUL),
-                Div => op_!(/,self,acc,m,FIELD_DIV),
-                Gt => cmp!(>,self,acc,m,FIELD_GT),
-                Lt => cmp!(<,self,acc,m,FIELD_LT),
-                Lte => cmp!(<=,self,acc,m,FIELD_LTE),
-                Gte => cmp!(>=,self,acc,m,FIELD_GTE),
-                Eq => cmp!(==,self,acc,m,FIELD_EQ),
-                Neq => cmp!(!=,self,acc,m,FIELD_NEQ),
+                Sub => op_!(-,self,m,FIELD_SUB),
+                Mul => op_!(*,self,m,FIELD_MUL),
+                Div => op_!(/,self,m,FIELD_DIV),
+                Gt => cmp!(>,self,m,FIELD_GT),
+                Lt => cmp!(<,self,m,FIELD_LT),
+                Lte => cmp!(<=,self,m,FIELD_LTE),
+                Gte => cmp!(>=,self,m,FIELD_GTE),
+                Eq => cmp!(==,self,m,FIELD_EQ),
+                Neq => cmp!(!=,self,m,FIELD_NEQ),
                 Not => {
+                    let acc = self.pop().expect("Stack empty");
                     if val_is_any_int(&acc) {
                         let i = val_int(&acc);
-                        acc = P(Value::Int(!i));
+                        self.push(P(Value::Int(!i)));
                     } else if val_is_bool(&acc) {
                         let b = val_bool(&acc);
-                        acc = P(Value::Bool(!b));
+                        self.push(P(Value::Bool(!b)));
                     }
+                }
+                Opcode::New => {
+                    let val = self.pop().expect("stack empty");
+                    let proto = if val_is_null(&val) {
+                        vec![]
+                    } else if val_is_obj(&val) {
+                        let obj = val_object(&val);
+                        let obj: &Object = obj.borrow();
+                        let mut entries = vec![];
+                        for entry in obj.entries.iter() {
+                            let entry = entry.borrow();
+                            entries.push(P(entry.clone()));
+                        }
+                        entries
+                    } else {
+                        panic!("Object expected")
+                    };
+                    let obj = Object { entries: proto };
+                    self.push(P(Value::Object(P(obj))));
                 }
                 _ => unimplemented!(),
             }
-            self.pc += 1;
         }
 
-        return acc;
+        return self.pop().unwrap_or(P(Value::Null));
     }
 }

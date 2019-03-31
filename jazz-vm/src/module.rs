@@ -7,6 +7,7 @@ pub struct Module {
     pub loader: P<Value>,
     pub exports: P<Value>,
     pub code: Vec<crate::opcode::Opcode>,
+    pub fields: fnv::FnvHashMap<u64, String>,
 }
 
 impl Module {
@@ -17,6 +18,7 @@ impl Module {
             loader: P(Value::Null),
             exports: P(Value::Null),
             code: vec![],
+            fields: fnv::FnvHashMap::default(),
         }
     }
 }

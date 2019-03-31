@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 hmap = "0.1"
 jazzvm = {path = "jazz-vm"}
+structopt = "0.2"

@@ -63,11 +63,6 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn parse_function_param(&mut self) -> Result<String, MsgWithPos> {
-        let name = self.expect_identifier()?;
-        Ok(name)
-    }
-
     fn parse_import(&mut self) -> EResult {
         unimplemented!()
         /*let pos = self.expect_token(TokenKind::Import)?.position;
@@ -106,7 +101,7 @@ impl<'a> Parser<'a> {
             tmp
         };
         self.expect_token(TokenKind::RParen)?;
-        self.expect_token(TokenKind::Arrow);
+        self.expect_token(TokenKind::Arrow)?;
         let body = self.parse_expression()?;
         Ok(expr!(ExprDecl::Function(params, body), pos))
     }

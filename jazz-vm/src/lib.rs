@@ -13,6 +13,7 @@ pub mod hash;
 pub mod module;
 pub mod opcode;
 pub mod value;
+pub mod builtins;
 #[macro_use]
 pub mod vm;
 
@@ -20,9 +21,7 @@ pub struct Cell<T> {
     val: *mut T,
 }
 
-extern "C" {
-    fn malloc(size: usize) -> *mut u8;
-}
+
 unsafe impl<T: Sync> Sync for Cell<T> {}
 
 impl<T> Cell<T> {

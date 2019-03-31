@@ -1,4 +1,5 @@
 #![feature(const_string_new)]
+#![allow(dead_code)]
 
 pub mod ast;
 #[macro_use]
