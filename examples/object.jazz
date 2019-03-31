@@ -5,6 +5,16 @@ point.y = 6
 
 point.__add = function(point) -> {
     var n = $new(null)
+    if $typeof(point) == "Int"  {
+        n.x = this.x + point
+        n.y = this.y + point
+        return n
+    } else if $typeof(point) == "Float" {
+        n.x = this.x + point
+        n.y = this.y + point
+        return n
+    }
+    var n = $new(null)
     n.x = this.x + point.x
     n.y = this.y + point.y
     return n
@@ -17,4 +27,5 @@ point2.y = 4
 
 
 
+$print(point + 4)
 $print(point + point2)

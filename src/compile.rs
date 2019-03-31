@@ -439,6 +439,16 @@ impl Context {
                                 self.write(Opcode::New);
                                 return;
                             }
+                            "hash" => {
+                                self.compile(&el[0]);
+                                self.write(Opcode::Hash);
+                                return;
+                            }
+                            "typeof" => {
+                                self.compile(&el[0]);
+                                self.write(Opcode::TypeOf);
+                                return;
+                            }
                             _ => (),
                         }
                     }

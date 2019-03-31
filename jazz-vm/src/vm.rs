@@ -35,7 +35,7 @@ macro_rules! push_infos {
         let pc = $vm.pc;
         let env = $vm.env.clone();
         let locals = $vm.locals.clone();
-        let stack = $vm.stack.clone();
+        
         $vm.csp.push(CSPVal::Pc(pc));
         $vm.csp.push(CSPVal::Val(env));
         $vm.csp.push(CSPVal::Val(vthis));
@@ -578,7 +578,7 @@ impl VM {
                     self.push(P(Value::Int(v1 << v2)));
                 }
 
-                Opcode::New => {
+                New => {
                     let val = self.pop().expect("stack empty");
                     let proto = if val_is_null(&val) {
                         vec![]
@@ -596,6 +596,41 @@ impl VM {
                     };
                     let obj = Object { entries: proto };
                     self.push(P(Value::Object(P(obj))));
+                }
+                Hash => {
+                    use crate::hash::hash_val;
+                    let val = self.pop();
+                    if val.is_some() {
+                        let mut h = 0xcbf29ce484222325;
+                        hash_val(&mut h, &val.unwrap());
+                        self.push(P(Value::Int(h as i64)));
+                    } else {
+                        self.push(P(Value::Int(0)));
+                    }
+                }
+                IsNull => {
+                    let val = self.pop().unwrap();
+
+                    self.push(P(Value::Bool(val_is_null(&val))));
+                }
+                IsNotNull => {
+                    let val = self.pop().unwrap();
+                    self.push(P(Value::Bool(!val_is_null(&val))));
+                }
+                TypeOf => {
+                    let val = self.pop().unwrap();
+                    let ty = match val.borrow() {
+                        Value::Int(_) => "Int",
+                        Value::Int32(_) => "Int32",
+                        Value::Float(_) => "Float",
+                        Value::Array(_) => "Array",
+                        Value::Null => "Null",
+                        Value::Object(_) => "Object",
+                        Value::Str(_) => "String",
+                        Value::Func(_) => "Function",
+                        _ => unimplemented!(),
+                    };
+                    self.push(P(Value::Str(ty.to_owned())));
                 }
                 _ => unimplemented!(),
             }
