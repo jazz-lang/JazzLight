@@ -64,5 +64,3 @@ pub enum Opcode {
     JumpTable,
     Last,
 }
-
-use std::fmt;

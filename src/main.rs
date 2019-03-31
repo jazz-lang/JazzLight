@@ -19,14 +19,14 @@ pub fn module_from_ctx(ctx: &Context) -> P<Module> {
     for (i, g) in ctx.g.table.iter().enumerate() {
         match g {
             Global::Func(off, nargs) => {
-                let val = Value::Func(P(Function {
+                let func = P(Function {
                     var: FuncVar::Offset(*off as usize),
                     nargs: *nargs,
                     env: P(Value::Array(P(vec![]))),
-                    module: m.clone(),
-                }));
-
-                m.borrow_mut().globals[i] = P(val);
+                    module: P(Module::new("_")),
+                });
+                func.borrow_mut().module = m.clone();
+                m.borrow_mut().globals[i] = P(Value::Func(func));
             }
             _ => (),
         };
@@ -68,7 +68,6 @@ fn main() {
     parser.parse().unwrap();
     let ctx = compile_ast(ast);
     let code = ctx.finish();
-    println!("{:#?}", ctx.g.table);
 
     for (i, op) in code.iter().enumerate() {
         println!("{:04}: {:?}", i, op)

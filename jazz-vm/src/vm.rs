@@ -105,6 +105,7 @@ macro_rules! do_call {
                         args.push($vm.pop().expect("Stack empty. <native call>"));
                     }
                     let v = f($vm, args);
+                    pop_infos!(true, $m, $vm);
                     $vm.push(v);
                 }
             }
@@ -115,7 +116,7 @@ macro_rules! do_call {
 }
 
 macro_rules! object_op_gen {
-    ($acc: expr,$vm: expr,$obj: expr,$param: expr,$id: expr,$err: expr,$m: expr) => {
+    ($vm: expr,$obj: expr,$param: expr,$id: expr,$err: expr,$m: expr) => {{
         let o = $obj;
         let ob = val_object(&o);
         let obj = ob.borrow();
@@ -125,94 +126,37 @@ macro_rules! object_op_gen {
             $err;
         } else {
             push_infos!($vm, $m);
-            $vm.push(callex(o, f.unwrap().clone(), vec![arg]));
-            pop_infos!(false, $m, $vm);
+            println!("{:?}", f);
+            let v = callex(o, f.unwrap().clone(), vec![arg]);
+            pop_infos!(true, $m, $vm);
+            v
         }
-    };
+    }};
 }
 
 macro_rules! object_op {
-    ($acc: expr,$vm: expr,$obj: expr,$param: expr,$id: expr,$m: expr) => {
-        object_op_gen!(
-            $acc,
-            $vm,
-            $obj,
-            $param,
-            $id,
-            panic!("Unsupported operation"),
-            $m
-        );
+    ($vm: expr,$obj: expr,$param: expr,$id: expr,$m: expr) => {
+        object_op_gen!($vm, $obj, $param, $id, panic!("Unsupported operation"), $m);
     };
 }
 
 macro_rules! op_ {
-    ($op: tt,$vm: expr,$m: expr,$id: expr) => {
-        {
-            let acc = $vm.pop().expect("Stack empty");
+    ($op: tt,$vm: expr,$m: expr,$id: expr) => {{
+        let acc = $vm.pop().expect("Stack empty");
         let val = $vm.pop().expect("Stack empty");
-        if val_is_any_int(&acc) && val_is_any_int(&val) {
-            $vm.push(P(Value::Int(val_int(&val) $op val_int(&acc))));
-        } else if val_is_int(&acc) {
-            if val_is_float(&val) {
-                $vm.push(P(Value::Float(val_float(&val) $op val_int(&acc) as f64)));
-            } else if val_is_int32(&val) {
-                $vm.push(P(Value::Int32(val_int32(&val) $op val_int32(&acc))));
-            } else if val_is_str(&acc) {
-                unimplemented!()
-            } else if val_is_obj(&acc) {
-                let acc2 = acc.clone();
-                object_op!(acc, $vm, acc2, val, unsafe { $id }, $m);
-            } else {
-                panic!("Invalid operation `{}`",stringify!($op));
-            }
-        } else if val_is_any_int(&val) {
-            if val_is_float(&acc) {
-                $vm.push(P(Value::Float(val_int(&val) as f64 $op val_float(&acc))));
-            }
-        } else {
-            if val_is_obj(&val) {
-                let v2 = val.clone();
-                object_op!(acc, $vm, v2, acc, unsafe { $id }, $m);
-            } else if val_is_str(&val) && val_is_str(&acc) {
-                unimplemented!()
-            }
-        }
-        }
-    };
-    (cmp $op: tt,$vm: expr,$m: expr,$id: expr) => {
-        {
-            let acc = $vm.pop().expect("Stack empty");
-        let val = $vm.pop().expect("Stack empty");
-
-        if val_is_any_int(&acc) && val_is_any_int(&val) {
-            $acc = P(Value::Bool(val_int(&val) $op (val_int(&acc))));
-        } else if val_is_int(&acc) {
-            if val_is_float(&val) {
-                $acc = P(Value::Bool(val_float(&val) $op (val_int(&acc) as f64)));
-            } else if val_is_int32(&val) {
-                $acc = P(Value::Bool(val_int32(&val) $op val_int32(&acc)));
-            } else if val_is_str(&acc) {
-                unimplemented!()
-            } else if val_is_obj(&acc) {
-                let acc2 = $acc.clone();
-                object_op!($acc, $vm, acc2, val, unsafe { $id }, $m);
-            } else {
-                panic!("Invalid operation `+`");
-            }
-        } else if val_is_any_int(&val) {
-            if val_is_float(&acc) {
-                $acc = P(Value::Bool((val_int(&val) as f64) $op val_float(&acc)));
-            }
-        } else {
-            if val_is_obj(&val) {
-                let v2 = val.clone();
-                object_op!($acc, $vm, v2, $acc, unsafe { $id }, $m);
-            } else if val_is_str(&val) && val_is_str(&acc) {
-                unimplemented!()
-            }
-        }
-        }
-    };
+        let acc_c = acc.clone();
+        let val_c = val.clone();
+        match (acc.borrow(), val.borrow()) {
+            (Value::Int(i), Value::Int(i2)) => $vm.push(P(Value::Int(i $op i2))),
+            (Value::Float(f), Value::Float(f2)) => $vm.push(P(Value::Float(f $op f2))),
+            (Value::Int(i), Value::Float(f2)) => $vm.push(P(Value::Float(*i as f64 $op *f2))),
+            (Value::Float(f1), Value::Int(i)) => $vm.push(P(Value::Float(*f1 $op *i as f64))),
+            //(Value::Str(s), Value::Str(s2)) => P(Value::Str(format!("{}{}", s, s2))),
+            (Value::Object(_), _) => $vm.push(object_op!($vm, acc_c, val_c, unsafe { $id }, $m)),
+            (_, Value::Object(_)) => $vm.push(object_op!($vm, val_c, acc_c, unsafe { $id }, $m)),
+            _ => unimplemented!(),
+        };
+    }};
 }
 
 macro_rules! cmp {
@@ -220,41 +164,40 @@ macro_rules! cmp {
         {
 
 
-        let v2 = $vm.pop().expect("Stack empty");
         let v1 = $vm.pop().expect("Stack empty");
-        let v_clon = v1.clone();
+        let v2 = $vm.pop().expect("Stack empty");
+        let val = v2.clone();
+        let acc_c = v1.clone();
+
         let v = v1.borrow();
         let acc = v2.borrow();
-        let val = match (v,acc) {
-            (Value::Int(i),Value::Int(i2)) => Value::Bool(i $op i2),
-            (Value::Int32(i),Value::Int32(i2)) => Value::Bool(i $op i2),
-            (Value::Int(i),Value::Int32(i2)) => Value::Bool(*i $op *i2 as i64),
-            (Value::Int32(i),Value::Int(i2)) => Value::Bool((*i as i64) $op *i2),
-            (Value::Int(i),Value::Float(f)) => Value::Bool((*i as f64) $op *f),
-            (Value::Int32(i),Value::Float(f)) => Value::Bool((*i as f64) $op *f),
-            (Value::Float(f), Value::Int(i)) => Value::Bool(*f $op *i as f64),
-            (Value::Float(f),Value::Int32(i)) => Value::Bool(*f $op *i as f64),
-            (Value::Float(f),Value::Float(f2)) => Value::Bool(*f $op *f2),
-            (Value::Str(s1),Value::Str(s2)) => Value::Bool(*s1 $op *s2),
+        match (acc,v) {
+            (Value::Int(i),Value::Int(i2)) => $vm.push(P(Value::Bool(i $op i2))),
+            (Value::Int32(i),Value::Int32(i2)) => $vm.push(P(Value::Bool(i $op i2))),
+            (Value::Int(i),Value::Int32(i2)) => $vm.push(P(Value::Bool(*i $op *i2 as i64))),
+            (Value::Int32(i),Value::Int(i2)) => $vm.push(P(Value::Bool((*i as i64) $op *i2))),
+            (Value::Int(i),Value::Float(f)) => $vm.push(P(Value::Bool((*i as f64) $op *f))),
+            (Value::Int32(i),Value::Float(f)) => $vm.push(P(Value::Bool((*i as f64) $op *f))),
+            (Value::Float(f), Value::Int(i)) => $vm.push(P(Value::Bool(*f $op *i as f64))),
+            (Value::Float(f),Value::Int32(i)) => $vm.push(P(Value::Bool(*f $op *i as f64))),
+            (Value::Float(f),Value::Float(f2)) => $vm.push(P(Value::Bool(*f $op *f2))),
+            (Value::Str(s1),Value::Str(s2)) => $vm.push(P(Value::Bool(*s1 $op *s2))),
             (Value::Array(a1),Value::Array(a2)) => {
                 let a1 = a1.borrow();
                 let a2 = a2.borrow();
-                Value::Bool(a1.len() $op a2.len())
+                $vm.push(P(Value::Bool(a1.len() $op a2.len())))
             }
-            (Value::Bool(b),Value::Bool(b1)) => Value::Bool((*b as u8) $op *b1 as u8),
-            (Value::Object(obj1),Value::Object(_)) => {
-                let obj = obj1.borrow();
-                let tmp = obj.find(unsafe {$id});
-                if tmp.is_none() {
-                    panic!("Invalid comparison");
-                }
-                callex(v1, tmp.unwrap().clone(), vec![v_clon]).borrow().clone()
-
-
-            },
+            (Value::Bool(b),Value::Bool(b1)) => $vm.push(P(Value::Bool((*b as u8) $op *b1 as u8))),
+            (Value::Object(_),_) => {
+                $vm.push(object_op!($vm,acc_c,val,unsafe {$id},$m))
+            }
+            (_,Value::Object(_)) =>
+            {
+                $vm.push(object_op!($vm, val, acc_c, unsafe { $id }, $m))
+            }
             _ => unimplemented!()
         };
-        $vm.push(P(val));
+
         }
     };
 }
@@ -346,7 +289,7 @@ impl VM {
             use Opcode::*;
 
             let op = self.next_op();
-            //println!("current: {:04} {:?}", self.pc - 1, op);
+            println!("current: {:04} {:?}", self.pc - 1, op);
             match op {
                 LdNull => self.push(P(Value::Null)),
                 LdFloat(f) => self.push(P(Value::Float(f))),
@@ -362,8 +305,7 @@ impl VM {
                     self.push(self.locals.get(&idx).unwrap_or(&P(Value::Null)).clone());
                 }
                 LdGlobal(idx) => {
-                    let module: &mut Module = m.borrow_mut();
-                    self.push(module.globals[idx as usize].clone());
+                    self.push(m.globals[idx as usize].clone());
                 }
                 LdEnv(at) => {
                     let env = val_array(&self.env);
@@ -514,7 +456,7 @@ impl VM {
                 TailCall(_) => unimplemented!(),
 
                 Ret => {
-                    let val = self.pop().expect("stack empty");
+                    let val = self.pop().unwrap_or(P(Value::Null));
                     pop_infos!(true, m, self);
                     self.stack.clear();
                     self.push(val);
@@ -537,34 +479,28 @@ impl VM {
                 Add => {
                     let acc = self.pop().expect("Stack empty");
                     let val = self.pop().expect("Stack empty");
-
-                    if val_is_any_int(&acc) && val_is_any_int(&val) {
-                        self.push(P(Value::Int(val_int(&val) + val_int(&acc))));
-                    } else if val_is_int(&acc) {
-                        if val_is_float(&val) {
-                            self.push(P(Value::Float(val_float(&val) + val_int(&acc) as f64)));
-                        } else if val_is_int32(&val) {
-                            self.push(P(Value::Int32(val_int32(&val) + val_int32(&acc))));
-                        } else if val_is_str(&acc) {
-                            unimplemented!()
-                        } else if val_is_obj(&acc) {
-                            let acc2 = acc.clone();
-                            object_op!(acc, self, acc2, val, unsafe { FIELD_ADD }, m);
-                        } else {
-                            panic!("Invalid operation `+`");
+                    let acc_c = acc.clone();
+                    let val_c = val.clone();
+                    match (acc.borrow(), val.borrow()) {
+                        (Value::Int(i), Value::Int(i2)) => self.push(P(Value::Int(i + i2))),
+                        (Value::Float(f), Value::Float(f2)) => self.push(P(Value::Float(f + f2))),
+                        (Value::Int(i), Value::Float(f2)) => {
+                            self.push(P(Value::Float(*i as f64 + *f2)))
                         }
-                    } else if val_is_any_int(&val) {
-                        if val_is_float(&acc) {
-                            self.push(P(Value::Float(val_int(&val) as f64 + val_float(&acc))));
+                        (Value::Float(f1), Value::Int(i)) => {
+                            self.push(P(Value::Float(*f1 + *i as f64)))
                         }
-                    } else {
-                        if val_is_obj(&val) {
-                            let v2 = val.clone();
-                            object_op!(acc, self, v2, acc, unsafe { FIELD_ADD }, m);
-                        } else if val_is_str(&val) && val_is_str(&acc) {
-                            unimplemented!()
+                        (Value::Str(s), Value::Str(s2)) => {
+                            self.push(P(Value::Str(format!("{}{}", s, s2))))
                         }
-                    }
+                        (Value::Object(_), _) => {
+                            self.push(object_op!(self, acc_c, val_c, unsafe { FIELD_ADD }, m))
+                        }
+                        (_, Value::Object(_)) => {
+                            self.push(object_op!(self, val_c, acc_c, unsafe { FIELD_ADD }, m))
+                        }
+                        _ => unimplemented!(),
+                    };
                 }
                 Sub => op_!(-,self,m,FIELD_SUB),
                 Mul => op_!(*,self,m,FIELD_MUL),
@@ -585,6 +521,43 @@ impl VM {
                         self.push(P(Value::Bool(!b)));
                     }
                 }
+                Xor => {
+                    let v1 = self.pop().unwrap();
+                    let v2 = self.pop().unwrap();
+                    let v1 = val_int(&v1);
+                    let v2 = val_int(&v2);
+                    self.push(P(Value::Int(v1 ^ v2)));
+                }
+                Or => {
+                    let v1 = self.pop().unwrap();
+                    let v2 = self.pop().unwrap();
+                    let v1 = val_int(&v1);
+                    let v2 = val_int(&v2);
+                    self.push(P(Value::Int(v1 | v2)));
+                }
+                And => {
+                    let v1 = self.pop().unwrap();
+                    let v2 = self.pop().unwrap();
+                    let v1 = val_int(&v1);
+                    let v2 = val_int(&v2);
+                    self.push(P(Value::Int(v1 | v2)));
+                }
+                Shr => {
+                    let v1 = self.pop().unwrap();
+                    let v2 = self.pop().unwrap();
+                    let v1 = val_int(&v1);
+                    let v2 = val_int(&v2);
+                    self.push(P(Value::Int(v1 >> v2)));
+                }
+
+                Shl => {
+                    let v1 = self.pop().unwrap();
+                    let v2 = self.pop().unwrap();
+                    let v1 = val_int(&v1);
+                    let v2 = val_int(&v2);
+                    self.push(P(Value::Int(v1 << v2)));
+                }
+
                 Opcode::New => {
                     let val = self.pop().expect("stack empty");
                     let proto = if val_is_null(&val) {

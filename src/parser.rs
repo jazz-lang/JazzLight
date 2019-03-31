@@ -281,6 +281,7 @@ impl<'a> Parser<'a> {
             TokenKind::Mul => "*",
             TokenKind::Div => "/",
             TokenKind::LtLt => "<<",
+            TokenKind::GtGtGt => ">>>"
             TokenKind::GtGt => ">>",
             TokenKind::Mod => "%",
             _ => unimplemented!(),
@@ -303,7 +304,7 @@ impl<'a> Parser<'a> {
                 | TokenKind::Gt
                 | TokenKind::Ge => 4,
                 TokenKind::BitOr | TokenKind::BitAnd | TokenKind::Caret => 6,
-                TokenKind::LtLt | TokenKind::GtGt | TokenKind::Add | TokenKind::Sub => 8,
+                TokenKind::LtLt | TokenKind::GtGt | TokenKind::GtGtGt | TokenKind::Add | TokenKind::Sub => 8,
                 TokenKind::Mul | TokenKind::Div | TokenKind::Mod => 9,
                 _ => {
                     return Ok(left);

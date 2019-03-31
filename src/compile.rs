@@ -180,9 +180,9 @@ impl Context {
             "&&" => unimplemented!(),
             "||" => unimplemented!(),
             _ => {
-                self.compile(e1);
-
                 self.compile(e2);
+
+                self.compile(e1);
                 self.write_op(op);
             }
         }
@@ -214,7 +214,6 @@ impl Context {
                 let idx = self.builtins.get(name).expect("Builtint not found");
                 self.write(Opcode::LdBuiltin(*idx as u32));
             }
-            _ => unimplemented!(),
         }
     }
     pub fn write_op(&mut self, op: &str) {
@@ -268,11 +267,39 @@ impl Context {
             }
             ExprDecl::Field(e, f) => {
                 self.compile(e);
-                ;
                 return Access::Field(f.to_owned());
             }
             ExprDecl::Const(Constant::This) => return Access::This,
+            ExprDecl::Array(ea, ei) => {
+                if let ExprDecl::Const(Constant::Int(i)) = ei.decl {
+                    self.compile(ea);
+                    return Access::Index(i as i32);
+                }
+                self.compile(ea);
+                self.compile(ei);
+                return Access::Array;
+            }
             _ => unimplemented!(),
+        }
+    }
+
+    pub fn access_get(&mut self, acc: Access) {
+        match acc {
+            Access::Env(i) => self.write(Opcode::LdEnv(i as _)),
+            Access::Stack(i) => self.write(Opcode::LdLocal(i as _)),
+            Access::Global(g) => self.write(Opcode::LdGlobal(g as _)),
+            Access::Field(f) => {
+                let mut h = 0xcbf29ce484222325;
+                hash_bytes(&mut h, f.as_bytes());
+
+                self.fields.insert(h, f.to_owned());
+                self.write(Opcode::LdField(h));
+            }
+            Access::Index(i) => self.write(Opcode::LdIndex(i as _)),
+            Access::This => self.write(Opcode::LdThis),
+            Access::Array => {
+                self.write(Opcode::LdArray);
+            }
         }
     }
 
@@ -305,7 +332,9 @@ impl Context {
                 UOP::GotoF(ref lbl) => {
                     Opcode::JumpIfNot(self.labels.get(lbl).unwrap().unwrap() as u32 + 1)
                 }
-                _ => unimplemented!(),
+                UOP::GotoT(ref lbl) => {
+                    Opcode::JumpIf(self.labels.get(lbl).unwrap().unwrap() as u32 + 1)
+                }
             })
             .collect::<Vec<Opcode>>()
     }
@@ -335,7 +364,11 @@ impl Context {
                 hash_bytes(&mut h, f.as_bytes());
                 self.write(Opcode::LdField(h));
             }
-
+            ExprDecl::Array(ea, ei) => {
+                self.compile(ea);
+                self.compile(ei);
+                self.write(Opcode::LdArray);
+            }
             ExprDecl::Var(_, name, init) => {
                 match init {
                     Some(e) => match &e.decl {
@@ -411,13 +444,13 @@ impl Context {
                     }
                     _ => (),
                 }
-                for x in el.iter() {
+                for x in el.iter().rev() {
                     self.compile(x);
                 }
                 self.compile(e);
                 self.write(Opcode::Call(el.len() as _));
             }
-            _ => unimplemented!(),
+            v => panic!("{:?}", v),
         }
     }
 
@@ -445,6 +478,7 @@ impl Context {
         }
         let s = ctx.stack.clone();
         ctx.compile(e);
+
         ctx.write(Opcode::Ret);
         ctx.check_stack(s, "");
 
@@ -459,7 +493,7 @@ impl Context {
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
         }
-        println!("{:?}", ctx.nenv);
+
         if ctx.nenv > 0 {
             let mut a = vec!["".to_string(); ctx.nenv as usize];
             for (v, i) in ctx.env.iter() {
@@ -524,6 +558,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
 
         for (fops, fpos, gid, nargs) in ctx.g.functions.iter().rev() {
             let g = ctx.g.borrow_mut();
+            println!("{}", gid);
             g.table[*gid as usize] = Global::Func(ctx.ops.len() as i32, *nargs);
 
             for op in fops.iter() {
