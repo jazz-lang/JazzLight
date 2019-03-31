@@ -10,8 +10,10 @@ pub extern "C" fn load(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
         let symbol_name = val_str(&args[1]);
         let nargs = val_int(&args[2]);
         let lib = lib::Library::new(&path).unwrap();
+
         unsafe {
             let func: lib::Symbol<jazz_func> = lib.get(symbol_name.as_bytes()).unwrap();
+
             let func = Function {
                 var: FuncVar::Native((*func) as *const u8),
                 nargs: nargs as i32,
@@ -23,6 +25,10 @@ pub extern "C" fn load(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     } else {
         panic!("String expected");
     }
+}
+
+pub extern "C" fn os_string(_: &mut VM, _args: Vec<P<Value>>) -> P<Value> {
+    P(Value::Str(std::env::consts::OS.to_owned()))
 }
 
 pub fn val_string(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
@@ -87,6 +93,60 @@ pub extern "C" fn array(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Array(P(args)))
 }
 
+pub extern "C" fn alen(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow();
+
+        return P(Value::Int(array.len() as i64));
+    } else {
+        panic!("Array expected");
+    }
+}
+
+pub extern "C" fn apush(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow_mut();
+        let val = args[1].clone();
+        array.push(val);
+    }
+
+    P(Value::Null)
+}
+
+pub extern "C" fn apop(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow_mut();
+        array.pop().unwrap_or(P(Value::Null))
+    } else {
+        P(Value::Null)
+    }
+}
+
+pub extern "C" fn aset(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow_mut();
+        let key = val_int(&args[1]);
+        let val = args[2].clone();
+        array[key as usize] = val;
+    }
+    // Throw error if val not array?
+    P(Value::Null)
+}
+
+pub extern "C" fn aget(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow();
+        let key = val_int(&args[1]);
+        return array.get(key as usize).unwrap_or(&P(Value::Null)).clone();
+    }
+    P(Value::Null)
+}
+
 macro_rules! new_builtin {
     ($vm: expr,$f: ident) => {
         let f = Function {
@@ -104,4 +164,10 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, val_string);
     new_builtin!(vm, print);
     new_builtin!(vm, array);
+    new_builtin!(vm, alen);
+    new_builtin!(vm, apush);
+    new_builtin!(vm, apop);
+    new_builtin!(vm, aset);
+    new_builtin!(vm, aget);
+    new_builtin!(vm, os_string);
 }

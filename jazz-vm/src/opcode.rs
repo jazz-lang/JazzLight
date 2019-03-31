@@ -34,6 +34,7 @@ pub enum Opcode {
     Ret,
     MakeEnv(u32),
     MakeArray(u32),
+    Neg,
     Bool,
     Not,
     IsNull,

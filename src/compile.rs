@@ -460,6 +460,14 @@ impl Context {
                 self.compile(e);
                 self.write(Opcode::Call(el.len() as _));
             }
+            ExprDecl::Unop(op, e) => {
+                self.compile(e);
+                let op: &str = op;
+                match op {
+                    "-" => self.write(Opcode::Not),
+                    _ => (),
+                }
+            }
             v => panic!("{:?}", v),
         }
     }
@@ -548,6 +556,12 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("string".into(), 1);
     ctx.builtins.insert("print".into(), 2);
     ctx.builtins.insert("array".into(), 3);
+    ctx.builtins.insert("alen".into(), 4);
+    ctx.builtins.insert("apush".into(), 5);
+    ctx.builtins.insert("apop".into(), 6);
+    ctx.builtins.insert("aset".into(), 7);
+    ctx.builtins.insert("aget".into(), 8);
+    ctx.builtins.insert("os_string".into(), 9);
     use crate::P;
 
     let ast = P(Expr {

@@ -35,7 +35,7 @@ macro_rules! push_infos {
         let pc = $vm.pc;
         let env = $vm.env.clone();
         let locals = $vm.locals.clone();
-        
+
         $vm.csp.push(CSPVal::Pc(pc));
         $vm.csp.push(CSPVal::Val(env));
         $vm.csp.push(CSPVal::Val(vthis));
@@ -331,6 +331,16 @@ impl VM {
                         panic!("Reading outside env");
                     }
                     self.push(env[at as usize].clone());
+                }
+                Neg => {
+                    let v = self.pop().unwrap();
+                    let val = match v.borrow() {
+                        Value::Int(i) => Value::Int(-i),
+                        Value::Int32(i) => Value::Int32(-i),
+                        Value::Float(f) => Value::Float(-f),
+                        _ => unimplemented!(),
+                    };
+                    self.push(P(val));
                 }
                 LdField(field) => {
                     let acc = self.pop().unwrap();
