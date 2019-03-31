@@ -490,6 +490,7 @@ impl VM {
                     let func = val_func(&acc);
                     let func_m: &mut Function = func.borrow_mut();
                     func_m.env = P(Value::Array(P(tmp)));
+                    self.push(acc);
                 }
                 MakeArray(mut count) => {
                     let mut tmp = vec![];

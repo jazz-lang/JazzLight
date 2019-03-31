@@ -198,26 +198,13 @@ impl Context {
             Constant::Str(s) => self.write(Opcode::LdStr(s.clone())),
             Constant::Ident(s) => {
                 let s: &str = s;
-                let l = self.locals.get(s);
-
-                if l.is_some() {
-                    let l = *l.unwrap();
-                    if l < self.limit {
-                        let e = self.env.get(s);
-                        let e = if e.is_none() {
-                            let e = self.nenv;
-                            self.nenv += 1;
-                            self.env.insert(s.to_owned(), e);
-                            e
-                        } else {
-                            *e.unwrap()
-                        };
-                        self.write(Opcode::LdEnv(e as u32));
-                    } else {
-                        let p = l;
-
-                        self.write(Opcode::LdLocal(p as u32));
-                    }
+                if self.locals.contains_key(s) {
+                    let i = self.locals.get(s).unwrap();
+                    self.write(Opcode::LdLocal(*i as u32));
+                } else if self.env.contains_key(s) {
+                    self.nenv += 1;
+                    let i = self.env.get(s).unwrap();
+                    self.write(Opcode::LdEnv(*i as u32));
                 } else {
                     let g = self.global(&Global::Var(s.to_owned()));
                     self.write(Opcode::LdGlobal(g as u32));
@@ -444,7 +431,7 @@ impl Context {
             locals: HashMap::new(),
             fields: self.fields.clone(),
             nenv: 0,
-            env: HashMap::new(),
+            env: self.locals.clone(),
             cur_pos: (0, 0),
             cur_file: self.cur_file.clone(),
             continues: vec![],
@@ -472,6 +459,7 @@ impl Context {
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
         }
+        println!("{:?}", ctx.nenv);
         if ctx.nenv > 0 {
             let mut a = vec!["".to_string(); ctx.nenv as usize];
             for (v, i) in ctx.env.iter() {
