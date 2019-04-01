@@ -1,6 +1,6 @@
 use crate::{value::Value, P};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Module {
     pub name: P<Value>,
     pub globals: Vec<P<Value>>,

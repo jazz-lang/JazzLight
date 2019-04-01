@@ -3,6 +3,7 @@ use crate::opcode::Opcode;
 use crate::value::*;
 use crate::P;
 
+#[derive(Debug)]
 pub enum CSPVal {
     Pc(usize),
     Module(P<Module>),
@@ -48,8 +49,9 @@ macro_rules! push_infos {
 
 macro_rules! pop_callback {
     ($vm: expr) => {
-        if let Some(CSPVal::Val(v)) = $vm.csp.pop() {
+        if let Some(CSPVal::Val(v)) = $vm.csp.last() {
             if let Value::Int32(0) = v.borrow() {
+                $vm.csp.pop();
                 return $vm.pop().unwrap_or(P(Value::Null));
             }
         }
@@ -126,7 +128,7 @@ macro_rules! do_call {
                 }
             }
         } else {
-            panic!("Invalid call {:?}",$acc);
+            panic!("Invalid call {:?}", $acc);
         }
     };
 }
@@ -240,12 +242,15 @@ macro_rules! jazz_vm {
 }
 
 pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
-    let vm = jazz_vm!();
-    let old_this = vm.vthis.clone();
-    let old_env = vm.env.clone();
+    let cur_vm = jazz_vm!();
+    let mut vm = VM::new();
+
     let mut ret = P(Value::Null);
-    let old_pc = vm.pc.clone();
+
+    vm.builtins = cur_vm.builtins.clone();
     vm.vthis = vthis;
+    vm.env = cur_vm.env.clone();
+    vm.locals = cur_vm.locals.clone();
     if val_is_int(&f) {
         panic!("Invalid call");
     }
@@ -259,7 +264,7 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
         match &func.var {
             FuncVar::Native(ptr) => {
                 let nf: jazz_func = unsafe { std::mem::transmute(*ptr) };
-                ret = nf(vm, args);
+                ret = nf(&mut vm, args);
             }
             FuncVar::Offset(off) => {
                 if args.len() as i32 == func.nargs {
@@ -277,9 +282,7 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
     } else {
         panic!("Invalid call");
     }
-    vm.vthis = old_this;
-    vm.env = old_env;
-    vm.pc = old_pc;
+
     return ret;
 }
 
@@ -320,7 +323,6 @@ impl VM {
     }
 
     pub fn interp(&mut self, m: &mut P<Module>) -> P<Value> {
-        println!("{:?}", self.code.len());
         while self.pc < self.code.len() {
             use Opcode::*;
 
@@ -507,10 +509,12 @@ impl VM {
                 TailCall(_) => unimplemented!(),
 
                 Ret => {
+                    pop_callback!(self);
                     let val = self.pop().unwrap_or(P(Value::Null));
                     //self.stack.clear();
+
                     pop_infos!(true, m, self);
-                    pop_callback!(self);
+
                     self.push(val);
                 }
                 Jump(to) => {

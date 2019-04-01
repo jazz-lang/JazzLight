@@ -1,0 +1,10 @@
+var y = 2
+
+var thread = $thread_spawn(function() -> {
+    $print("Hello,world!")
+    $print("y = ",y)
+})
+
+
+
+$thread_join(thread)
