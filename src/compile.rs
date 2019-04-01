@@ -553,7 +553,9 @@ impl Context {
                 }
             }
             self.write(Opcode::LdGlobal(gid as _));
-            self.write(Opcode::MakeEnv(ctx.nenv as _));
+            self.write(Opcode::MakeEnv(
+                (self.env.len() + 1) as u32 - self.nenv as u32,
+            ));
         } else {
             self.write(Opcode::LdGlobal(gid as _));
         }
