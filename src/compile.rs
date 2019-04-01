@@ -206,14 +206,14 @@ impl Context {
                 } else if self.env.contains_key(s) {
                     self.nenv += 1;
                     let i = self.env.get(s).unwrap();
-                    self.write(Opcode::LdEnv(*i as u32));
+                    self.write(Opcode::LdEnv((self.env.len() as i32 - *i - 1) as u32));
                 } else {
                     let g = self.global(&Global::Var(s.to_owned()));
                     self.write(Opcode::LdGlobal(g as u32));
                 }
             }
             Constant::Builtin(name) => {
-                let idx = self.builtins.get(name).expect("Builtint not found");
+                let idx = self.builtins.get(name).expect("Builtin not found");
                 self.write(Opcode::LdBuiltin(*idx as u32));
             }
         }
@@ -496,7 +496,7 @@ impl Context {
 
     pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
         let mut ctx = Context {
-            g: self.g,
+            g: self.g.clone(), // we don't clone this globals, basically just copy ptr,
             ops: Vec::new(),
             pos: Vec::new(),
             limit: self.stack,
@@ -540,12 +540,17 @@ impl Context {
             self.labels.insert(k.clone(), v.clone());
         }
         if ctx.nenv > 0 {
-            let mut a = vec!["".to_string(); ctx.nenv as usize];
+            /*let mut a = vec!["".to_string(); ctx.nenv as usize];
             for (v, i) in ctx.env.iter() {
                 a[*i as usize] = v.clone();
             }
             for x in a.iter() {
                 self.compile_const(&Constant::Ident(x.to_owned()), e.pos);
+            }*/
+            for (idx, (v, _i)) in ctx.env.iter().enumerate() {
+                if idx as i32 <= self.nenv {
+                    self.compile_const(&Constant::Ident(v.to_owned()), e.pos);
+                }
             }
             self.write(Opcode::LdGlobal(gid as _));
             self.write(Opcode::MakeEnv(ctx.nenv as _));
@@ -589,6 +594,8 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("aset".into(), 7);
     ctx.builtins.insert("aget".into(), 8);
     ctx.builtins.insert("os_string".into(), 9);
+    ctx.builtins.insert("thread_spawn".into(), 10);
+    ctx.builtins.insert("thread_join".into(), 11);
     use crate::P;
 
     let ast = P(Expr {

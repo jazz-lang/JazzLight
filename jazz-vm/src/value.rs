@@ -10,17 +10,24 @@ pub enum Value {
     Object(P<Object>),
     Array(P<Vec<P<Value>>>),
     Func(P<Function>),
-
     Extern(
         *mut u8, /* extern pointer */
         String,  /* extern name */
     ),
 }
+
+unsafe impl Sync for Value {}
+unsafe impl Send for Value {}
+
 #[derive(Clone, Debug)]
 pub enum FuncVar {
     Offset(usize),
     Native(*const u8),
 }
+
+unsafe impl Sync for FuncVar {}
+unsafe impl Send for FuncVar {}
+
 #[derive(Clone)]
 pub struct Function {
     pub nargs: i32,
@@ -28,6 +35,10 @@ pub struct Function {
     pub env: P<Value>,
     pub module: P<crate::module::Module>,
 }
+
+unsafe impl Sync for Function {}
+unsafe impl Send for Function {}
+
 #[derive(Clone, Debug)]
 pub struct ObjField {
     pub val: P<Value>,
@@ -38,6 +49,9 @@ pub struct ObjField {
 pub struct Object {
     pub entries: Vec<P<ObjField>>,
 }
+
+unsafe impl Sync for Object {}
+unsafe impl Send for Object {}
 
 impl Object {
     pub fn find(&self, field: i64) -> Option<P<Value>> {

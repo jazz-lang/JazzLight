@@ -126,7 +126,6 @@ pub extern "C" fn apop(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
 }
 
 pub extern "C" fn aset(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
-    
     if val_is_array(&args[0]) {
         let array_p = val_array(&args[0]);
         let array = array_p.borrow_mut();
@@ -146,6 +145,42 @@ pub extern "C" fn aget(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
         return array.get(key as usize).unwrap_or(&P(Value::Null)).clone();
     }
     P(Value::Null)
+}
+use crate::Cell;
+lazy_static::lazy_static!(
+    pub static ref THREADS: Cell<fnv::FnvHashMap<i32,Cell<std::thread::JoinHandle<P<Value>>>>> = Cell::new(fnv::FnvHashMap::default());
+);
+
+pub extern "C" fn thread_spawn(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_func(&args[0]) {
+        use crate::vm::callex;
+        let val = args[0].clone();
+
+        let thread = std::thread::spawn(|| callex(P(Value::Null), val, vec![]));
+        let id = thread.thread().id();
+        let id: u64 = unsafe { std::mem::transmute(id) };
+
+        THREADS.borrow_mut().insert(id as i32, Cell::new(thread));
+
+        return P(Value::Int32(id as i32));
+    }
+    P(Value::Null)
+}
+
+pub extern "C" fn thread_join(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let val = args[0].borrow();
+    match &val {
+        Value::Int32(idx) => {
+            let thread = THREADS
+                .borrow()
+                .get(idx)
+                .expect("Thread not found")
+                .direct();
+
+            thread.join().unwrap()
+        }
+        _ => P(Value::Null),
+    }
 }
 
 macro_rules! new_builtin {
@@ -171,4 +206,7 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, aset);
     new_builtin!(vm, aget);
     new_builtin!(vm, os_string);
+    new_builtin!(vm, thread_spawn);
+
+    new_builtin!(vm, thread_join);
 }

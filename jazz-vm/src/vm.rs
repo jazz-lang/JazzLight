@@ -27,6 +27,7 @@ pub struct VM {
     pub builtins: Vec<P<Value>>,
     pub sp: usize,
     pub locals: fnv::FnvHashMap<u32, P<Value>>,
+    pub total_s_size: u32,
 }
 
 macro_rules! push_infos {
@@ -45,6 +46,15 @@ macro_rules! push_infos {
     };
 }
 
+macro_rules! pop_callback {
+    ($vm: expr) => {
+        if let Some(CSPVal::Val(v)) = $vm.csp.pop() {
+            if let Value::Int32(0) = v.borrow() {
+                return $vm.pop().unwrap_or(P(Value::Null));
+            }
+        }
+    };
+}
 macro_rules! pop_infos {
     ($restpc: expr,$m: expr,$vm: expr) => {
         /*if let Some(CSPVal::Stack(stack)) = $vm.csp.pop() {
@@ -116,7 +126,7 @@ macro_rules! do_call {
                 }
             }
         } else {
-            panic!("Invalid call");
+            panic!("Invalid call {:?}",$acc);
         }
     };
 }
@@ -219,14 +229,13 @@ macro_rules! cmp {
     };
 }
 
-use parking_lot::Mutex;
 lazy_static::lazy_static! {
-    pub static ref VM_THREAD: Mutex<VM> = Mutex::new(VM::new());
+    pub static ref VM_THREAD: Cell<VM> = Cell::new(VM::new());
 }
 #[macro_export]
 macro_rules! jazz_vm {
     () => {
-        &mut VM_THREAD.lock()
+        VM_THREAD.borrow_mut()
     };
 }
 
@@ -235,15 +244,18 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
     let old_this = vm.vthis.clone();
     let old_env = vm.env.clone();
     let mut ret = P(Value::Null);
-
+    let old_pc = vm.pc.clone();
     vm.vthis = vthis;
     if val_is_int(&f) {
         panic!("Invalid call");
     }
+
     if val_is_func(&f) {
         let f = val_func(&f);
         let func: &mut Function = f.borrow_mut();
+
         vm.env = func.env.clone();
+
         match &func.var {
             FuncVar::Native(ptr) => {
                 let nf: jazz_func = unsafe { std::mem::transmute(*ptr) };
@@ -254,7 +266,10 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
                     for n in 0..args.len() {
                         vm.locals.insert(n as _, args[n].clone());
                     }
-                    vm.pc = *off as usize - 1;
+                    vm.csp.push(CSPVal::Val(P(Value::Int32(0))));
+                    vm.pc = *off as usize;
+                    vm.code = func.module.code.clone();
+
                     ret = vm.interp(&mut func.module);
                 }
             }
@@ -264,7 +279,7 @@ pub fn callex(vthis: P<Value>, f: P<Value>, args: Vec<P<Value>>) -> P<Value> {
     }
     vm.vthis = old_this;
     vm.env = old_env;
-
+    vm.pc = old_pc;
     return ret;
 }
 
@@ -282,16 +297,19 @@ impl VM {
             vthis: P(Value::Null),
             sp: 0,
             locals: fnv::FnvHashMap::default(),
+            total_s_size: 0,
         }
     }
     pub fn push(&mut self, val: P<Value>) {
         self.sp = self.stack.len();
         self.stack.push(val);
+        self.total_s_size += 1;
     }
 
     pub fn pop(&mut self) -> Option<P<Value>> {
         let val = self.stack.pop();
         self.sp = self.stack.len();
+        //self.total_s_size -= 1;
         val
     }
 
@@ -302,10 +320,17 @@ impl VM {
     }
 
     pub fn interp(&mut self, m: &mut P<Module>) -> P<Value> {
+        println!("{:?}", self.code.len());
         while self.pc < self.code.len() {
             use Opcode::*;
 
             let op = self.next_op();
+
+            unsafe {
+                if crate::VERBOSE {
+                    println!("Current opcode: {:04} {:?}", self.pc - 1, op,);
+                }
+            }
 
             match op {
                 LdNull => self.push(P(Value::Null)),
@@ -327,6 +352,7 @@ impl VM {
                 LdEnv(at) => {
                     let env = val_array(&self.env);
                     let env = env.borrow_mut();
+
                     if at >= env.len() as u32 {
                         panic!("Reading outside env");
                     }
@@ -484,7 +510,7 @@ impl VM {
                     let val = self.pop().unwrap_or(P(Value::Null));
                     //self.stack.clear();
                     pop_infos!(true, m, self);
-
+                    pop_callback!(self);
                     self.push(val);
                 }
                 Jump(to) => {
@@ -645,7 +671,9 @@ impl VM {
                 _ => unimplemented!(),
             }
         }
-
+        if unsafe { crate::VERBOSE } {
+            println!("Total stack size: {}", self.total_s_size);
+        }
         return self.pop().unwrap_or(P(Value::Null));
     }
 }

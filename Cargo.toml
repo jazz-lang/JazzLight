@@ -8,3 +8,4 @@ edition = "2018"
 hmap = "0.1"
 jazzvm = {path = "jazz-vm"}
 structopt = "0.2"
+time = "0.1.42"

@@ -8,12 +8,15 @@ pub fn P<T>(value: T) -> P<T> {
     P::new(Cell::new(value))
 }
 
+pub static mut VERBOSE: bool = false;
+pub static mut PRINT_EXECUTION_PROCESS: bool = false;
+
+pub mod builtins;
 pub mod fields;
 pub mod hash;
 pub mod module;
 pub mod opcode;
 pub mod value;
-pub mod builtins;
 #[macro_use]
 pub mod vm;
 
@@ -21,8 +24,8 @@ pub struct Cell<T> {
     val: *mut T,
 }
 
-
 unsafe impl<T: Sync> Sync for Cell<T> {}
+unsafe impl<T: Send> Send for Cell<T> {}
 
 impl<T> Cell<T> {
     pub fn new(val: T) -> Cell<T> {
@@ -47,12 +50,15 @@ impl<T> Cell<T> {
         }
     }
 
+    pub fn direct(&self) -> Box<T> {
+        unsafe { Box::from_raw(self.val) }
+    }
+
     #[inline]
     pub fn raw(&self) -> *mut T {
         self.val
     }
 }
-
 impl<T> Copy for Cell<T> {}
 impl<T> Clone for Cell<T> {
     fn clone(&self) -> Self {
@@ -87,3 +93,16 @@ impl<T> DerefMut for Cell<T> {
         self.borrow_mut()
     }
 }
+
+extern "C" {
+    fn free(p: *mut u8);
+}
+
+/*impl<T> Drop for Cell<T> {
+    fn drop(&mut self) {
+        unsafe {
+            free(self.val as *mut u8);
+        }
+    }
+}
+*/

@@ -61,6 +61,9 @@ pub struct Options {
     #[structopt(short = "d", long = "disassemble")]
     /// Print bytecode to stdout
     dump_op: bool,
+    #[structopt(short = "v", long = "verbose")]
+    /// Show more information e.g current opcode, field lists etc
+    verbose: bool,
 }
 
 use std::fs::File;
@@ -83,18 +86,41 @@ fn main() {
 
     parser.parse().unwrap();
     let mut ctx = compile_ast(ast);
+
+    let mut m = module_from_ctx(&mut ctx);
+    if ops.verbose && m.fields.len() != 0 {
+        println!("Fields:");
+        for (hash, name) in m.fields.iter() {
+            println!("\t{}: \t0{:x}", name, *hash as u64);
+        }
+        println!("");
+    }
+
     let code = ctx.finish();
-    if ops.dump_op {
+    if ops.dump_op || ops.verbose {
+        println!("Byteocde:");
         for (i, op) in code.iter().enumerate() {
             println!("{:04}: {:?}", i, op)
         }
+        println!("");
     }
-
-    let mut m = module_from_ctx(&mut ctx);
-
     let mut vm = VM::new();
     jazzvm::fields::init_fields();
     register_builtins(&mut vm);
     vm.code = ctx.finish();
-    vm.interp(&mut m);
+    *jazzvm::vm::VM_THREAD.borrow_mut() = vm;
+
+    let start = time::PreciseTime::now();
+    if ops.verbose {
+        unsafe { jazzvm::VERBOSE = true };
+    }
+    jazzvm::vm::VM_THREAD.borrow_mut().interp(&mut m);
+    let end = time::PreciseTime::now();
+
+    if ops.verbose {
+        println!(
+            "Execution time: {} milliseconds",
+            start.to(end).num_milliseconds()
+        );
+    }
 }
