@@ -126,6 +126,7 @@ pub extern "C" fn apop(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
 }
 
 pub extern "C" fn aset(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    
     if val_is_array(&args[0]) {
         let array_p = val_array(&args[0]);
         let array = array_p.borrow_mut();

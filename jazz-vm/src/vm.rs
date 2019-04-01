@@ -306,7 +306,7 @@ impl VM {
             use Opcode::*;
 
             let op = self.next_op();
-            //println!("current: {:04} {:?}", self.pc - 1, op);
+
             match op {
                 LdNull => self.push(P(Value::Null)),
                 LdFloat(f) => self.push(P(Value::Float(f))),
@@ -344,17 +344,14 @@ impl VM {
                 }
                 LdField(field) => {
                     let acc = self.pop().unwrap();
-                    if val_is_obj(&acc) {
-                        let obj_p = val_object(&acc);
-                        let obj: &Object = obj_p.borrow();
-                        let f = obj.find(field as i64);
-                        if f.is_some() {
-                            self.push(f.unwrap().clone());
-                        } else {
-                            self.push(P(Value::Null));
-                        }
+
+                    let obj_p = val_object(&acc);
+                    let obj: &Object = obj_p.borrow();
+                    let f = obj.find(field as i64);
+                    if f.is_some() {
+                        self.push(f.unwrap().clone());
                     } else {
-                        panic!("Invalid field access");
+                        self.push(P(Value::Null));
                     }
                 }
                 LdArray => {
@@ -478,7 +475,8 @@ impl VM {
                 ObjCall(argc) => {
                     let vtmp = self.pop().expect("Stack empty");
                     let acc = self.pop().unwrap();
-                    do_call!(acc, self, m, vtmp, argc);
+
+                    do_call!(vtmp, self, m, acc, argc);
                 }
                 TailCall(_) => unimplemented!(),
 

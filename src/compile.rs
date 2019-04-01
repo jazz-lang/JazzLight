@@ -452,6 +452,18 @@ impl Context {
                             _ => (),
                         }
                     }
+                    ExprDecl::Field(e, f) => {
+                        for e in el.iter().rev() {
+                            self.compile(e);
+                        }
+                        self.compile(e);
+                        self.compile(e);
+                        let mut h = 0xcbf29ce484222325;
+                        hash_bytes(&mut h, f.as_bytes());
+                        self.write(Opcode::LdField(h));
+                        self.write(Opcode::ObjCall(el.len() as u32));
+                        return;
+                    }
                     _ => (),
                 }
                 for x in el.iter().rev() {
