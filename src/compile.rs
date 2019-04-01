@@ -55,6 +55,7 @@ pub struct Context {
     pub builtins: HashMap<String, i32>,
     pub labels: HashMap<String, Option<usize>>,
     pub fields: Cell<HashMap<u64, String>>,
+    pub used_upvars: HashMap<String, i32>,
 }
 
 use crate::ast::*;
@@ -206,6 +207,7 @@ impl Context {
                 } else if self.env.contains_key(s) {
                     self.nenv += 1;
                     let i = self.env.get(s).unwrap();
+                    self.used_upvars.insert(s.to_owned(), *i);
                     self.write(Opcode::LdEnv((self.env.len() as i32 - *i - 1) as u32));
                 } else {
                     let g = self.global(&Global::Var(s.to_owned()));
@@ -511,6 +513,7 @@ impl Context {
             breaks: vec![],
             builtins: self.builtins.clone(),
             labels: self.labels.clone(),
+            used_upvars: HashMap::new(),
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -547,15 +550,12 @@ impl Context {
             for x in a.iter() {
                 self.compile_const(&Constant::Ident(x.to_owned()), e.pos);
             }*/
-            for (idx, (v, _i)) in ctx.env.iter().enumerate() {
-                if idx as i32 <= self.nenv {
-                    self.compile_const(&Constant::Ident(v.to_owned()), e.pos);
-                }
+            for (var, _) in ctx.used_upvars.iter() {
+                self.compile_const(&Constant::Ident(var.to_owned()), e.pos);
             }
             self.write(Opcode::LdGlobal(gid as _));
-            self.write(Opcode::MakeEnv(
-                (self.env.len() + 1) as u32 - self.nenv as u32,
-            ));
+
+            self.write(Opcode::MakeEnv((ctx.used_upvars.len()) as u32));
         } else {
             self.write(Opcode::LdGlobal(gid as _));
         }
@@ -585,6 +585,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
         breaks: vec![],
         continues: vec![],
         cur_file: String::from("_"),
+        used_upvars: HashMap::new(),
     };
     ctx.builtins.insert("load".into(), 0);
     ctx.builtins.insert("string".into(), 1);
