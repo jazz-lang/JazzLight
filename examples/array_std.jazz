@@ -14,15 +14,6 @@ __array__.buff = $array()
 __array__.len = function() -> {
     return $alen(this.buff)
 }
-
-__array__.iteri = function(f) -> {
-	var i = 0 
-	while i < this.len() {
-		var elem = this.get(i)
-		f(i,elem)
-		i = i + 1
-	}
-}
 __array__.iter = function(f) -> {
     
 	var i = 0 
@@ -36,6 +27,16 @@ __array__.iter = function(f) -> {
         
 	}
 	return null
+}
+
+__array__.iteri = function(f) -> {
+	var i = 0 
+	while i < this.len() {
+		var elem = this.get(i)
+		f(i,elem)
+		i = i + 1
+	}
+    return null
 }
 
 __array__.push = function(v) -> {
@@ -57,3 +58,12 @@ __array__.set = function(x, v) -> {
 var Array = function() -> {
 	return $new(__array__)
 }
+
+
+var arr = Array()
+
+
+arr.push("Hello,world!")
+arr.push("Hello,world!x2")
+
+arr.iter(function(x) -> $print(x))

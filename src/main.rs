@@ -11,7 +11,7 @@ use jazzvm::value::*;
 use jazzvm::vm::VM;
 use jazzvm::P;
 
-pub fn module_from_ctx(ctx: &Context) -> P<Module> {
+pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
     m.globals = vec![P(Value::Null); ctx.g.table.len()];
     let m = P(m);
@@ -82,7 +82,7 @@ fn main() {
     let mut parser = Parser::new(reader, &mut ast);
 
     parser.parse().unwrap();
-    let ctx = compile_ast(ast);
+    let mut ctx = compile_ast(ast);
     let code = ctx.finish();
     if ops.dump_op {
         for (i, op) in code.iter().enumerate() {
@@ -90,7 +90,7 @@ fn main() {
         }
     }
 
-    let mut m = module_from_ctx(&ctx);
+    let mut m = module_from_ctx(&mut ctx);
 
     let mut vm = VM::new();
     jazzvm::fields::init_fields();

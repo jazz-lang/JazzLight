@@ -7,6 +7,7 @@ pub enum UOP {
     Goto(String),
     GotoF(String),
     GotoT(String),
+    Label(String),
     Op(Opcode),
 }
 
@@ -34,7 +35,7 @@ use std::collections::HashMap;
 pub struct Globals {
     pub globals: HashMap<Global, i32>,
     pub objects: HashMap<String, Vec<i32>>,
-    pub functions: Vec<(Vec<Opcode>, Vec<(i32, i32)>, i32, i32)>,
+    pub functions: Vec<(Vec<UOP>, Vec<(i32, i32)>, i32, i32)>,
     pub table: Vec<Global>,
 }
 
@@ -89,7 +90,8 @@ impl Context {
     }
 
     pub fn label_here(&mut self, label: &str) {
-        *self.labels.get_mut(label).unwrap() = Some(self.ops.len());
+        self.ops.push(UOP::Label(label.to_owned()));
+        //*self.labels.get_mut(label).unwrap() = Some(self.ops.len());
     }
 
     pub fn goto(&mut self, p: u32) {
@@ -321,20 +323,28 @@ impl Context {
         }
     }
 
-    pub fn finish(&self) -> Vec<Opcode> {
+    pub fn finish(&mut self) -> Vec<Opcode> {
+        for (idx, op) in self.ops.iter().enumerate() {
+            match op {
+                UOP::Label(l) => {
+                    let pos = idx;
+                    self.labels.insert(l.to_owned(), Some(pos));
+                }
+                _ => (),
+            }
+        }
         self.ops
             .iter()
             .map(|i| match *i {
                 UOP::Op(ref op) => op.clone(),
-                UOP::Goto(ref lbl) => {
-                    Opcode::Jump(self.labels.get(lbl).unwrap().unwrap() as u32 + 1)
-                }
+                UOP::Goto(ref lbl) => Opcode::Jump(self.labels.get(lbl).unwrap().unwrap() as u32),
                 UOP::GotoF(ref lbl) => {
-                    Opcode::JumpIfNot(self.labels.get(lbl).unwrap().unwrap() as u32 + 1)
+                    Opcode::JumpIfNot(self.labels.get(lbl).unwrap().unwrap() as u32)
                 }
                 UOP::GotoT(ref lbl) => {
-                    Opcode::JumpIf(self.labels.get(lbl).unwrap().unwrap() as u32 + 1)
+                    Opcode::JumpIf(self.labels.get(lbl).unwrap().unwrap() as u32)
                 }
+                _ => Opcode::Nop,
             })
             .collect::<Vec<Opcode>>()
     }
@@ -500,7 +510,7 @@ impl Context {
             continues: vec![],
             breaks: vec![],
             builtins: self.builtins.clone(),
-            labels: HashMap::new(),
+            labels: self.labels.clone(),
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -513,17 +523,22 @@ impl Context {
         ctx.check_stack(s, "");
 
         let gid = ctx.g.table.len();
-        let ops = ctx.finish();
-        ctx.g
-            .functions
-            .push((ops, ctx.pos.clone(), gid as i32, params.len() as i32));
+
+        ctx.g.functions.push((
+            ctx.ops.clone(),
+            ctx.pos.clone(),
+            gid as i32,
+            params.len() as i32,
+        ));
         ctx.g.table.push(Global::Func(gid as i32, -1));
         if vname.is_some() {
             self.g
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
         }
-
+        for (k, v) in ctx.labels.iter() {
+            self.labels.insert(k.clone(), v.clone());
+        }
         if ctx.nenv > 0 {
             let mut a = vec!["".to_string(); ctx.nenv as usize];
             for (v, i) in ctx.env.iter() {
@@ -598,7 +613,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
             g.table[*gid as usize] = Global::Func(ctx.ops.len() as i32, *nargs);
 
             for op in fops.iter() {
-                ctx.ops.push(UOP::Op(op.clone()));
+                ctx.ops.push(op.clone());
             }
             ctx.ops[0] = UOP::Op(Opcode::Jump(ctx.ops.len() as u32));
             for op in fpos.iter() {

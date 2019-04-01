@@ -534,7 +534,9 @@ impl VM {
                 Mul => op_!(*,self,m,FIELD_MUL),
                 Div => op_!(/,self,m,FIELD_DIV),
                 Gt => cmp!(>,self,m,FIELD_GT),
-                Lt => cmp!(<,self,m,FIELD_LT),
+                Lt => {
+                    cmp!(<,self,m,FIELD_LT);
+                }
                 Lte => cmp!(<=,self,m,FIELD_LTE),
                 Gte => cmp!(>=,self,m,FIELD_GTE),
                 Eq => cmp!(==,self,m,FIELD_EQ),
@@ -585,7 +587,7 @@ impl VM {
                     let v2 = val_int(&v2);
                     self.push(P(Value::Int(v1 << v2)));
                 }
-
+                Nop => (),
                 New => {
                     let val = self.pop().expect("stack empty");
                     let proto = if val_is_null(&val) {

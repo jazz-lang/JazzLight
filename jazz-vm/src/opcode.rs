@@ -46,6 +46,7 @@ pub enum Opcode {
     Rem,
     Shl,
     Shr,
+    Nop,
     UShr,
     Or,
     And,
