@@ -24,6 +24,8 @@ pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
                     nargs: *nargs,
                     env: P(Value::Array(P(vec![]))),
                     module: P(Module::new("_")),
+                    jit: false,
+                    yield_point: 0,
                 });
                 func.borrow_mut().module = m.clone();
                 m.borrow_mut().globals[i] = P(Value::Func(func));

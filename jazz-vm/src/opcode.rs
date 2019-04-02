@@ -61,5 +61,6 @@ pub enum Opcode {
     Hash,
     New,
     JumpTable,
+    Yield,
     Last,
 }

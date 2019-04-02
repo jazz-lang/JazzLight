@@ -1,10 +1,16 @@
-var y = 2
-
 var thread = $thread_spawn(function() -> {
-    $print("Hello,world!")
-    $print("y = ",y)
+    var fac = function(x) -> {
+        if x == 0 {
+            return 1 
+        } else {
+            return fac(x - 1) * x
+        }
+    }
+
+    return fac(5)
+    
 })
 
 
 
-$thread_join(thread)
+$print($thread_join(thread))

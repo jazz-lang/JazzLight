@@ -12,13 +12,14 @@ pub extern "C" fn load(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
         let lib = lib::Library::new(&path).unwrap();
 
         unsafe {
-            let func: lib::Symbol<jazz_func> = lib.get(symbol_name.as_bytes()).unwrap();
-
+            let func: lib::Symbol<*mut u8> = lib.get(symbol_name.as_bytes()).unwrap();
             let func = Function {
                 var: FuncVar::Native((*func) as *const u8),
                 nargs: nargs as i32,
+                jit: false,
                 module: P(Module::new(&path)),
                 env: P(Value::Null),
+                yield_point: 0,
             };
             P(Value::Func(P(func)))
         }
@@ -190,6 +191,8 @@ macro_rules! new_builtin {
             var: FuncVar::Native($f as *const u8),
             module: P(Module::new("__0")),
             env: P(Value::Null),
+            jit: false,
+            yield_point: 0
         };
         $vm.builtins.push(P(Value::Func(P(f))));
     };

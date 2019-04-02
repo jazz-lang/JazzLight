@@ -11,3 +11,4 @@ fnv = "1.0"
 libloading = "0.5.0"
 libc = "0.2"
 borrowed-thread = "0.1"
+jazz-jit = {git = "https://github.com/jazz-lang/jazz-jit"}

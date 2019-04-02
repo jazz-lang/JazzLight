@@ -29,6 +29,9 @@ pub struct VM {
     pub sp: usize,
     pub locals: fnv::FnvHashMap<u32, P<Value>>,
     pub total_s_size: u32,
+    pub jit: bool,
+    /// current function
+    pub func: Option<P<Value>>, 
 }
 
 macro_rules! push_infos {
@@ -52,6 +55,7 @@ macro_rules! pop_callback {
         if let Some(CSPVal::Val(v)) = $vm.csp.last() {
             if let Value::Int32(0) = v.borrow() {
                 $vm.csp.pop();
+               
                 return $vm.pop().unwrap_or(P(Value::Null));
             }
         }
@@ -97,7 +101,9 @@ macro_rules! do_call {
     ($acc: expr,$vm: expr,$m: expr,$this: expr,$argc: expr) => {
         if val_is_func(&$acc) {
             push_infos!($vm, $m);
+            $vm.func = Some($acc.clone());
             let f = val_func(&$acc);
+            
             let fun: &Function = f.borrow();
             $vm.env = fun.env.clone();
             *$m = fun.module.clone();
@@ -113,7 +119,15 @@ macro_rules! do_call {
                     for (idx, arg) in args.iter().enumerate() {
                         $vm.locals.insert(idx as u32, arg.clone());
                     }
-                    $vm.pc = *off;
+                    
+                    if fun.yield_point != 0 {
+                       
+                        $vm.pc = fun.yield_point;
+                    } else {
+                        $vm.pc = *off;
+                    }
+
+                    
                 }
                 FuncVar::Native(ptr) => {
                     let f: jazz_func = unsafe { std::mem::transmute(*ptr) };
@@ -301,6 +315,8 @@ impl VM {
             sp: 0,
             locals: fnv::FnvHashMap::default(),
             total_s_size: 0,
+            jit: false,
+            func: None
         }
     }
     pub fn push(&mut self, val: P<Value>) {
@@ -316,7 +332,7 @@ impl VM {
         val
     }
 
-    fn next_op(&mut self) -> Opcode {
+    pub(crate) fn next_op(&mut self) -> Opcode {
         let op = self.code[self.pc].clone();
         self.pc += 1;
         return op;
@@ -507,7 +523,29 @@ impl VM {
                     do_call!(vtmp, self, m, acc, argc);
                 }
                 TailCall(_) => unimplemented!(),
+                Yield => {
+                    if self.func.is_none() {
+                        panic!("Yield failed");
+                    } else {
+                        let pc = self.pc;
+                        match self.func.clone().unwrap().borrow_mut() {
+                            Value::Func(f) => {
+                                f.borrow_mut().yield_point = pc + 1;
+                            }
+                            _ => unreachable!(),
+                        };
+                        
+                        
+                    }
+                    pop_callback!(self);
+                    let val = self.pop().unwrap_or(P(Value::Null));
+                    //self.stack.clear();
 
+                    pop_infos!(true, m, self);
+
+                    self.push(val);
+
+                }
                 Ret => {
                     pop_callback!(self);
                     let val = self.pop().unwrap_or(P(Value::Null));
@@ -569,7 +607,12 @@ impl VM {
                 }
                 Lte => cmp!(<=,self,m,FIELD_LTE),
                 Gte => cmp!(>=,self,m,FIELD_GTE),
-                Eq => cmp!(==,self,m,FIELD_EQ),
+                Eq => 
+                {
+                    
+                    cmp!(==,self,m,FIELD_EQ);
+                    
+                },
                 Neq => cmp!(!=,self,m,FIELD_NEQ),
                 Not => {
                     let acc = self.pop().expect("Stack empty");

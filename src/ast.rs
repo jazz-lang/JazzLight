@@ -53,6 +53,7 @@ pub enum ExprDecl {
     Unop(String, P<Expr>),
     Throw(String),
     Include(String),
+    Yield(P<Expr>),
     Jazz(String),
 }
 

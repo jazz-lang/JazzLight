@@ -14,6 +14,7 @@ pub static mut PRINT_EXECUTION_PROCESS: bool = false;
 pub mod builtins;
 pub mod fields;
 pub mod hash;
+pub mod jit;
 pub mod module;
 pub mod opcode;
 pub mod value;
@@ -92,10 +93,6 @@ impl<T> DerefMut for Cell<T> {
     fn deref_mut(&mut self) -> &mut T {
         self.borrow_mut()
     }
-}
-
-extern "C" {
-    fn free(p: *mut u8);
 }
 
 /*impl<T> Drop for Cell<T> {

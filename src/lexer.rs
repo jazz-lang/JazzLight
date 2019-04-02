@@ -21,6 +21,7 @@ impl Lexer {
 
     pub fn new(reader: Reader) -> Lexer {
         let keywords = hmap!(
+            "yield" => TokenKind::Yield,
             "this" => TokenKind::This,
             "function" => TokenKind::Fun,
             "func" => TokenKind::Fun,
@@ -34,7 +35,7 @@ impl Lexer {
             "in" => TokenKind::In,
             "loop" => TokenKind::Loop,
             "break" => TokenKind::Break,
-            "match" => TokenKind::Match,
+            "switch" => TokenKind::Match,
             "continue" => TokenKind::Continue,
             "const" => TokenKind::Const,
             "return" => TokenKind::Return,

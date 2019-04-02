@@ -51,6 +51,7 @@ pub enum TokenKind {
     False,
     Nil,
     Throw,
+    Yield,
     Do,
     ForEach,
     Import,
@@ -102,6 +103,7 @@ pub enum TokenKind {
 impl TokenKind {
     pub fn name(&self) -> &str {
         match *self {
+            TokenKind::Yield => "yield",
             TokenKind::ForEach => "foreach",
             TokenKind::String(_) => "string",
             TokenKind::LitInt(_, _, suffix) => match suffix {

@@ -105,6 +105,12 @@ impl<'a> Parser<'a> {
         Ok(expr!(ExprDecl::Function(params, body), pos))
     }
 
+    fn parse_yield(&mut self) -> EResult {
+        let pos = self.expect_token(TokenKind::Yield)?.position;
+        let expr = self.parse_expression()?;
+        Ok(expr!(ExprDecl::Yield(expr),pos))
+    }
+
     fn parse_let(&mut self) -> EResult {
         let reassignable = self.token.is(TokenKind::Var);
 
@@ -132,6 +138,7 @@ impl<'a> Parser<'a> {
 
             TokenKind::Match => self.parse_match(),
             TokenKind::Let | TokenKind::Var => self.parse_let(),
+            TokenKind::Yield => self.parse_yield(),
             TokenKind::LBrace => self.parse_block(),
             TokenKind::If => self.parse_if(),
             TokenKind::For => self.parse_for(),

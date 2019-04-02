@@ -34,6 +34,8 @@ pub struct Function {
     pub var: FuncVar,
     pub env: P<Value>,
     pub module: P<crate::module::Module>,
+    pub jit: bool,
+    pub yield_point: usize, // vm.pc when yield opcode executed
 }
 
 unsafe impl Sync for Function {}
@@ -89,7 +91,10 @@ impl fmt::Debug for Function {
             FuncVar::Native(_ptr) => writeln!(f, "\t<native>")?,
         }
 
-        writeln!(f, "\tenv: {:?}", self.env)
+
+        writeln!(f, "\tenv: {:?}", self.env)?;
+        writeln!(f,"\tyield point: {}",self.yield_point)
+    
     }
 }
 

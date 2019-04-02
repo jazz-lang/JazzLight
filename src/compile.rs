@@ -84,6 +84,10 @@ impl Context {
         self.ops.push(UOP::GotoF(to.to_owned()));
     }
 
+    pub fn emit_gotot(&mut self,to: &str) {
+        self.ops.push(UOP::GotoT(to.to_owned()));
+    }
+
     pub fn new_empty_label(&mut self) -> String {
         let lab_name = self.labels.len().to_string();
         self.labels.insert(lab_name.clone(), None);
@@ -428,6 +432,33 @@ impl Context {
                 self.emit_goto(&start);
                 self.label_here(&end);
             }
+            ExprDecl::Switch(value,with,default_) => {
+                let orl = self.new_empty_label();
+                let end = self.new_empty_label();
+
+                
+
+                for (cond,expr) in with.iter() {
+                    let l1 = self.new_empty_label();
+                    self.compile(value);
+                    self.compile(cond);
+                    self.write(Opcode::Eq);
+                    self.emit_gotof(&l1);
+                    self.compile(&expr);
+                    self.emit_goto(&end);
+                    self.label_here(&l1);
+                }
+                if default_.is_some() 
+                {
+                    self.emit_goto(&orl);
+                }
+                self.label_here(&orl);
+                if default_.is_some() {
+                    self.compile(&default_.clone().unwrap());
+                    self.emit_goto(&end);
+                }
+                self.label_here(&end);
+            }
 
             ExprDecl::If(e, e1, e2) => {
                 //let stack = self.stack;
@@ -483,6 +514,10 @@ impl Context {
                 }
                 self.compile(e);
                 self.write(Opcode::Call(el.len() as _));
+            }
+            ExprDecl::Yield(e) => {
+                self.compile(e);
+                self.write(Opcode::Yield);
             }
             ExprDecl::Unop(op, e) => {
                 self.compile(e);
