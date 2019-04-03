@@ -207,11 +207,15 @@ macro_rules! cmp {
 
         let v1 = $vm.pop().expect("Stack empty");
         let v2 = $vm.pop().expect("Stack empty");
+        
         let val = v2.clone();
         let acc_c = v1.clone();
 
         let v = v1.borrow();
         let acc = v2.borrow();
+        if val_is_null(&v1) || val_is_null(&v2) {
+            $vm.push(P(Value::Bool(false)));
+        } else {
         match (v,acc) {
             (Value::Int(i),Value::Int(i2)) => $vm.push(P(Value::Bool(i $op i2))),
             (Value::Int32(i),Value::Int32(i2)) => $vm.push(P(Value::Bool(i $op i2))),
@@ -240,7 +244,7 @@ macro_rules! cmp {
             }
             _ => unimplemented!()
         };
-
+        }
         }
     };
 }

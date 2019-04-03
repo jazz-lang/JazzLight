@@ -10,7 +10,7 @@ use jazzvm::module::Module;
 use jazzvm::value::*;
 use jazzvm::vm::VM;
 use jazzvm::P;
-
+use jazzc::emit_file;
 pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
     m.globals = vec![P(Value::Null); ctx.g.table.len()];
@@ -106,6 +106,8 @@ fn main() {
         }
         println!("");
     }
+
+    emit_file::compile(&mut m);
     let mut vm = VM::new();
     jazzvm::fields::init_fields();
     register_builtins(&mut vm);

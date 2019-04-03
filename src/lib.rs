@@ -10,6 +10,7 @@ pub mod msg;
 pub mod parser;
 pub mod reader;
 pub mod token;
+pub mod emit_file;
 use std::sync::Arc;
 
 pub type P<T> = Arc<T>;
