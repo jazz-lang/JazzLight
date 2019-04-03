@@ -84,7 +84,7 @@ impl Context {
         self.ops.push(UOP::GotoF(to.to_owned()));
     }
 
-    pub fn emit_gotot(&mut self,to: &str) {
+    pub fn emit_gotot(&mut self, to: &str) {
         self.ops.push(UOP::GotoT(to.to_owned()));
     }
 
@@ -432,13 +432,11 @@ impl Context {
                 self.emit_goto(&start);
                 self.label_here(&end);
             }
-            ExprDecl::Switch(value,with,default_) => {
+            ExprDecl::Switch(value, with, default_) => {
                 let orl = self.new_empty_label();
                 let end = self.new_empty_label();
 
-                
-
-                for (cond,expr) in with.iter() {
+                for (cond, expr) in with.iter() {
                     let l1 = self.new_empty_label();
                     self.compile(value);
                     self.compile(cond);
@@ -448,8 +446,7 @@ impl Context {
                     self.emit_goto(&end);
                     self.label_here(&l1);
                 }
-                if default_.is_some() 
-                {
+                if default_.is_some() {
                     self.emit_goto(&orl);
                 }
                 self.label_here(&orl);
@@ -634,6 +631,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("os_string".into(), 9);
     ctx.builtins.insert("thread_spawn".into(), 10);
     ctx.builtins.insert("thread_join".into(), 11);
+    ctx.builtins.insert("exports".into(), 0xff);
     use crate::P;
 
     let ast = P(Expr {

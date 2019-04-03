@@ -263,6 +263,11 @@ pub fn read_module(mut reader: Reader, name: &str) -> P<Module> {
             _ => unimplemented!(),
         }
     }
+
+    for (k, v) in module.fields.iter() {
+        crate::vm::FIELDS.borrow_mut().insert(*k, v.clone());
+    }
+
     module.borrow_mut().code = code;
     module
 }

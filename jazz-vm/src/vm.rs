@@ -426,6 +426,10 @@ impl VM {
                     }
                 }
                 LdBuiltin(idx) => {
+                    if idx == 0xff {
+                        self.push(m.exports.clone());
+                        continue;
+                    }
                     let builtin = self.builtins[idx as usize].clone();
                     self.push(builtin);
                 }
