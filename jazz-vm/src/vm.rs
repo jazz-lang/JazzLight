@@ -31,7 +31,7 @@ pub struct VM {
     pub total_s_size: u32,
     pub jit: bool,
     /// current function
-    pub func: Option<P<Value>>, 
+    pub func: Option<P<Value>>,
 }
 
 macro_rules! push_infos {
@@ -55,7 +55,7 @@ macro_rules! pop_callback {
         if let Some(CSPVal::Val(v)) = $vm.csp.last() {
             if let Value::Int32(0) = v.borrow() {
                 $vm.csp.pop();
-               
+
                 return $vm.pop().unwrap_or(P(Value::Null));
             }
         }
@@ -103,7 +103,7 @@ macro_rules! do_call {
             push_infos!($vm, $m);
             $vm.func = Some($acc.clone());
             let f = val_func(&$acc);
-            
+
             let fun: &Function = f.borrow();
             $vm.env = fun.env.clone();
             *$m = fun.module.clone();
@@ -119,15 +119,12 @@ macro_rules! do_call {
                     for (idx, arg) in args.iter().enumerate() {
                         $vm.locals.insert(idx as u32, arg.clone());
                     }
-                    
+
                     if fun.yield_point != 0 {
-                       
                         $vm.pc = fun.yield_point;
                     } else {
                         $vm.pc = *off;
                     }
-
-                    
                 }
                 FuncVar::Native(ptr) => {
                     let f: jazz_func = unsafe { std::mem::transmute(*ptr) };
@@ -207,7 +204,7 @@ macro_rules! cmp {
 
         let v1 = $vm.pop().expect("Stack empty");
         let v2 = $vm.pop().expect("Stack empty");
-        
+
         let val = v2.clone();
         let acc_c = v1.clone();
 
@@ -320,7 +317,7 @@ impl VM {
             locals: fnv::FnvHashMap::default(),
             total_s_size: 0,
             jit: false,
-            func: None
+            func: None,
         }
     }
     pub fn push(&mut self, val: P<Value>) {
@@ -538,8 +535,6 @@ impl VM {
                             }
                             _ => unreachable!(),
                         };
-                        
-                        
                     }
                     pop_callback!(self);
                     let val = self.pop().unwrap_or(P(Value::Null));
@@ -548,7 +543,6 @@ impl VM {
                     pop_infos!(true, m, self);
 
                     self.push(val);
-
                 }
                 Ret => {
                     pop_callback!(self);
@@ -611,12 +605,9 @@ impl VM {
                 }
                 Lte => cmp!(<=,self,m,FIELD_LTE),
                 Gte => cmp!(>=,self,m,FIELD_GTE),
-                Eq => 
-                {
-                    
+                Eq => {
                     cmp!(==,self,m,FIELD_EQ);
-                    
-                },
+                }
                 Neq => cmp!(!=,self,m,FIELD_NEQ),
                 Not => {
                     let acc = self.pop().expect("Stack empty");

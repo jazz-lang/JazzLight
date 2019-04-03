@@ -1,11 +1,11 @@
-use jazzvm::module::Module;
-use jazzvm::value::*;
-use jazzvm::opcode::Opcode;
 use byteorder::*;
+use jazzvm::module::Module;
+use jazzvm::opcode::Opcode;
+use jazzvm::value::*;
 use jazzvm::P;
-pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
+pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     let mut code: Vec<u8> = vec![];
-    let mut codesize = 0;
+    //let codesize;
     let mut globals_size: u32 = 0;
     let pos = code.len();
     code.write_u32::<LittleEndian>(0)?; // globals size
@@ -19,13 +19,13 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
                 match f.var {
                     FuncVar::Offset(off) => {
                         code.write_u32::<LittleEndian>(off as u32).unwrap();
-                    },
+                    }
                     _ => panic!("No native functions in compile module"),
                 }
                 code.write_u16::<LittleEndian>(f.nargs as u16).unwrap();
-                globals_size += 7;
-            },
-            _ => unimplemented!()
+                globals_size += 1;
+            }
+            _ => unimplemented!(),
         }
     }
     let be = globals_size.to_le_bytes();
@@ -34,15 +34,15 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
     code[2] = be[2];
     code[3] = be[3];
     let mut fields_size: u32 = 0;
-    for (key,field) in m.fields.iter() {
+    for (key, field) in m.fields.iter() {
         code.write_u64::<LittleEndian>(*key)?;
-        fields_size += 8;
+
         code.write_u16::<LittleEndian>(field.len() as u16)?;
-        fields_size += 2;
+
         for byte in field.as_bytes().iter() {
             code.write_u8(*byte)?;
-            fields_size += 1;
         }
+        fields_size += 1;
     }
     let be = fields_size.to_le_bytes();
     code[4] = be[0];
@@ -57,7 +57,7 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
             Opcode::LdInt(i) => {
                 c.push(0);
                 c.write_u64::<LittleEndian>(*i as u64)?;
-            },
+            }
             Opcode::LdFloat(f) => {
                 c.push(1);
                 c.write_u64::<LittleEndian>(f.to_bits())?;
@@ -77,7 +77,7 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
                 c.push(3); // ld
                 c.push(0); // false
             }
-            
+
             Opcode::LdNull => {
                 c.push(3); // ld
                 c.push(2); // null
@@ -93,32 +93,32 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
             }
             Opcode::LdLocal(u) => {
                 c.push(3);
-                c.push(4);
+                c.push(5);
                 c.write_u32::<LittleEndian>(*u)?;
             }
             Opcode::LdGlobal(u) => {
                 c.push(3);
-                c.push(4);
+                c.push(6);
                 c.write_u32::<LittleEndian>(*u)?;
             }
             Opcode::LdEnv(u) => {
                 c.push(3);
-                c.push(5);
+                c.push(7);
                 c.write_u32::<LittleEndian>(*u)?;
             }
             Opcode::LdBuiltin(u) => {
                 c.push(3);
-                c.push(6);
+                c.push(8);
                 c.write_u32::<LittleEndian>(*u)?;
             }
             Opcode::LdIndex(u) => {
                 c.push(3);
-                c.push(7);
+                c.push(9);
                 c.write_u32::<LittleEndian>(*u)?;
             }
             Opcode::LdArray => {
                 c.push(3);
-                c.push(8);
+                c.push(10);
             }
             Opcode::SetLocal(u) => {
                 c.push(4);
@@ -135,8 +135,7 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
                 c.push(2);
                 c.write_u32::<LittleEndian>(*u)?;
             }
-            Opcode::SetField(u) => 
-            {
+            Opcode::SetField(u) => {
                 c.push(4);
                 c.push(3);
                 c.write_u64::<LittleEndian>(*u)?;
@@ -250,8 +249,7 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
                 c.push(19);
                 c.push(7);
             }
-            Opcode::Or => 
-            {
+            Opcode::Or => {
                 c.push(19);
                 c.push(8);
             }
@@ -302,19 +300,17 @@ pub fn compile(m: &mut P<Module>) -> Result<(),std::io::Error> {
             Opcode::Last => {
                 c.push(25);
             }
-            Opcode::JumpTable => unimplemented!()
+            Opcode::JumpTable => unimplemented!(),
         }
     }
-    codesize = c.len();
-    let bytes = (codesize as u32).to_le_bytes();
+
+    let bytes: [u8; 4] = unsafe { std::mem::transmute(m.code.len() as u32) };
     code[8] = bytes[0];
     code[9] = bytes[1];
     code[10] = bytes[2];
     code[11] = bytes[3];
 
     code.extend(c.iter());
-    
-    println!("code: {:?}",code);
-    Ok(())
-    
+
+    Ok(code)
 }

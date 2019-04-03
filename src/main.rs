@@ -3,6 +3,7 @@ extern crate jazzc;
 use jazzc::compile::compile_ast;
 use jazzc::compile::Context;
 use jazzc::compile::Global;
+use jazzc::emit_file;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
 use jazzvm::builtins::register_builtins;
@@ -10,7 +11,6 @@ use jazzvm::module::Module;
 use jazzvm::value::*;
 use jazzvm::vm::VM;
 use jazzvm::P;
-use jazzc::emit_file;
 pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
     m.globals = vec![P(Value::Null); ctx.g.table.len()];
@@ -58,14 +58,17 @@ use structopt::StructOpt;
 #[derive(StructOpt, Debug)]
 #[structopt(name = "jazzc", version = "0.0.1")]
 pub struct Options {
-    #[structopt(parse(from_os_str))]
-    files: Vec<PathBuf>,
+    #[structopt(name = "FILE", parse(from_os_str))]
+    file: Option<PathBuf>,
     #[structopt(short = "d", long = "disassemble")]
     /// Print bytecode to stdout
     dump_op: bool,
     #[structopt(short = "v", long = "verbose")]
     /// Show more information e.g current opcode, field lists etc
     verbose: bool,
+    #[structopt(long = "run")]
+    /// Instead of emitting bytecode file directly run code
+    run: bool,
 }
 
 use std::fs::File;
@@ -75,14 +78,8 @@ fn main() {
     let mut buff = String::new();
 
     let ops = Options::from_args();
-
-    for file in ops.files.iter() {
-        let mut b = String::new();
-
-        File::open(file).unwrap().read_to_string(&mut b).unwrap();
-        buff.push_str(&b);
-    }
-    let reader = Reader::from_string(&buff);
+    let string = ops.file.unwrap().to_str().unwrap().to_owned();
+    let reader = Reader::from_file(&string).unwrap();
     let mut ast = vec![];
     let mut parser = Parser::new(reader, &mut ast);
 
@@ -107,24 +104,41 @@ fn main() {
         println!("");
     }
 
-    emit_file::compile(&mut m);
-    let mut vm = VM::new();
-    jazzvm::fields::init_fields();
-    register_builtins(&mut vm);
-    vm.code = ctx.finish();
-    *jazzvm::vm::VM_THREAD.borrow_mut() = vm;
+    if ops.run {
+        let mut vm = VM::new();
+        jazzvm::fields::init_fields();
+        register_builtins(&mut vm);
+        vm.code = ctx.finish();
+        *jazzvm::vm::VM_THREAD.borrow_mut() = vm;
 
-    let start = time::PreciseTime::now();
-    if ops.verbose {
-        unsafe { jazzvm::VERBOSE = true };
-    }
-    jazzvm::vm::VM_THREAD.borrow_mut().interp(&mut m);
-    let end = time::PreciseTime::now();
+        let start = time::PreciseTime::now();
+        if ops.verbose {
+            unsafe { jazzvm::VERBOSE = true };
+        }
+        jazzvm::vm::VM_THREAD.borrow_mut().interp(&mut m);
+        let end = time::PreciseTime::now();
 
-    if ops.verbose {
-        println!(
-            "Execution time: {} milliseconds",
-            start.to(end).num_milliseconds()
-        );
+        if ops.verbose {
+            println!(
+                "Execution time: {} milliseconds",
+                start.to(end).num_milliseconds()
+            );
+        }
+    } else {
+        m.borrow_mut().code = ctx.finish();
+        let code = emit_file::compile(&mut m).expect("Error");
+        use std::io::Write;
+        let f = std::path::Path::new(&string);
+        let f = f.file_stem().unwrap();
+        let mut f = f.to_str().unwrap().to_owned();
+        f.push('.');
+        f.push('j');
+        std::fs::File::create(&f).unwrap();
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(f)
+            .expect("Error");
+
+        file.write(&code).unwrap();
     }
 }

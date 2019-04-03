@@ -1,8 +1,5 @@
-var b = 4
+var b = "hello,world"
 
-switch b {
-    0 -> $print(0)
-    1 -> $print(1)
-    2 -> $print(2)
-    _ -> $print(b)
+switch  B {
+    "hello,world" -> $print("Hello!")
 }
