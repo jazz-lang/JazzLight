@@ -111,13 +111,10 @@ pub fn read_module(mut reader: Reader, name: &str) -> P<Module> {
             }
             2 => {
                 let mut buf = vec![];
-                loop {
+                let len = reader.read_u32();
+                for _ in 0..len {
                     let b = reader.read_u8();
-                    if b != b'\0' {
-                        buf.push(b);
-                    } else {
-                        break;
-                    }
+                    buf.push(b);
                 }
                 let s = String::from_utf8(buf).unwrap();
                 code.push(Opcode::LdStr(s));

@@ -63,11 +63,10 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             }
             Opcode::LdStr(s) => {
                 c.push(2);
-                //c.write_u16::<LittleEndian>(s.len() as u16)?;
+                c.write_u32::<LittleEndian>(s.len() as u32)?;
                 for byte in s.as_bytes().iter() {
                     c.push(*byte);
                 }
-                c.push(b'\0');
             }
             Opcode::LdTrue => {
                 c.push(3); // ld

@@ -47,8 +47,8 @@ pub struct Context {
     pub stack: i32,
     pub limit: i32,
     pub nenv: i32,
-    pub breaks: Vec<i32>,
-    pub continues: Vec<i32>,
+    pub breaks: Vec<String>,
+    pub continues: Vec<String>,
     pub pos: Vec<(i32, i32)>,
     pub cur_pos: (i32, i32),
     pub cur_file: String,
@@ -357,6 +357,24 @@ impl Context {
 
     pub fn compile(&mut self, e: &P<Expr>) {
         match &e.decl {
+            ExprDecl::Break(e) => {
+                if e.is_some() {
+                    let e = e.clone().unwrap();
+                    self.compile(&e);
+                } else {
+                    self.write(Opcode::LdNull);
+                }
+                let br = self.breaks.last().expect("break in wrong context").clone();
+                self.emit_goto(&br);
+            }
+            ExprDecl::Continue => {
+                let c = self
+                    .continues
+                    .last()
+                    .expect("continue in wrong context")
+                    .clone();
+                self.emit_goto(&c);
+            }
             ExprDecl::Const(c) => self.compile_const(c, e.pos.clone()),
             ExprDecl::Block(v) => {
                 if v.len() == 0 {
@@ -425,12 +443,16 @@ impl Context {
             ExprDecl::While(cond, body) => {
                 let start = self.new_empty_label();
                 let end = self.new_empty_label();
+                self.breaks.push(end.clone());
+                self.continues.push(start.clone());
                 self.label_here(&start);
                 self.compile(cond);
                 self.emit_gotof(&end);
                 self.compile(body);
                 self.emit_goto(&start);
                 self.label_here(&end);
+                self.breaks.pop();
+                self.continues.pop();
             }
             ExprDecl::Switch(value, with, default_) => {
                 let orl = self.new_empty_label();

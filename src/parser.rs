@@ -108,7 +108,7 @@ impl<'a> Parser<'a> {
     fn parse_yield(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Yield)?.position;
         let expr = self.parse_expression()?;
-        Ok(expr!(ExprDecl::Yield(expr),pos))
+        Ok(expr!(ExprDecl::Yield(expr), pos))
     }
 
     fn parse_let(&mut self) -> EResult {
@@ -160,7 +160,10 @@ impl<'a> Parser<'a> {
     fn parse_break(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Break)?.position;
         let expr = if self.token.is(TokenKind::LParen) {
-            Some(self.parse_expression()?)
+            self.advance_token()?;
+            let e = Some(self.parse_expression()?);
+            self.expect_token(TokenKind::RParen)?;
+            e
         } else {
             None
         };

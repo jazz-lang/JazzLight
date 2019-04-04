@@ -108,10 +108,39 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
         pc: 0,
     };
 
-    let mut f = File::open(&name).unwrap();
+    let env: Option<&'static str> = option_env!("JAZZ_PATH");
+
+    let path = if env.is_some() {
+        let path = format!("{}{}", env.unwrap(), name);
+        let p = std::path::Path::new(&path);
+        if p.exists() {
+            path
+        } else {
+            let path = format!("{}{}.j", env.unwrap(), name);
+            let p = if std::path::Path::new(&path).exists() {
+                path
+            } else {
+                name
+            };
+            p
+        }
+    } else {
+        if std::path::Path::new(&name).exists() {
+            name
+        } else {
+            let p = format!("{}.j", &name);
+            let p = std::path::Path::new(&p);
+            if p.exists() {
+                name
+            } else {
+                panic!("File not found");
+            }
+        }
+    };
+    let mut f = File::open(&path).unwrap();
     f.read_to_end(&mut reader.code).unwrap();
 
-    let mut module = read_module(reader, &name);
+    let mut module = read_module(reader, &path);
 
     let mut vm = VM::new();
     vm.builtins = crate::vm::VM_THREAD.builtins.clone();
