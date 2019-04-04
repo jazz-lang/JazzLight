@@ -71,12 +71,7 @@ pub struct Options {
     run: bool,
 }
 
-use std::fs::File;
-use std::io::Read;
-
 fn main() {
-    let mut buff = String::new();
-
     let ops = Options::from_args();
     let string = ops.file.unwrap().to_str().unwrap().to_owned();
     let reader = Reader::from_file(&string).unwrap();

@@ -1,6 +1,6 @@
 use crate::module::Module;
 use crate::value::*;
-use crate::vm::{jazz_func, FIELDS, VM};
+use crate::vm::{FIELDS, VM};
 use crate::P;
 
 pub extern "C" fn load(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {

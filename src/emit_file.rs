@@ -7,7 +7,7 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     let mut code: Vec<u8> = vec![];
     //let codesize;
     let mut globals_size: u32 = 0;
-    let pos = code.len();
+
     code.write_u32::<LittleEndian>(0)?; // globals size
     code.write_u32::<LittleEndian>(0)?; // fields size
     code.write_u32::<LittleEndian>(0)?; // code size
@@ -37,11 +37,10 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     for (key, field) in m.fields.iter() {
         code.write_u64::<LittleEndian>(*key)?;
 
-        code.write_u16::<LittleEndian>(field.len() as u16)?;
-
         for byte in field.as_bytes().iter() {
             code.write_u8(*byte)?;
         }
+        code.write_u8(b'\0')?;
         fields_size += 1;
     }
     let be = fields_size.to_le_bytes();
@@ -64,10 +63,11 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             }
             Opcode::LdStr(s) => {
                 c.push(2);
-                c.write_u16::<LittleEndian>(s.len() as u16)?;
+                //c.write_u16::<LittleEndian>(s.len() as u16)?;
                 for byte in s.as_bytes().iter() {
                     c.push(*byte);
                 }
+                c.push(b'\0');
             }
             Opcode::LdTrue => {
                 c.push(3); // ld
