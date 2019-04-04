@@ -1,5 +1,5 @@
 var b = "hello,world"
 
-switch  B {
+switch b {
     "hello,world" -> $print("Hello!")
 }
