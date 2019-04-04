@@ -71,6 +71,7 @@ macro_rules! pop_infos {
         }
         if let Some(CSPVal::Module(module)) = $vm.csp.pop() {
             *$m = module;
+            $vm.code = $m.code.clone();
         }
         if let Some(CSPVal::Val(vthis)) = $vm.csp.pop() {
             $vm.vthis = vthis;
@@ -108,7 +109,7 @@ macro_rules! do_call {
             $vm.env = fun.env.clone();
             *$m = fun.module.clone();
             $vm.vthis = $this;
-
+            $vm.code = $m.code.clone();
             match &fun.var {
                 FuncVar::Offset(off) => {
                     let mut args = vec![];
