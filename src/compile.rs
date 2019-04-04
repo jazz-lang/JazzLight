@@ -632,6 +632,8 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("thread_spawn".into(), 10);
     ctx.builtins.insert("thread_join".into(), 11);
     ctx.builtins.insert("exports".into(), 0xff);
+    ctx.builtins.insert("loader".into(), 0xff + 1);
+    ctx.builtins.insert("loadmodule".into(), 12);
     use crate::P;
 
     let ast = P(Expr {

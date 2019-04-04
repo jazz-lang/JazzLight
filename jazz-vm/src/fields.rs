@@ -13,7 +13,8 @@ pub static mut FIELD_LTE: i64 = 0;
 pub static mut FIELD_GTE: i64 = 0;
 pub static mut FIELD_EQ: i64 = 0;
 pub static mut FIELD_NEQ: i64 = 0;
-fn hash_str(s: &str) -> i64 {
+pub static mut FIELD_CACHE: i64 = 0;
+pub(crate) fn hash_str(s: &str) -> i64 {
     let mut h = 0xcbf29ce484222325;
     crate::hash::hash_bytes(&mut h, s.as_bytes());
     h as i64
@@ -30,5 +31,6 @@ pub fn init_fields() {
         FIELD_SET = hash_str("__set");
         FIELD_LOADER = hash_str("loader");
         FIELD_EXPORTS = hash_str("exports");
+        FIELD_CACHE = hash_str("cache");
     }
 }

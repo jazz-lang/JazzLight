@@ -89,6 +89,39 @@ pub extern "C" fn print(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
 
     P(Value::Null)
 }
+#[no_mangle]
+pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let name = if let Value::Str(s) = args[0].borrow() {
+        s.to_owned()
+    } else {
+        println!("{:?}", args[0]);
+        unreachable!();
+    };
+    //let vthis = args[1].clone();
+
+    use crate::module::*;
+    use std::fs::File;
+    use std::io::Read;
+
+    let mut reader = Reader {
+        code: vec![],
+        pc: 0,
+    };
+
+    let mut f = File::open(&name).unwrap();
+    f.read_to_end(&mut reader.code).unwrap();
+
+    let mut module = read_module(reader, &name);
+
+    let mut vm = VM::new();
+    vm.builtins = crate::vm::VM_THREAD.builtins.clone();
+    vm.code = module.code.clone();
+    vm.interp(&mut module);
+
+    let exports = module.exports.clone();
+
+    return exports;
+}
 
 pub extern "C" fn array(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Array(P(args)))
@@ -192,7 +225,7 @@ macro_rules! new_builtin {
             module: P(Module::new("__0")),
             env: P(Value::Null),
             jit: false,
-            yield_point: 0
+            yield_point: 0,
         };
         $vm.builtins.push(P(Value::Func(P(f))));
     };
@@ -210,6 +243,23 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, aget);
     new_builtin!(vm, os_string);
     new_builtin!(vm, thread_spawn);
-
     new_builtin!(vm, thread_join);
+    new_builtin!(vm, loader_loadmodule);
+}
+
+pub fn loader(module: &P<Module>) -> P<Value> {
+    let mut obj = Object { entries: vec![] };
+
+    let f = Function {
+        var: FuncVar::Native(loader_loadmodule as i64 as *const u8),
+        env: P(Value::Array(P(vec![]))),
+        module: module.clone(),
+        nargs: 1,
+        jit: false,
+        yield_point: 0,
+    };
+
+    obj.insert(crate::fields::hash_str("loadmodule"), P(Value::Func(P(f))));
+
+    P(Value::Object(P(obj)))
 }

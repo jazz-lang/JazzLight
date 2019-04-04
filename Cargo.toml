@@ -11,3 +11,7 @@ structopt = "0.2"
 time = "0.1.42"
 
 byteorder = "*"
+
+[profile.release]
+lto = true
+opt-level = 'z'

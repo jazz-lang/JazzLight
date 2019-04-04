@@ -12,18 +12,22 @@ pub struct Module {
 
 impl Module {
     pub fn new(name: &str) -> Module {
-        Module {
+        let m = P(Module {
             name: P(Value::Str(name.to_owned())),
             globals: vec![],
-            loader: P(Value::Null),
-            exports: P(Value::Null),
+            loader: P(Value::Object(P(Object { entries: vec![] }))),
+            exports: P(Value::Object(P(Object { entries: vec![] }))),
             code: vec![],
             fields: fnv::FnvHashMap::default(),
-        }
+        });
+
+        let loader = crate::builtins::loader(&m);
+        m.borrow_mut().loader = loader;
+        let m = m.borrow();
+
+        return m.clone();
     }
 }
-
-use byteorder::{ByteOrder, LittleEndian};
 
 pub struct Reader {
     pub code: Vec<u8>,

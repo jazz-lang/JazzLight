@@ -429,6 +429,9 @@ impl VM {
                     if idx == 0xff {
                         self.push(m.exports.clone());
                         continue;
+                    } else if idx == 0xff + 1 {
+                        self.push(m.loader.clone());
+                        continue;
                     }
                     let builtin = self.builtins[idx as usize].clone();
                     self.push(builtin);
