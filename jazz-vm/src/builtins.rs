@@ -84,7 +84,7 @@ pub fn val_string(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
 
 pub extern "C" fn print(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     if let Value::Str(val) = val_string(vm, args).borrow() {
-        println!("{}", val);
+        print!("{}", val);
     }
 
     P(Value::Null)
@@ -128,10 +128,10 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
         if std::path::Path::new(&name).exists() {
             name
         } else {
-            let p = format!("{}.j", &name);
-            let p = std::path::Path::new(&p);
+            let ps = format!("{}.j", &name);
+            let p = std::path::Path::new(&ps);
             if p.exists() {
-                name
+                ps
             } else {
                 panic!("File not found");
             }
