@@ -654,6 +654,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("file".into(), 15);
     ctx.builtins.insert("file_read".into(), 16);
     ctx.builtins.insert("file_write".into(), 17);
+    ctx.builtins.insert("file_size".into(), 18);
     use crate::P;
 
     let ast = P(Expr {

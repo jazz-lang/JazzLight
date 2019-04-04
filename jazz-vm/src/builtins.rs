@@ -289,6 +289,20 @@ macro_rules! new_builtin {
     };
 }
 
+pub extern "C" fn file_size(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let file = val_object(&args[0]);
+    let hash = crate::fields::hash_str;
+
+    let h_file = hash("__handle");
+    let field = file.find(h_file).unwrap();
+    if let Value::Str(fname) = field.borrow() {
+        let f = std::fs::File::open(fname).unwrap().metadata().unwrap();
+        return P(Value::Int(f.len() as i64));
+    } else {
+        panic!("File not found?");
+    };
+}
+
 pub extern "C" fn file_write(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     let file = val_object(&args[0]);
     let array = if val_is_array(&args[1]) {
@@ -384,6 +398,7 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, file);
     new_builtin!(vm, file_read);
     new_builtin!(vm, file_write);
+    new_builtin!(vm, file_size);
 }
 
 pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
