@@ -1,0 +1,37 @@
+var iter = function(f,arr) -> {
+    var len = $alen(arr)
+
+    var i = 0
+    while i < len {
+        f(arr[i])
+        i = i + 1
+    }
+
+}
+
+var iteri = function(f,arr) -> {
+    var len = $alen(arr)
+
+    var i = 0
+    while i < len {
+        f(i,arr[i])
+        i = i + 1
+    }
+}
+
+var map = function(f,arr) -> {
+    var len = $alen(arr)
+    var i = 0
+
+    var anew = $array()
+    while i < len {
+        $apush(anew,f(arr[i]))
+        i = i + 1
+    }
+
+    return anew
+}
+
+$exports.iteri = iteri
+$exports.map = map
+$exports.iter = iter
