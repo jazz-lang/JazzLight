@@ -167,6 +167,35 @@ pub extern "C" fn alen(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     }
 }
 
+pub extern "C" fn string_from_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_array(&args[0]) {
+        let array_p = val_array(&args[0]);
+        let array = array_p.borrow();
+        let mut bytes = vec![];
+        for val in array.iter() {
+            let int = val_int(val);
+            bytes.push(int as u8);
+        }
+        return P(Value::Str(String::from_utf8(bytes).unwrap()));
+    } else {
+        panic!("Array expected");
+    }
+}
+
+pub extern "C" fn string_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if val_is_str(&args[0]) {
+        let string = val_str(&args[0]);
+        let mut bytes = vec![];
+        for byte in string.as_bytes().iter() {
+            bytes.push(P(Value::Int(*byte as i64)));
+        }
+
+        P(Value::Array(P(bytes)))
+    } else {
+        panic!("String expected")
+    }
+}
+
 pub extern "C" fn apush(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     if val_is_array(&args[0]) {
         let array_p = val_array(&args[0]);
@@ -260,6 +289,12 @@ macro_rules! new_builtin {
     };
 }
 
+pub fn file_read(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let file = val_object(&args[0]);
+
+    P(Value::Null)
+}
+
 pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, load);
     new_builtin!(vm, val_string);
@@ -274,6 +309,20 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, thread_spawn);
     new_builtin!(vm, thread_join);
     new_builtin!(vm, loader_loadmodule);
+    new_builtin!(vm, string_bytes);
+    new_builtin!(vm, string_from_bytes);
+}
+
+pub fn file() -> P<Value> {
+    macro_rules! new_field {
+        ($name: expr,$val: expr) => {
+            let hash = crate::fields::hash_str($name);
+            obj.insert(hash, P($val));
+        };
+    }
+    let mut obj = Object { entries: vec![] };
+
+    P(Value::Object(P(obj)))
 }
 
 pub fn loader(module: &P<Module>) -> P<Value> {

@@ -254,20 +254,12 @@ impl Context {
                 let s: &str = name;
                 if l.is_some() {
                     let l = *l.unwrap();
-                    if l <= self.limit {
-                        let e = self.env.get(s);
-                        let e = if e.is_some() {
-                            *e.unwrap()
-                        } else {
-                            let e = self.nenv;
-                            self.nenv += 1;
-                            self.env.insert(name.to_owned(), e);
-                            e
-                        };
-                        return Access::Env(e);
-                    } else {
-                        return Access::Stack(l);
-                    }
+                    return Access::Stack(l);
+                } else if self.env.contains_key(s) {
+                    let l = self.env.get(s);
+                    self.used_upvars.insert(s.to_owned(), *l.unwrap());
+                    self.nenv += 1;
+                    return Access::Env(*l.unwrap());
                 } else {
                     let g = self.global(&Global::Var(name.to_owned()));
                     return Access::Global(g);
@@ -573,6 +565,7 @@ impl Context {
             ctx.stack += 1;
             ctx.locals.insert(p.to_owned(), idx as i32);
         }
+
         let s = ctx.stack.clone();
         ctx.compile(e);
 
@@ -656,6 +649,8 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("exports".into(), 0xff);
     ctx.builtins.insert("loader".into(), 0xff + 1);
     ctx.builtins.insert("loadmodule".into(), 12);
+    ctx.builtins.insert("string_bytes".into(), 13);
+    ctx.builtins.insert("string_from_bytes".into(), 14);
     use crate::P;
 
     let ast = P(Expr {
