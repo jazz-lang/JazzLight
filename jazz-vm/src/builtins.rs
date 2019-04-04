@@ -289,9 +289,79 @@ macro_rules! new_builtin {
     };
 }
 
-pub fn file_read(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+pub extern "C" fn file_write(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     let file = val_object(&args[0]);
+    let array = if val_is_array(&args[1]) {
+        args[1].clone()
+    } else {
+        panic!("Array expected");
+    };
 
+    let p = val_int(&args[2]);
+    let l = val_int(&args[3]);
+
+    let hash = crate::fields::hash_str;
+
+    let h_file = hash("__handle");
+
+    use std::io::Seek;
+    use std::io::Write;
+    let field = file.find(h_file).unwrap();
+    let buf = val_array(&array);
+    let mut bytes = vec![];
+    for i in 0..l as usize {
+        let x = buf.get(i).unwrap();
+        if let Value::Int(i) = x.borrow() {
+            bytes.push(*i as u8);
+        }
+        if let Value::Int32(i) = x.borrow() {
+            bytes.push(*i as u8);
+        }
+    }
+    if let Value::Str(fname) = field.borrow() {
+        let mut f = std::fs::OpenOptions::new().write(true).open(fname).unwrap();
+        f.seek(std::io::SeekFrom::Start(p as _)).unwrap();
+        f.write_all(&mut bytes).unwrap();
+    } else {
+        panic!("File not found?");
+    };
+
+    P(Value::Null)
+}
+
+pub extern "C" fn file_read(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let file = val_object(&args[0]);
+    let array = if val_is_array(&args[1]) {
+        args[1].clone()
+    } else {
+        panic!("Array expected");
+    };
+
+    let p = val_int(&args[2]);
+    let l = val_int(&args[3]);
+
+    let hash = crate::fields::hash_str;
+
+    let h_file = hash("__handle");
+
+    use std::fs::File;
+    use std::io::Read;
+    use std::io::Seek;
+    let field = file.find(h_file).unwrap();
+    let mut buf = vec![0u8; l as usize];
+    if let Value::Str(fname) = field.borrow() {
+        let mut f = File::open(fname).unwrap();
+        f.seek(std::io::SeekFrom::Start(p as _)).unwrap();
+        f.read_exact(&mut buf).unwrap();
+    } else {
+        panic!("File not found?");
+    };
+
+    let arr_p = val_array(&array);
+    let arr = arr_p.borrow_mut();
+    for byte in buf.iter() {
+        arr.push(P(Value::Int(*byte as i64)));
+    }
     P(Value::Null)
 }
 
@@ -311,17 +381,22 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, loader_loadmodule);
     new_builtin!(vm, string_bytes);
     new_builtin!(vm, string_from_bytes);
+    new_builtin!(vm, file);
+    new_builtin!(vm, file_read);
+    new_builtin!(vm, file_write);
 }
 
-pub fn file() -> P<Value> {
+pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let mut obj = Object { entries: vec![] };
+    let vname = val_str(&args[0]);
+
     macro_rules! new_field {
-        ($name: expr,$val: expr) => {
+        ($name: expr,$val: expr) => {{
             let hash = crate::fields::hash_str($name);
             obj.insert(hash, P($val));
-        };
+        }};
     }
-    let mut obj = Object { entries: vec![] };
-
+    new_field!("__handle", Value::Str(vname.to_owned()));
     P(Value::Object(P(obj)))
 }
 
