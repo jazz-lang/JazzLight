@@ -3,8 +3,8 @@ use crate::P;
 
 pub fn hash_bytes(hash: &mut u64, b: &[u8]) {
     for byte in b.iter() {
-        *hash = hash.wrapping_mul(0x100000001b3);
         *hash = *hash ^ (*byte as u64);
+        *hash = hash.wrapping_mul(0x100000001b3);
     }
 }
 

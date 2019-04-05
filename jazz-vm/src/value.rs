@@ -172,7 +172,7 @@ pub fn val_int(val: &P<Value>) -> i64 {
             _ => unreachable!(),
         };
     } else {
-        panic!("Integer expected")
+        panic!("Integer expected {:?}", val);
     }
 }
 

@@ -346,6 +346,7 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     }
 
     let bytes: [u8; 4] = unsafe { std::mem::transmute(m.code.len() as u32) };
+
     code[8] = bytes[0];
     code[9] = bytes[1];
     code[10] = bytes[2];

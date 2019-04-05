@@ -420,6 +420,16 @@ pub extern "C" fn int_to_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Array(P(bytes)))
 }
 
+pub extern "C" fn args(_: &mut VM, _: Vec<P<Value>>) -> P<Value> {
+    use std::env::args;
+    let a = args();
+    let mut buf = vec![];
+    for arg in a {
+        buf.push(P(Value::Str(arg.to_owned())));
+    }
+    P(Value::Array(P(buf)))
+}
+
 pub extern "C" fn int_from_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     let array = val_array(&args[0]);
     unsafe {
@@ -530,6 +540,7 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, float_from_bits);
     new_builtin!(vm, strlen);
     new_builtin!(vm, areverse);
+    new_builtin!(vm, args);
 }
 
 pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {

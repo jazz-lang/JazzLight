@@ -668,6 +668,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("float_from_bits".into(), 22);
     ctx.builtins.insert("string_len".into(), 23);
     ctx.builtins.insert("areverse".into(), 24);
+    ctx.builtins.insert("args".into(), 25);
     use crate::P;
 
     let ast = P(Expr {
