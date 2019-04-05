@@ -263,9 +263,19 @@ while i < codesize {
     }
     i = i + 1
 }
+$print("globals: \n")
+Array.iter(
+    function(x) -> {
+        $print("\tfunction at ",x[0],", nargs ", x[1])
+        $print("\n")
+    },
+    functions
+)
+
 $print("fields: \n")
 Array.iter(
     function(x) -> {
+        $print("\t")
         $print(x[1], " => ", x[0],"\n")
     },
     fields
