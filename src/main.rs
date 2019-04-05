@@ -45,6 +45,7 @@ pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
             _ => (),
         }
     }
+
     m.borrow_mut().code = ctx.finish();
     for (hash, field) in ctx.fields.iter() {
         m.borrow_mut().fields.insert(*hash, field.clone());

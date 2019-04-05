@@ -102,8 +102,11 @@ pub fn read_module(mut reader: Reader, name: &str) -> P<Module> {
         let op = reader.read_u8();
         match op {
             0 => {
-                let int = reader.read_u64();
-                code.push(Opcode::LdInt(int as i64));
+                let sign = reader.read_u8();
+                let sign = if sign == 1 { true } else { false };
+                let int = reader.read_u64() as i64;
+                let int = if sign { -int } else { int };
+                code.push(Opcode::LdInt(int));
             }
             1 => {
                 let float = reader.read_u64();

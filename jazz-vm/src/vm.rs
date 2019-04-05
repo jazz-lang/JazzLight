@@ -374,7 +374,7 @@ impl VM {
                     let env = env.borrow_mut();
 
                     if at >= env.len() as u32 {
-                        panic!("Reading outside env");
+                        panic!("Reading outside env {}",at);
                     }
                     self.push(env[at as usize].clone());
                 }
@@ -601,7 +601,7 @@ impl VM {
                             let _val = object_op!(self, val_c, acc_c, unsafe { FIELD_ADD }, m);
                             //self.push(val);
                         }
-                        _ => unimplemented!(),
+                        v => panic!("{:?}",v),
                     };
                 }
                 Sub => op_!(-,self,m,FIELD_SUB),

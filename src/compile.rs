@@ -109,6 +109,7 @@ impl Context {
                 let gid = self.g.table.len() as i32;
                 self.g.globals.insert(g.clone(), gid);
                 self.g.table.push(g.clone());
+
                 gid
             }
         };
@@ -210,9 +211,15 @@ impl Context {
                     self.write(Opcode::LdLocal(*i as u32));
                 } else if self.env.contains_key(s) {
                     self.nenv += 1;
-                    let i = self.env.get(s).unwrap();
-                    self.used_upvars.insert(s.to_owned(), *i);
-                    self.write(Opcode::LdEnv((self.env.len() as i32 - *i - 1) as u32));
+                    let pos = if !self.used_upvars.contains_key(s) {
+                        let pos = self.used_upvars.len();
+
+                        self.used_upvars.insert(s.to_owned(), pos as _);
+                        pos as u32
+                    } else {
+                        *self.used_upvars.get(s).unwrap() as u32
+                    };
+                    self.write(Opcode::LdEnv(pos));
                 } else {
                     let g = self.global(&Global::Var(s.to_owned()));
                     self.write(Opcode::LdGlobal(g as u32));
@@ -534,7 +541,7 @@ impl Context {
                 self.compile(e);
                 let op: &str = op;
                 match op {
-                    "-" => self.write(Opcode::Not),
+                    "-" => self.write(Opcode::Neg),
                     _ => (),
                 }
             }
@@ -655,6 +662,12 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("file_read".into(), 16);
     ctx.builtins.insert("file_write".into(), 17);
     ctx.builtins.insert("file_size".into(), 18);
+    ctx.builtins.insert("int_to_bytes".into(), 19);
+    ctx.builtins.insert("int_from_bytes".into(), 20);
+    ctx.builtins.insert("float_to_bits".into(), 21);
+    ctx.builtins.insert("float_from_bits".into(), 22);
+    ctx.builtins.insert("string_len".into(), 23);
+    ctx.builtins.insert("areverse".into(), 24);
     use crate::P;
 
     let ast = P(Expr {

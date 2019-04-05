@@ -1,3 +1,14 @@
+
+var reversed = function(array) -> {
+    var i = $alen(array)
+    var arr = $array()
+    
+    while i > 0 {
+        $apush(arr,$aget(array,i - 1))
+        i = i - 1
+    }
+    return arr
+}
 var iter = function(f,arr) -> {
     var len = $alen(arr)
 
@@ -9,6 +20,8 @@ var iter = function(f,arr) -> {
 
 }
 
+
+
 var iteri = function(f,arr) -> {
     var len = $alen(arr)
 
@@ -17,6 +30,12 @@ var iteri = function(f,arr) -> {
         f(i,arr[i])
         i = i + 1
     }
+}
+
+
+
+var len = function(arr) -> {
+    return $alen(arr)
 }
 
 var map = function(f,arr) -> {
@@ -32,6 +51,10 @@ var map = function(f,arr) -> {
     return anew
 }
 
+
+
 $exports.iteri = iteri
 $exports.map = map
+$exports.len = len
 $exports.iter = iter
+$exports.reversed = reversed

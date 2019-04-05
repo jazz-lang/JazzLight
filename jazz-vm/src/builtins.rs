@@ -379,6 +379,123 @@ pub extern "C" fn file_read(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Null)
 }
 
+pub extern "C" fn int_to_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let integer = val_int(&args[0]);
+    let size = val_int(&args[1]);
+    let mut bytes = vec![];
+    if size == 1 {
+        bytes.push(P(Value::Int(integer as u8 as i64)));
+    } else if size == 2 {
+        let bytes_: [u8; 2] = unsafe { std::mem::transmute(integer as i16) };
+        bytes.push(P(Value::Int(bytes_[0] as i64)));
+        bytes.push(P(Value::Int(bytes_[1] as i64)));
+    } else if size == 4 {
+        let bytes_: [u8; 4] = unsafe { std::mem::transmute(integer as i32) };
+        bytes.push(P(Value::Int(bytes_[0] as i64)));
+        bytes.push(P(Value::Int(bytes_[1] as i64)));
+        bytes.push(P(Value::Int(bytes_[2] as i64)));
+        bytes.push(P(Value::Int(bytes_[3] as i64)));
+    } else if size == 8 {
+        let bytes_: [u8; 8] = unsafe { std::mem::transmute(integer as i64) };
+        bytes.push(P(Value::Int(bytes_[0] as i64)));
+        bytes.push(P(Value::Int(bytes_[1] as i64)));
+        bytes.push(P(Value::Int(bytes_[2] as i64)));
+        bytes.push(P(Value::Int(bytes_[3] as i64)));
+        bytes.push(P(Value::Int(bytes_[4] as i64)));
+        bytes.push(P(Value::Int(bytes_[5] as i64)));
+        bytes.push(P(Value::Int(bytes_[6] as i64)));
+        bytes.push(P(Value::Int(bytes_[7] as i64)));
+    } else {
+        panic!("Unknown size: {}", size);
+    }
+
+    P(Value::Array(P(bytes)))
+}
+
+pub extern "C" fn int_from_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let array = val_array(&args[0]);
+    unsafe {
+        if array.len() == 1 {
+            let val = array.get(0).unwrap();
+            if let Value::Int(i) = val.borrow() {
+                return P(Value::Int(*i));
+            } else {
+                panic!("Int expected")
+            }
+        } else if array.len() == 2 {
+            let v1 = array.get(0).unwrap();
+            let v2 = array.get(1).unwrap();
+            let v1 = val_int(&v1) as u8;
+            let v2 = val_int(&v2) as u8;
+            let b: [u8; 2] = [v1, v2];
+
+            let int: i16 = std::mem::transmute(b);
+            return P(Value::Int(int as i64));
+        } else if array.len() == 4 {
+            let v1 = array.get(0).unwrap();
+            let v2 = array.get(1).unwrap();
+            let v3 = array.get(2).unwrap();
+            let v4 = array.get(3).unwrap();
+            let v1 = val_int(&v1) as u8;
+            let v2 = val_int(&v2) as u8;
+            let v3 = val_int(&v3) as u8;
+            let v4 = val_int(&v4) as u8;
+            let b: [u8; 4] = [v1, v2, v3, v4];
+
+            let int: i32 = std::mem::transmute(b);
+            return P(Value::Int(int as i64));
+        } else if array.len() == 8 {
+            let v1 = array.get(0).unwrap();
+            let v2 = array.get(1).unwrap();
+            let v3 = array.get(2).unwrap();
+            let v4 = array.get(3).unwrap();
+            let v5 = array.get(4).unwrap();
+            let v6 = array.get(5).unwrap();
+            let v7 = array.get(6).unwrap();
+            let v8 = array.get(7).unwrap();
+            let v1 = val_int(&v1) as u8;
+            let v2 = val_int(&v2) as u8;
+            let v3 = val_int(&v3) as u8;
+            let v4 = val_int(&v4) as u8;
+            let v5 = val_int(&v5) as u8;
+            let v6 = val_int(&v6) as u8;
+            let v7 = val_int(&v7) as u8;
+            let v8 = val_int(&v8) as u8;
+            let b: [u8; 8] = [v1, v2, v3, v4, v5, v6, v7, v8];
+
+            let int: i64 = std::mem::transmute(b);
+            return P(Value::Int(int as i64));
+        } else {
+            return P(Value::Null);
+        }
+    }
+}
+
+pub extern "C" fn float_to_bits(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let f = val_float(&args[0]);
+
+    return P(Value::Int(f.to_bits() as i64));
+}
+
+pub extern "C" fn float_from_bits(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let bits = val_int(&args[0]);
+    return P(Value::Float(f64::from_bits(bits as u64)));
+}
+pub extern "C" fn strlen(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    if let Value::Str(s) = args[0].borrow() {
+        return P(Value::Int(s.len() as i64));
+    } else {
+        return P(Value::Null);
+    }
+}
+
+pub extern "C" fn areverse(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let val = val_array(&args[0]);
+
+    val.borrow_mut().reverse();
+    P(Value::Null)
+}
+
 pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, load);
     new_builtin!(vm, val_string);
@@ -399,6 +516,12 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, file_read);
     new_builtin!(vm, file_write);
     new_builtin!(vm, file_size);
+    new_builtin!(vm, int_to_bytes);
+    new_builtin!(vm, int_from_bytes);
+    new_builtin!(vm, float_to_bits);
+    new_builtin!(vm, float_from_bits);
+    new_builtin!(vm, strlen);
+    new_builtin!(vm, areverse);
 }
 
 pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
@@ -410,6 +533,12 @@ pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
             let hash = crate::fields::hash_str($name);
             obj.insert(hash, P($val));
         }};
+    }
+    let path = std::path::Path::new(&vname);
+    if path.exists() {
+        ()
+    } else {
+        std::fs::File::create(&vname).unwrap();
     }
     new_field!("__handle", Value::Str(vname.to_owned()));
     P(Value::Object(P(obj)))

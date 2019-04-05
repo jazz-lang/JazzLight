@@ -25,7 +25,7 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 code.write_u16::<LittleEndian>(f.nargs as u16).unwrap();
                 globals_size += 1;
             }
-            _ => unimplemented!(),
+            _ => (),
         }
     }
     let be = globals_size.to_le_bytes();
@@ -55,6 +55,11 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
         match op {
             Opcode::LdInt(i) => {
                 c.push(0);
+                if *i < 0 {
+                    c.push(1);
+                } else {
+                    c.push(0);
+                }
                 c.write_u64::<LittleEndian>(*i as u64)?;
             }
             Opcode::LdFloat(f) => {
