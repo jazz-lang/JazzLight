@@ -91,10 +91,8 @@ impl fmt::Debug for Function {
             FuncVar::Native(_ptr) => writeln!(f, "\t<native>")?,
         }
 
-
         writeln!(f, "\tenv: {:?}", self.env)?;
-        writeln!(f,"\tyield point: {}",self.yield_point)
-    
+        writeln!(f, "\tyield point: {}", self.yield_point)
     }
 }
 
@@ -222,6 +220,7 @@ pub fn val_array(val: &P<Value>) -> P<Vec<P<Value>>> {
             _ => unreachable!(),
         };
     } else {
+        println!("{:?}", val);
         panic!("Array expected")
     }
 }

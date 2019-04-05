@@ -47,7 +47,11 @@ pub fn val_string(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
                 let obj: &Object = obj.borrow();
                 buff.push_str("{ ");
                 for (idx, entry) in obj.entries.iter().enumerate() {
-                    let name = FIELDS.borrow().get(&(entry.hash as u64)).unwrap();
+                    let name = FIELDS.borrow().get(&(entry.hash as u64)).expect(&format!(
+                        "Not found {} => {:?}",
+                        entry.hash,
+                        entry.borrow().val.borrow()
+                    ));
                     buff.push_str(&format!("{} => ", name));
                     let entry = entry.borrow();
                     let val = entry.val.clone();
@@ -112,11 +116,13 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
 
     let path = if env.is_some() {
         let path = format!("{}{}", env.unwrap(), name);
+
         let p = std::path::Path::new(&path);
         if p.exists() {
             path
         } else {
             let path = format!("{}{}.j", env.unwrap(), name);
+
             let p = if std::path::Path::new(&path).exists() {
                 path
             } else {
@@ -133,10 +139,11 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
             if p.exists() {
                 ps
             } else {
-                panic!("File not found");
+                panic!("File `{}` not found", ps);
             }
         }
     };
+
     let mut f = File::open(&path).unwrap();
     f.read_to_end(&mut reader.code).unwrap();
 
@@ -376,6 +383,7 @@ pub extern "C" fn file_read(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     for byte in buf.iter() {
         arr.push(P(Value::Int(*byte as i64)));
     }
+
     P(Value::Null)
 }
 

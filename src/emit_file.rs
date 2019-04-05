@@ -1,16 +1,53 @@
-use byteorder::*;
 use jazzvm::module::Module;
 use jazzvm::opcode::Opcode;
 use jazzvm::value::*;
 use jazzvm::P;
+
+pub trait Encoder {
+    fn write_u8(&mut self, b: u8);
+    fn write_u16(&mut self, b: u16);
+    fn write_u32(&mut self, b: u32);
+    fn write_u64(&mut self, b: u64);
+}
+
+impl Encoder for Vec<u8> {
+    fn write_u8(&mut self, b: u8) {
+        self.push(b);
+    }
+    fn write_u16(&mut self, b: u16) {
+        let bytes: [u8; 2] = unsafe { std::mem::transmute(b) };
+        self.write_u8(bytes[0]);
+        self.write_u8(bytes[1]);
+    }
+
+    fn write_u32(&mut self, b: u32) {
+        let bytes: [u8; 4] = unsafe { std::mem::transmute(b) };
+        self.write_u8(bytes[0]);
+        self.write_u8(bytes[1]);
+        self.write_u8(bytes[2]);
+        self.write_u8(bytes[3]);
+    }
+    fn write_u64(&mut self, b: u64) {
+        let bytes: [u8; 8] = unsafe { std::mem::transmute(b) };
+        self.write_u8(bytes[0]);
+        self.write_u8(bytes[1]);
+        self.write_u8(bytes[2]);
+        self.write_u8(bytes[3]);
+        self.write_u8(bytes[4]);
+        self.write_u8(bytes[5]);
+        self.write_u8(bytes[6]);
+        self.write_u8(bytes[7]);
+    }
+}
+
 pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     let mut code: Vec<u8> = vec![];
     //let codesize;
     let mut globals_size: u32 = 0;
 
-    code.write_u32::<LittleEndian>(0)?; // globals size
-    code.write_u32::<LittleEndian>(0)?; // fields size
-    code.write_u32::<LittleEndian>(0)?; // code size
+    code.write_u32(0); // globals size
+    code.write_u32(0); // fields size
+    code.write_u32(0); // code size
     for global in m.globals.iter() {
         let g: &P<Value> = global;
         match g.borrow() {
@@ -18,11 +55,11 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 code.push(1);
                 match f.var {
                     FuncVar::Offset(off) => {
-                        code.write_u32::<LittleEndian>(off as u32).unwrap();
+                        code.write_u32(off as u32);
                     }
                     _ => panic!("No native functions in compile module"),
                 }
-                code.write_u16::<LittleEndian>(f.nargs as u16).unwrap();
+                code.write_u16(f.nargs as u16);
                 globals_size += 1;
             }
             _ => (),
@@ -35,12 +72,12 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
     code[3] = be[3];
     let mut fields_size: u32 = 0;
     for (key, field) in m.fields.iter() {
-        code.write_u64::<LittleEndian>(*key)?;
+        code.write_u64(*key);
 
         for byte in field.as_bytes().iter() {
-            code.write_u8(*byte)?;
+            code.write_u8(*byte);
         }
-        code.write_u8(b'\0')?;
+        code.write_u8(b'\0');
         fields_size += 1;
     }
     let be = fields_size.to_le_bytes();
@@ -60,15 +97,15 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 } else {
                     c.push(0);
                 }
-                c.write_u64::<LittleEndian>(*i as u64)?;
+                c.write_u64(*i as u64);
             }
             Opcode::LdFloat(f) => {
                 c.push(1);
-                c.write_u64::<LittleEndian>(f.to_bits())?;
+                c.write_u64(f.to_bits());
             }
             Opcode::LdStr(s) => {
                 c.push(2);
-                c.write_u32::<LittleEndian>(s.len() as u32)?;
+                c.write_u32(s.len() as u32);
                 for byte in s.as_bytes().iter() {
                     c.push(*byte);
                 }
@@ -93,32 +130,32 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             Opcode::LdField(field) => {
                 c.push(3);
                 c.push(4);
-                c.write_u64::<LittleEndian>(*field)?;
+                c.write_u64(*field);
             }
             Opcode::LdLocal(u) => {
                 c.push(3);
                 c.push(5);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::LdGlobal(u) => {
                 c.push(3);
                 c.push(6);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::LdEnv(u) => {
                 c.push(3);
                 c.push(7);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::LdBuiltin(u) => {
                 c.push(3);
                 c.push(8);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::LdIndex(u) => {
                 c.push(3);
                 c.push(9);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::LdArray => {
                 c.push(3);
@@ -127,22 +164,22 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             Opcode::SetLocal(u) => {
                 c.push(4);
                 c.push(0);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::SetGlobal(u) => {
                 c.push(4);
                 c.push(1);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::SetEnv(u) => {
                 c.push(4);
                 c.push(2);
-                c.write_u32::<LittleEndian>(*u)?;
+                c.write_u32(*u);
             }
             Opcode::SetField(u) => {
                 c.push(4);
                 c.push(3);
-                c.write_u64::<LittleEndian>(*u)?;
+                c.write_u64(*u);
             }
             Opcode::SetArray => {
                 c.push(4);
@@ -151,7 +188,7 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             Opcode::SetIndex(idx) => {
                 c.push(4);
                 c.push(5);
-                c.write_u32::<LittleEndian>(*idx)?;
+                c.write_u32(*idx);
             }
             Opcode::SetThis => {
                 c.push(4);
@@ -159,49 +196,49 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
             }
             Opcode::Pop(count) => {
                 c.push(5);
-                c.write_u16::<LittleEndian>(*count as u16)?;
+                c.write_u16(*count as u16);
             }
             Opcode::Apply(count) => {
                 c.push(6);
-                c.write_u16::<LittleEndian>(*count as u16)?;
+                c.write_u16(*count as u16);
             }
             Opcode::Call(count) => {
                 c.push(7);
-                c.write_u16::<LittleEndian>(*count as u16)?;
+                c.write_u16(*count as u16);
             }
             Opcode::TailCall(count) => {
                 c.push(8);
-                c.write_u16::<LittleEndian>(*count as u16)?;
+                c.write_u16(*count as u16);
             }
             Opcode::ObjCall(count) => {
                 c.push(9);
-                c.write_u16::<LittleEndian>(*count as u16)?;
+                c.write_u16(*count as u16);
             }
             Opcode::Jump(j) => {
                 c.push(10);
                 c.push(0);
-                c.write_u32::<LittleEndian>(*j)?;
+                c.write_u32(*j);
             }
             Opcode::JumpIf(j) => {
                 c.push(10);
                 c.push(1);
-                c.write_u32::<LittleEndian>(*j)?;
+                c.write_u32(*j);
             }
             Opcode::JumpIfNot(j) => {
                 c.push(10);
                 c.push(2);
-                c.write_u32::<LittleEndian>(*j)?;
+                c.write_u32(*j);
             }
             Opcode::Ret => {
                 c.push(11);
             }
             Opcode::MakeEnv(e) => {
                 c.push(12);
-                c.write_u32::<LittleEndian>(*e)?;
+                c.write_u32(*e);
             }
             Opcode::MakeArray(arr) => {
                 c.push(13);
-                c.write_u32::<LittleEndian>(*arr)?;
+                c.write_u32(*arr);
             }
             Opcode::Neg => {
                 c.push(14);
