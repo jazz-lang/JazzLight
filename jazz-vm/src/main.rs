@@ -16,6 +16,7 @@ fn main() {
     register_builtins(&mut vm);
     
     use std::io::Read;
+    
     let mut f = std::fs::File::open(&args[1]).unwrap();
     let mut buf = vec![];
     f.read_to_end(&mut buf).unwrap();

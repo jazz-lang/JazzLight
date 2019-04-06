@@ -514,6 +514,112 @@ pub extern "C" fn areverse(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Null)
 }
 
+pub extern "C" fn readln(_: &mut VM, _: Vec<P<Value>>) -> P<Value> {
+    use std::io::stdin;
+
+    let mut buf = String::new();
+    stdin().read_line(&mut buf).expect("Failed to read line");
+
+    P(Value::Str(buf))
+}
+
+pub extern "C" fn read_char(_: &mut VM, _: Vec<P<Value>>) -> P<Value> {
+    let mut input = String::new();
+    let _ = std::io::stdin()
+        .read_line(&mut input)
+        .ok()
+        .expect("Failed to read line");
+    let bytes = input.bytes().nth(0).expect("no byte read");
+
+    P(Value::Int(bytes as i64))
+}
+
+pub extern "C" fn char_to_string(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    use std::char;
+    let ch = if let Value::Int(ch) = args[0].borrow() {
+        P(Value::Str(char::from_u32(*ch as u32).unwrap().to_string()))
+    } else {
+        P(Value::Null)
+    };
+    ch
+}
+
+pub extern "C" fn sprintf(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let mut pc = 1;
+    let fmt = val_str(&args[0]);
+    let mut buf = String::new();
+    let mut i = 0;
+    while i < fmt.len() {
+        let ch = fmt.chars().nth(i).expect("Error");
+        if ch == '%' {
+            let ch2 = fmt.chars().nth(i + 1).expect("Error");
+            match ch2 {
+                '%' => buf.push('%'),
+                'i' => {
+                    let int = val_int(&args[pc]);
+                    buf.push_str(&int.to_string());
+                    pc += 1;
+                    i += 1;
+                }
+                'u' => {
+                    let int = val_int(&args[pc]) as u64;
+                    buf.push_str(&int.to_string());
+                    pc += 1;
+                    i += 1;
+                }
+                'x' => {
+                    let int = val_int(&args[pc]) as u64;
+                    buf.push_str(&format!("{:x}", int));
+                    pc += 1;
+                    i += 1;
+                }
+                'X' => {
+                    let int = val_int(&args[pc]) as u64;
+                    buf.push_str(&format!("{:X}", int));
+                    pc += 1;
+                    i += 1;
+                }
+                'f' => {
+                    let f = val_float(&args[pc]);
+                    buf.push_str(&format!("{}", f));
+                    pc += 1;
+                    i += 1;
+                }
+                's' => {
+                    let s = val_str(&args[pc]);
+                    buf.push_str(&s);
+                    pc += 1;
+                    i += 1;
+                }
+                'a' => {
+                    assert!(val_is_array(&args[pc]));
+                    let s = val_string(vm, vec![args[pc].clone()]);
+                    if let Value::Str(s) = s.borrow() {
+                        buf.push_str(&s);
+                    }
+                    pc += 1;
+                    i += 1;
+                }
+                'o' => {
+                    assert!(val_is_obj(&args[pc]));
+                    let s = val_string(vm, vec![args[pc].clone()]);
+                    if let Value::Str(s) = s.borrow() {
+                        buf.push_str(&s);
+                    }
+                    pc += 1;
+                    i += 1;
+                }
+                _ => unimplemented!(),
+            }
+        } else {
+            buf.push(ch);
+        }
+
+        i += 1;
+    }
+    P(Value::Str(buf))
+}
+
 pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, load);
     new_builtin!(vm, val_string);
@@ -541,6 +647,10 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, strlen);
     new_builtin!(vm, areverse);
     new_builtin!(vm, args);
+    new_builtin!(vm, readln);
+    new_builtin!(vm, read_char);
+    new_builtin!(vm, char_to_string);
+    new_builtin!(vm, sprintf);
 }
 
 pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {

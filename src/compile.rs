@@ -185,8 +185,20 @@ impl Context {
 
     pub fn compile_binop(&mut self, op: &str, e1: &P<Expr>, e2: &P<Expr>) {
         match op {
-            "&&" => unimplemented!(),
-            "||" => unimplemented!(),
+            "&&" => {
+                self.compile(e1);
+                let l = self.new_empty_label();
+                self.emit_gotof(&l);
+                self.compile(e2);
+                self.label_here(&l);
+            }
+            "||" => {
+                self.compile(e1);
+                let l = self.new_empty_label();
+                self.emit_gotot(&l);
+                self.compile(e2);
+                self.label_here(&l);
+            }
             _ => {
                 self.compile(e2);
 
@@ -384,6 +396,7 @@ impl Context {
                     for el in v.iter() {
                         self.compile(el);
                     }
+
                     /*if stack < self.stack {
                         self.write(Opcode::Pop((self.stack - stack) as u32)); // clear stack from values and locals
                     }*/
@@ -669,6 +682,10 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     ctx.builtins.insert("string_len".into(), 23);
     ctx.builtins.insert("areverse".into(), 24);
     ctx.builtins.insert("args".into(), 25);
+    ctx.builtins.insert("read_line".into(), 26);
+    ctx.builtins.insert("read_char".into(), 27);
+    ctx.builtins.insert("char_to_string".into(), 28);
+    ctx.builtins.insert("sprintf".into(), 29);
     use crate::P;
 
     let ast = P(Expr {
@@ -678,6 +695,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
 
     //ctx.scan_labels(true, true, &ast);
     ctx.compile(&ast);
+
     if ctx.g.functions.len() != 0 || ctx.g.objects.len() != 0 {
         let ctxops = ctx.ops.clone();
         let _ctxpos = ctx.pos.clone();
@@ -704,5 +722,6 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
             ctx.ops.push(op.clone());
         }
     }
+
     ctx
 }

@@ -276,7 +276,7 @@ $print("fields: \n")
 Array.iter(
     function(x) -> {
         $print("\t")
-        $print(x[1], " => ", x[0],"\n")
+        $print(x[1], " => ", $sprintf("0x%x",x[0]),"\n")
     },
     fields
 )
