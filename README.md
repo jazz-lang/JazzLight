@@ -1,6 +1,9 @@
 # JazzLight
+JazzLight is a simple and clear dynamically programming language written in Rust.
 
-TBD
+## Why?
+This language written for learning purposes and as target for Jazz language and maybe other language can target JazzLight VM bytecode or JazzLight.
+
 
 
 # Example 
@@ -30,3 +33,4 @@ var object2  = $new(object)
 $print(object.x == object2.x)
 
 ```
+
