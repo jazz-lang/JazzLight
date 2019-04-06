@@ -1,0 +1,12 @@
+var Hashtable = $loadmodule("Hashtable")
+var tbl = Hashtable.create()
+
+Hashtable.insert(tbl,1,0)
+Hashtable.insert(tbl,2,1)
+
+Hashtable.iter(
+    function(key,val) -> {
+        $print(key," => ",val,"\n")
+    },
+    tbl
+)

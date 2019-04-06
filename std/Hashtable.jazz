@@ -1,0 +1,70 @@
+var create = function() -> {
+    var tbl = $new(null)
+    tbl.entries = $array()
+    return tbl
+}
+
+var insert = function(tbl,key,val) ->  {
+    var i = 0 
+    var h = $hash(key)
+    while i < $alen(tbl.entries) {
+        var entry = $aget(tbl.entries,i)
+        if entry[0] == h {
+            $aset(tbl.entries,i,$array(h,key,val))
+            return null
+        }
+        i = i + 1
+    }
+    
+    var entry = $array(h,key,val)
+
+    $apush(tbl.entries,entry)
+}
+
+var find = function(tbl,key) -> {
+    var h = $hash(key)
+    var i = 0
+    while i < $alen(tbl.entries) {
+        if tbl.entries[i][0] == h {
+            return tbl.entries[i][2]
+        }
+    } 
+    return null
+}
+
+var iter = function(f,tbl) -> {
+    var i = 0
+    while i < $alen(tbl.entries) {
+        var entry = tbl.entries[i]
+        f(entry[1],entry[2])
+        i = i + 1
+    }
+
+} 
+
+var iteri = function(f,tbl) -> {
+    var i = 0
+    while i < $alen(tbl.entries) {
+        var entry = tbl.entries[i]
+        f(i,entry[1],entry[2])
+        i = i + 1
+    }
+}
+
+var map = function(f,tbl) -> {
+    var i = 0 
+    var arr = $array()
+    while i < $alen(tbl.entries) {
+        var entry = tbl.entries[i]
+        $apush(arr,f(entry[1],entry[2]))
+        i = i + 1
+    }
+    return arr
+}   
+
+$exports.create = create
+$exports.iter = iter
+$exports.iteri = iteri
+$exports.map = map
+$exports.insert = insert
+$exports.find = find

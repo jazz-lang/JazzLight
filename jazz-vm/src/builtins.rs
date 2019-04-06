@@ -170,7 +170,7 @@ pub extern "C" fn alen(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
 
         return P(Value::Int(array.len() as i64));
     } else {
-        panic!("Array expected");
+        panic!("Array expected {:?}", args[0]);
     }
 }
 

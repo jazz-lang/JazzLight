@@ -1,6 +1,6 @@
 #![feature(allocator_api)]
-use std::sync::Arc;
 
+use std::sync::Arc;
 pub type P<T> = Arc<Cell<T>>;
 
 #[allow(non_snake_case)]
@@ -60,7 +60,9 @@ impl<T> Cell<T> {
         self.val
     }
 }
-impl<T> Copy for Cell<T> {}
+impl<T> Drop for Cell<T> {
+    fn drop(&mut self) {}
+}
 impl<T> Clone for Cell<T> {
     fn clone(&self) -> Self {
         Self { val: self.val }
