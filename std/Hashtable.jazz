@@ -1,3 +1,5 @@
+var List = $loadmodule("List")
+
 var create = function() -> {
     var tbl = $new(null)
     tbl.entries = $array()

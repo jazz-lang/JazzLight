@@ -1,0 +1,95 @@
+var create = function() -> {
+    var o = $new(null)
+    o.l = 0
+    o.h = null
+    o.q = null
+    return o
+}
+
+var get_len = function(l) -> {
+    return l.l
+}
+var add = function(list,x) -> {
+    var a = $array(x,null)
+    if list.q != null {
+        list.q[1] = a
+    } else {
+        list.h = a
+    }
+    list.q = a
+    list.l = list.l + 1
+}
+var push = function(list,x) -> {
+    var a = $array(x,list.h)
+    list.h = a
+    if list.q == null {
+        list.q = a
+    }
+    list.l = list.l + 1
+}
+
+var remove = function(list,x) -> {
+    var cur = list.h
+    var prev = null
+    while cur != null {
+        if cur[0] == x {
+            if prev == null {
+                list.h = cur[1]
+            } else {
+                prev[1] = cur[1]
+            }
+            if list.q == cur {
+                list.q = cur
+            }
+            return true
+        }
+        prev = cur
+        cur = cur[1]
+    }
+    return false
+}
+
+var at = function(list,p) -> { 
+    var cur = list.h
+
+    while cur != null {
+        if !p {
+            return cur[0]
+        }
+        p = p - 1
+        cur = cur[1]
+    }
+    return null
+}
+var pop = function(list) -> {
+    if list.h == null {
+        return null
+    }
+    if list.q == list.h {
+        list.q = null
+    }
+    var x = list.h[0]
+    list.h = list.h[1]
+    list.l = list.l - 1
+    return x
+}
+
+var find = function(list,f) -> {
+    var p = list.h
+    while p != null {
+        var x = f(p[0])
+        if x != null {
+            return x
+        }
+        p = p[1]
+    }
+    return null
+}
+
+$exports.create = create
+$exports.push = push
+$exports.add = add
+$exports.pop = pop
+$exports.remove = remove
+$exports.at = at
+$exports.find = find
