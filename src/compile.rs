@@ -56,6 +56,7 @@ pub struct Context {
     pub labels: HashMap<String, Option<usize>>,
     pub fields: Cell<HashMap<u64, String>>,
     pub used_upvars: HashMap<String, i32>,
+    pub optimize: bool,
 }
 
 use crate::ast::*;
@@ -200,10 +201,71 @@ impl Context {
                 self.label_here(&l);
             }
             _ => {
-                self.compile(e2);
+                if self.optimize {
+                    match (op, &e1.decl, &e2.decl) {
+                        (
+                            "+",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i + i2)),
+                        (
+                            "-",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i - i2)),
+                        (
+                            "/",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i / i2)),
+                        (
+                            "*",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i * i2)),
+                        (
+                            ">>",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i >> i2)),
+                        (
+                            "<<",
+                            ExprDecl::Const(Constant::Int(i)),
+                            ExprDecl::Const(Constant::Int(i2)),
+                        ) => self.write(Opcode::LdInt(i << i2)),
 
-                self.compile(e1);
-                self.write_op(op);
+                        (
+                            "+",
+                            ExprDecl::Const(Constant::Float(i)),
+                            ExprDecl::Const(Constant::Float(i2)),
+                        ) => self.write(Opcode::LdFloat(i + i2)),
+                        (
+                            "-",
+                            ExprDecl::Const(Constant::Float(i)),
+                            ExprDecl::Const(Constant::Float(i2)),
+                        ) => self.write(Opcode::LdFloat(i - i2)),
+                        (
+                            "/",
+                            ExprDecl::Const(Constant::Float(i)),
+                            ExprDecl::Const(Constant::Float(i2)),
+                        ) => self.write(Opcode::LdFloat(i / i2)),
+                        (
+                            "*",
+                            ExprDecl::Const(Constant::Float(i)),
+                            ExprDecl::Const(Constant::Float(i2)),
+                        ) => self.write(Opcode::LdFloat(i * i2)),
+                        (op, _, _) => {
+                            self.compile(e2);
+                            self.compile(e1);
+                            self.write_op(op);
+                        }
+                    }
+                } else {
+                    self.compile(e2);
+
+                    self.compile(e1);
+                    self.write_op(op);
+                }
             }
         }
     }
@@ -425,10 +487,15 @@ impl Context {
                     },
                     None => self.write(Opcode::LdNull),
                 }
-                let id = self.locals.len() as u32;
+                let id = if !self.locals.contains_key(name) {
+                    self.locals.len() as u32
+                } else {
+                    *self.locals.get(name).unwrap() as u32
+                };
                 self.write(Opcode::SetLocal(id));
-
-                self.locals.insert(name.to_owned(), id as i32);
+                if !self.locals.contains_key(name) {
+                    self.locals.insert(name.to_owned(), id as i32);
+                }
             }
 
             ExprDecl::Assign(e1, e2) => {
@@ -567,6 +634,7 @@ impl Context {
             g: self.g.clone(), // we don't clone this globals, basically just copy ptr,
             ops: Vec::new(),
             pos: Vec::new(),
+            optimize: self.optimize,
             limit: self.stack,
             stack: self.stack,
             locals: HashMap::new(),
@@ -629,7 +697,7 @@ impl Context {
     }
 }
 
-pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
+pub fn compile_ast(ast: Vec<P<Expr>>, optimize: bool) -> Context {
     let g = Globals {
         globals: HashMap::new(),
         objects: HashMap::new(),
@@ -639,6 +707,7 @@ pub fn compile_ast(ast: Vec<P<Expr>>) -> Context {
     let mut ctx = Context {
         g: Cell::new(g),
         stack: 0,
+        optimize,
         limit: -1,
         locals: HashMap::new(),
         ops: vec![],

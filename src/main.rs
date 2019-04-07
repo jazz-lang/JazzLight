@@ -6,10 +6,9 @@ use jazzc::compile::Global;
 use jazzc::emit_file;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
-use jazzvm::builtins::register_builtins;
+
 use jazzvm::module::Module;
 use jazzvm::value::*;
-use jazzvm::vm::VM;
 use jazzvm::P;
 pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
@@ -67,9 +66,9 @@ pub struct Options {
     #[structopt(short = "v", long = "verbose")]
     /// Show more information e.g current opcode, field lists etc
     verbose: bool,
-    #[structopt(long = "run")]
-    /// Instead of emitting bytecode file directly run code
-    run: bool,
+    #[structopt(long = "optimize")]
+    /// Try to optimize bytecode
+    optimize: bool,
 }
 
 fn main() {
@@ -80,7 +79,7 @@ fn main() {
     let mut parser = Parser::new(reader, &mut ast);
 
     parser.parse().unwrap();
-    let mut ctx = compile_ast(ast);
+    let mut ctx = compile_ast(ast, ops.optimize);
 
     let mut m = module_from_ctx(&mut ctx);
     if ops.verbose && m.fields.len() != 0 {
@@ -100,41 +99,19 @@ fn main() {
         println!("");
     }
 
-    if ops.run {
-        let mut vm = VM::new();
-        jazzvm::fields::init_fields();
-        register_builtins(&mut vm);
-        vm.code = ctx.finish();
-        *jazzvm::vm::VM_THREAD.borrow_mut() = vm;
+    m.borrow_mut().code = ctx.finish();
+    let code = emit_file::compile(&mut m).expect("Error");
+    use std::io::Write;
+    let f = std::path::Path::new(&string);
+    let f = f.file_stem().unwrap();
+    let mut f = f.to_str().unwrap().to_owned();
+    f.push('.');
+    f.push('j');
+    std::fs::File::create(&f).unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(f)
+        .expect("Error");
 
-        let start = time::PreciseTime::now();
-        if ops.verbose {
-            unsafe { jazzvm::VERBOSE = true };
-        }
-        jazzvm::vm::VM_THREAD.borrow_mut().interp(&mut m);
-        let end = time::PreciseTime::now();
-
-        if ops.verbose {
-            println!(
-                "Execution time: {} milliseconds",
-                start.to(end).num_milliseconds()
-            );
-        }
-    } else {
-        m.borrow_mut().code = ctx.finish();
-        let code = emit_file::compile(&mut m).expect("Error");
-        use std::io::Write;
-        let f = std::path::Path::new(&string);
-        let f = f.file_stem().unwrap();
-        let mut f = f.to_str().unwrap().to_owned();
-        f.push('.');
-        f.push('j');
-        std::fs::File::create(&f).unwrap();
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .open(f)
-            .expect("Error");
-
-        file.write(&code).unwrap();
-    }
+    file.write(&code).unwrap();
 }
