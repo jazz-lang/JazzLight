@@ -186,20 +186,6 @@ impl Context {
 
     pub fn compile_binop(&mut self, op: &str, e1: &P<Expr>, e2: &P<Expr>) {
         match op {
-            "&&" => {
-                self.compile(e1);
-                let l = self.new_empty_label();
-                self.emit_gotof(&l);
-                self.compile(e2);
-                self.label_here(&l);
-            }
-            "||" => {
-                self.compile(e1);
-                let l = self.new_empty_label();
-                self.emit_gotot(&l);
-                self.compile(e2);
-                self.label_here(&l);
-            }
             "==" => match &e2.decl {
                 ExprDecl::Const(Constant::Null) => {
                     self.compile(e1);
@@ -330,6 +316,8 @@ impl Context {
     pub fn write_op(&mut self, op: &str) {
         use Opcode::*;
         match op {
+            "&&" => self.write(Band),
+            "||" => self.write(Bor),
             "+" => self.write(Add),
             "-" => self.write(Sub),
             "/" => self.write(Div),
@@ -509,15 +497,10 @@ impl Context {
                     },
                     None => self.write(Opcode::LdNull),
                 }
-                let id = if !self.locals.contains_key(name) {
-                    self.locals.len() as u32
-                } else {
-                    *self.locals.get(name).unwrap() as u32
-                };
+                let id = self.locals.len() as u32;
                 self.write(Opcode::SetLocal(id));
-                if !self.locals.contains_key(name) {
-                    self.locals.insert(name.to_owned(), id as i32);
-                }
+
+                self.locals.insert(name.to_owned(), id as i32);
             }
 
             ExprDecl::Assign(e1, e2) => {
@@ -583,24 +566,15 @@ impl Context {
             ExprDecl::If(e, e1, e2) => {
                 //let stack = self.stack;
 
-                if e.decl == ExprDecl::Const(Constant::True) {
-                    self.compile(e1);
-                    return;
-                } else if e.decl == ExprDecl::Const(Constant::False) {
-                    if e2.is_some() {
-                        let e = e2.clone().unwrap();
-                        self.compile(&e);
-                    }
-
-                    return;
-                } else {
-                }
                 let lbl_false = self.new_empty_label();
                 self.compile(&e);
                 self.emit_gotof(&lbl_false);
                 self.compile(e1);
                 self.label_here(&lbl_false);
-                if e2.is_some() {}
+                if e2.is_some() {
+                    let e2 = e2.clone().unwrap();
+                    self.compile(&e2);
+                }
             }
             ExprDecl::Call(e, el) => {
                 match &e.decl {
@@ -701,11 +675,11 @@ impl Context {
             params.len() as i32,
         ));
         ctx.g.table.push(Global::Func(gid as i32, -1));
-        if vname.is_some() {
+        /*if vname.is_some() {
             self.g
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
-        }
+        }*/
         for (k, v) in ctx.labels.iter() {
             self.labels.insert(k.clone(), v.clone());
         }

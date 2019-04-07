@@ -140,7 +140,12 @@ macro_rules! do_call {
                 }
             }
         } else {
-            panic!("Invalid call {:?}", $acc);
+            panic!(
+                "Invalid {:?} {:?}\n prev opcode: {:?}",
+                $vm.code[$vm.pc - 1].clone(),
+                $acc,
+                $vm.code[$vm.pc - 2].clone()
+            );
         }
     };
 }
@@ -390,11 +395,13 @@ impl VM {
                 }
                 LdField(field) => {
                     let acc = self.pop().unwrap();
-                    /*println!(
-                        "{:?}->{:?}",
+
+                    println!(
+                        "prev op: {:?}\n{:?}->{:?}",
+                        self.code[self.pc - 2].clone(),
                         crate::builtins::val_string(self, vec![acc.clone()]),
                         FIELDS.get(&field)
-                    );*/
+                    );
                     let obj_p = val_object(&acc);
                     let obj: &Object = obj_p.borrow();
                     let f = obj.find(field as i64);
@@ -579,6 +586,16 @@ impl VM {
                     if let Value::Bool(false) = acc.borrow() {
                         self.pc = (to) as usize;
                     }
+                }
+                Band => {
+                    let v1 = val_bool(&self.pop().unwrap());
+                    let v2 = val_bool(&self.pop().unwrap());
+                    self.push(P(Value::Bool(v1 && v2)));
+                }
+                Bor => {
+                    let v1 = val_bool(&self.pop().unwrap());
+                    let v2 = val_bool(&self.pop().unwrap());
+                    self.push(P(Value::Bool(v1 || v2)));
                 }
                 Add => {
                     let acc = self.pop().expect("Stack empty");

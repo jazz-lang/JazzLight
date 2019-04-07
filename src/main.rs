@@ -34,7 +34,7 @@ pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     }
 
     // fix global variables
-    for (i, g) in ctx.g.table.iter().enumerate() {
+    /*for (i, g) in ctx.g.table.iter().enumerate() {
         match g {
             Global::Var(name) => {
                 let idx = ctx.g.globals.get(&Global::Var(name.to_owned())).unwrap();
@@ -43,7 +43,7 @@ pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
             }
             _ => (),
         }
-    }
+    }*/
 
     m.borrow_mut().code = ctx.finish();
     for (hash, field) in ctx.fields.iter() {

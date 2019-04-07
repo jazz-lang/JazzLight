@@ -90,6 +90,8 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
 
     for op in m.code.iter() {
         match op {
+            Opcode::Band => c.push(26),
+            Opcode::Bor => c.push(27),
             Opcode::LdInt(i) => {
                 c.push(0);
                 if *i < 0 {

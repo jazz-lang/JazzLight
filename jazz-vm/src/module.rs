@@ -272,6 +272,8 @@ pub fn read_module(mut reader: Reader, name: &str) -> P<Module> {
             23 => code.push(Opcode::New),
             24 => code.push(Opcode::Yield),
             25 => code.push(Opcode::Last),
+            26 => code.push(Opcode::Band),
+            27 => code.push(Opcode::Bor),
             _ => unimplemented!(),
         }
     }
