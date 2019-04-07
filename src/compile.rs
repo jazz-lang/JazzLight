@@ -560,15 +560,25 @@ impl Context {
 
             ExprDecl::If(e, e1, e2) => {
                 //let stack = self.stack;
+
+                if e.decl == ExprDecl::Const(Constant::True) {
+                    self.compile(e1);
+                    return;
+                } else if e.decl == ExprDecl::Const(Constant::False) {
+                    if e2.is_some() {
+                        let e = e2.clone().unwrap();
+                        self.compile(&e);
+                    }
+
+                    return;
+                } else {
+                }
                 let lbl_false = self.new_empty_label();
                 self.compile(&e);
                 self.emit_gotof(&lbl_false);
                 self.compile(e1);
                 self.label_here(&lbl_false);
-                if e2.is_some() {
-                    let e = e2.clone().unwrap();
-                    self.compile(&e);
-                }
+                if e2.is_some() {}
             }
             ExprDecl::Call(e, el) => {
                 match &e.decl {
