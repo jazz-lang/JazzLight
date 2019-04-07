@@ -605,6 +605,13 @@ impl VM {
                             let _val = object_op!(self, val_c, acc_c, unsafe { FIELD_ADD }, m);
                             //self.push(val);
                         }
+                        (Value::Array(values), Value::Array(arr)) => {
+                            let mut values = values.borrow().clone();
+                            for val in arr.iter() {
+                                values.push(val.clone());
+                            }
+                            self.push(P(Value::Array(P(values))))
+                        }
 
                         v => panic!("{:?}", v),
                     };

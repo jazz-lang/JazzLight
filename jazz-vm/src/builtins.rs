@@ -189,6 +189,16 @@ pub extern "C" fn string_from_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
     }
 }
 
+pub extern "C" fn string_chars(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let s = val_str(&args[0]);
+    let mut buf = vec![];
+    for ch in s.chars() {
+        buf.push(P(Value::Str(ch.to_string())));
+    }
+
+    P(Value::Array(P(buf)))
+}
+
 pub extern "C" fn string_bytes(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     if val_is_str(&args[0]) {
         let string = val_str(&args[0]);
@@ -620,6 +630,11 @@ pub extern "C" fn sprintf(vm: &mut VM, args: Vec<P<Value>>) -> P<Value> {
     P(Value::Str(buf))
 }
 
+pub extern "C" fn char_to_u32(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
+    let s = val_str(&args[0]).chars().nth(0).unwrap();
+    return P(Value::Int((s as u32) as i64));
+}
+
 pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, load);
     new_builtin!(vm, val_string);
@@ -651,6 +666,8 @@ pub fn register_builtins(vm: &mut VM) {
     new_builtin!(vm, read_char);
     new_builtin!(vm, char_to_string);
     new_builtin!(vm, sprintf);
+    new_builtin!(vm, string_chars);
+    new_builtin!(vm, char_to_u32);
 }
 
 pub extern "C" fn file(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {

@@ -200,6 +200,28 @@ impl Context {
                 self.compile(e2);
                 self.label_here(&l);
             }
+            "==" => match &e2.decl {
+                ExprDecl::Const(Constant::Null) => {
+                    self.compile(e1);
+                    self.write(Opcode::IsNull);
+                }
+                _ => {
+                    self.compile(e2);
+                    self.compile(e1);
+                    self.write(Opcode::Eq);
+                }
+            },
+            "!=" => match &e2.decl {
+                ExprDecl::Const(Constant::Null) => {
+                    self.compile(e1);
+                    self.write(Opcode::IsNotNull);
+                }
+                _ => {
+                    self.compile(e2);
+                    self.compile(e1);
+                    self.write(Opcode::Neq);
+                }
+            },
             _ => {
                 if self.optimize {
                     match (op, &e1.decl, &e2.decl) {
@@ -765,6 +787,8 @@ pub fn compile_ast(ast: Vec<P<Expr>>, optimize: bool) -> Context {
     ctx.builtins.insert("read_char".into(), 27);
     ctx.builtins.insert("char_to_string".into(), 28);
     ctx.builtins.insert("sprintf".into(), 29);
+    ctx.builtins.insert("string_chars".into(), 30);
+    ctx.builtins.insert("char_to_int".into(), 31);
     use crate::P;
 
     let ast = P(Expr {

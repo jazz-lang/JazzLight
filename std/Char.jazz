@@ -1,0 +1,49 @@
+var to_digit = function(ch,radix) -> {
+    if radix > 36 {
+        return null
+    }
+    if radix <= 10 {
+        
+        var i = $char_to_int(ch)
+        
+        var c = $char_to_int("0")
+       
+        var val = switch ch {
+            "0" -> i - c
+            "1" -> i - c
+            "2" -> i - c
+            "3" -> i - c
+            "4" -> i - c
+            "5" -> i - c
+            "6" -> i - c
+            "7" -> i - c
+            "8" -> i - c
+            "9" -> i - c
+            _ -> return null
+        }
+        if val < radix {
+            return val
+        } else {
+            return null
+        }
+    } else {
+        $print("Unimplemented")
+        return null
+    }
+}
+
+
+var is_digit = function(ch) -> {
+    var c = char_to_digit(ch,10)
+    
+    return char_to_digit(ch,10) != null
+}
+
+
+var to_int = function(ch) -> {
+    return $char_to_int(ch)
+}
+
+$exports.to_int = to_int
+$exports.to_digit = to_digit
+$exports.is_digit = is_digit
