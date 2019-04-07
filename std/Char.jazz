@@ -34,9 +34,8 @@ var to_digit = function(ch,radix) -> {
 
 
 var is_digit = function(ch) -> {
-    var c = char_to_digit(ch,10)
-    
-    return char_to_digit(ch,10) != null
+
+    return to_digit(ch,10) != null
 }
 
 
