@@ -1,0 +1,44 @@
+var Array = $loadmodule("Array")
+var Char = $loadmodule("Char")
+
+var lexer_new = function(src) -> {
+    var chars = $string_chars(src)
+
+    var o = $new(null)
+    o.src = chars
+    o.pc = 0
+    return o
+}
+
+var is_ident_start = function(ch) -> {
+    var A = $char_to_int("A")
+    var Z = $char_to_int("Z")
+    var a = $char_to_int("a")
+    var z = $char_to_int("z")
+    var ch = $char_to_int(ch)
+    if ch >= a && ch <= z {
+        return true
+    } else if ch >= A && ch <= Z {
+        
+        return true
+     
+    } else if ch == $char_to_int("_") {
+        return true
+    } else {
+        return false
+    }
+    
+}
+
+var is_identifier = function(ch) -> {
+    
+    if is_ident_start(ch) {
+        return true
+    } else if Char.is_digit(ch) {
+        return true
+    } else {
+        return false
+    }
+}
+
+$print(is_identifier("f"))
