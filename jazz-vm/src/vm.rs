@@ -396,12 +396,7 @@ impl VM {
                 LdField(field) => {
                     let acc = self.pop().unwrap();
 
-                    println!(
-                        "prev op: {:?}\n{:?}->{:?}",
-                        self.code[self.pc - 2].clone(),
-                        crate::builtins::val_string(self, vec![acc.clone()]),
-                        FIELDS.get(&field)
-                    );
+                    
                     let obj_p = val_object(&acc);
                     let obj: &Object = obj_p.borrow();
                     let f = obj.find(field as i64);
