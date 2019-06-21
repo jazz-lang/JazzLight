@@ -13,7 +13,7 @@ Then you can execute bytecode:
 ```bash
 $ jazzlight-vm file.j
 ```
-If you want to dump bytecode you can use compiler of `decoder` program:
+If you want to dump bytecode you can use compiler or `decoder` program:
 ```bash
 $ jazzlight -d file.jazz
 # Or
