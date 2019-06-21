@@ -1,12 +1,12 @@
 var List = $loadmodule("List")
 
-var create = function() -> {
+var create = function()  {
     var tbl = $new(null)
     tbl.entries = $array()
     return tbl
 }
 
-var insert = function(tbl,key,val) ->  {
+var insert = function(tbl,key,val)   {
     var i = 0 
     var h = $hash(key)
     while i < $alen(tbl.entries) {
@@ -23,7 +23,7 @@ var insert = function(tbl,key,val) ->  {
     $apush(tbl.entries,entry)
 }
 
-var find = function(tbl,key) -> {
+var find = function(tbl,key)  {
     var h = $hash(key)
     var i = 0
     while i < $alen(tbl.entries) {
@@ -34,7 +34,7 @@ var find = function(tbl,key) -> {
     return null
 }
 
-var iter = function(f,tbl) -> {
+var iter = function(f,tbl)  {
     var i = 0
     while i < $alen(tbl.entries) {
         var entry = tbl.entries[i]
@@ -44,7 +44,7 @@ var iter = function(f,tbl) -> {
 
 } 
 
-var iteri = function(f,tbl) -> {
+var iteri = function(f,tbl)  {
     var i = 0
     while i < $alen(tbl.entries) {
         var entry = tbl.entries[i]
@@ -53,7 +53,7 @@ var iteri = function(f,tbl) -> {
     }
 }
 
-var map = function(f,tbl) -> {
+var map = function(f,tbl)  {
     var i = 0 
     var arr = $array()
     while i < $alen(tbl.entries) {

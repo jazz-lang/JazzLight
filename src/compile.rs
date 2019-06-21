@@ -29,21 +29,23 @@ pub enum Access {
     This,
 }
 
-use std::collections::HashMap;
+
 
 #[derive(Clone, Debug)]
 pub struct Globals {
-    pub globals: HashMap<Global, i32>,
-    pub objects: HashMap<String, Vec<i32>>,
+    pub globals: LinkedHashMap<Global, i32>,
+    pub objects: LinkedHashMap<String, Vec<i32>>,
     pub functions: Vec<(Vec<UOP>, Vec<(i32, i32)>, i32, i32)>,
     pub table: Vec<Global>,
 }
 
+use linked_hash_map::LinkedHashMap;
+
 pub struct Context {
     pub g: Cell<Globals>,
     pub ops: Vec<UOP>,
-    pub locals: HashMap<String, i32>,
-    pub env: HashMap<String, i32>,
+    pub locals: LinkedHashMap<String, i32>,
+    pub env: LinkedHashMap<String, i32>,
     pub stack: i32,
     pub limit: i32,
     pub nenv: i32,
@@ -52,10 +54,10 @@ pub struct Context {
     pub pos: Vec<(i32, i32)>,
     pub cur_pos: (i32, i32),
     pub cur_file: String,
-    pub builtins: HashMap<String, i32>,
-    pub labels: HashMap<String, Option<usize>>,
-    pub fields: Cell<HashMap<u64, String>>,
-    pub used_upvars: HashMap<String, i32>,
+    pub builtins: LinkedHashMap<String, i32>,
+    pub labels: LinkedHashMap<String, Option<usize>>,
+    pub fields: Cell<LinkedHashMap<u64, String>>,
+    pub used_upvars: LinkedHashMap<String, i32>,
     pub optimize: bool,
 }
 
@@ -289,8 +291,8 @@ impl Context {
             Constant::Ident(s) => {
                 let s: &str = s;
                 if self.locals.contains_key(s) {
-                    let i = self.locals.get(s).unwrap();
-                    self.write(Opcode::LdLocal(*i as u32));
+                    let i = *self.locals.get(s).unwrap();
+                    self.write(Opcode::LdLocal(i as u32));
                 } else if self.env.contains_key(s) {
                     self.nenv += 1;
                     let pos = if !self.used_upvars.contains_key(s) {
@@ -308,8 +310,8 @@ impl Context {
                 }
             }
             Constant::Builtin(name) => {
-                let idx = self.builtins.get(name).expect("Builtin not found");
-                self.write(Opcode::LdBuiltin(*idx as u32));
+                let idx = self.builtins.get(name).expect("Builtin not found").clone();
+                self.write(Opcode::LdBuiltin(idx as u32));
             }
         }
     }
@@ -635,7 +637,7 @@ impl Context {
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _vname: Option<&str>) {
         let mut ctx = Context {
             g: self.g.clone(), // we don't clone this globals, basically just copy ptr,
             ops: Vec::new(),
@@ -643,7 +645,7 @@ impl Context {
             optimize: self.optimize,
             limit: self.stack,
             stack: self.stack,
-            locals: HashMap::new(),
+            locals: LinkedHashMap::new(),
             fields: self.fields.clone(),
             nenv: 0,
             env: self.locals.clone(),
@@ -653,7 +655,7 @@ impl Context {
             breaks: vec![],
             builtins: self.builtins.clone(),
             labels: self.labels.clone(),
-            used_upvars: HashMap::new(),
+            used_upvars: LinkedHashMap::new(),
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -705,8 +707,8 @@ impl Context {
 
 pub fn compile_ast(ast: Vec<P<Expr>>, optimize: bool) -> Context {
     let g = Globals {
-        globals: HashMap::new(),
-        objects: HashMap::new(),
+        globals: LinkedHashMap::new(),
+        objects: LinkedHashMap::new(),
         functions: vec![],
         table: vec![],
     };
@@ -715,19 +717,19 @@ pub fn compile_ast(ast: Vec<P<Expr>>, optimize: bool) -> Context {
         stack: 0,
         optimize,
         limit: -1,
-        locals: HashMap::new(),
+        locals: LinkedHashMap::new(),
         ops: vec![],
-        env: HashMap::new(),
-        fields: Cell::new(HashMap::new()),
-        labels: HashMap::new(),
+        env: LinkedHashMap::new(),
+        fields: Cell::new(LinkedHashMap::new()),
+        labels: LinkedHashMap::new(),
         nenv: 0,
         pos: Vec::new(),
         cur_pos: (0, 0),
-        builtins: HashMap::new(),
+        builtins: LinkedHashMap::new(),
         breaks: vec![],
         continues: vec![],
         cur_file: String::from("_"),
-        used_upvars: HashMap::new(),
+        used_upvars: LinkedHashMap::new(),
     };
     ctx.builtins.insert("load".into(), 0);
     ctx.builtins.insert("string".into(), 1);
@@ -763,7 +765,6 @@ pub fn compile_ast(ast: Vec<P<Expr>>, optimize: bool) -> Context {
     ctx.builtins.insert("sprintf".into(), 29);
     ctx.builtins.insert("string_chars".into(), 30);
     ctx.builtins.insert("char_to_int".into(), 31);
-    use crate::P;
 
     let ast = P(Expr {
         pos: Position::new(0, 0),

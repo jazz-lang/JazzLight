@@ -1,5 +1,5 @@
 
-var reversed = function(array) -> {
+var reversed = function(array)  {
     var i = $alen(array)
     var arr = $array()
     
@@ -9,7 +9,7 @@ var reversed = function(array) -> {
     }
     return arr
 }
-var iter = function(f,arr) -> {
+var iter = function(f,arr)  {
     var len = $alen(arr)
 
     var i = 0
@@ -22,7 +22,7 @@ var iter = function(f,arr) -> {
 
 
 
-var iteri = function(f,arr) -> {
+var iteri = function(f,arr)  {
     var len = $alen(arr)
 
     var i = 0
@@ -34,11 +34,11 @@ var iteri = function(f,arr) -> {
 
 
 
-var len = function(arr) -> {
+var len = function(arr)  {
     return $alen(arr)
 }
 
-var map = function(f,arr) -> {
+var map = function(f,arr)  {
     var len = $alen(arr)
     var i = 0
 

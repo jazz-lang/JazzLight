@@ -1,7 +1,7 @@
 var Reader = $loadmodule("Reader")
 var Array = $loadmodule("Array")
 
-var opcode = function(lexeme,args) -> {
+var opcode = function(lexeme,args)  {
     var o = $new(null)
     o.lexeme = lexeme
     o.args = args
@@ -9,10 +9,10 @@ var opcode = function(lexeme,args) -> {
     return o
 }
 
-var display_op = function(op) -> {
+var display_op = function(op)  {
     $print(op.lexeme," ")
     Array.iter(
-        function(x) -> {
+        function(x)  {
             $print(x)
         },
         op.args
@@ -263,30 +263,31 @@ while i < codesize {
     }
     i = i + 1
 }
-$print("globals: \n")
+
+$print("globals: \r\n")
 Array.iter(
-    function(x) -> {
+    function(x)  {
         $print("\tfunction at ",x[0],", nargs ", x[1])
-        $print("\n")
+        $print("\r\n")
     },
     functions
 )
 
-$print("fields: \n")
+$print("fields: \r\n")
 Array.iter(
-    function(x) -> {
+    function(x)  {
         $print("\t")
-        $print(x[1], " => ", $sprintf("0x%x",x[0]),"\n")
+        $print(x[1], " => ", $sprintf("0x%x",x[0]),"\r\n")
     },
     fields
 )
 
-$print("\ncode:\n")
+$print("\r\ncode:\r\n")
 Array.iteri(
-    function(i,x) -> {
+    function(i,x)  {
         $print(i,": ")
         display_op(x)
-        $print("\n")
+        $print("\r\n")
     },
     code
 )

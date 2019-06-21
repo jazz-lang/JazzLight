@@ -9,6 +9,7 @@ use jazzc::reader::Reader;
 
 use jazzvm::module::Module;
 use jazzvm::value::*;
+use jazzvm::vm::VM;
 use jazzvm::P;
 pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
@@ -69,6 +70,8 @@ pub struct Options {
     #[structopt(long = "optimize")]
     /// Try to optimize bytecode
     optimize: bool,
+    #[structopt(long = "run")]
+    run: bool
 }
 
 fn main() {
@@ -100,18 +103,19 @@ fn main() {
     }
 
     m.borrow_mut().code = ctx.finish();
-    let code = emit_file::compile(&mut m).expect("Error");
-    use std::io::Write;
-    let f = std::path::Path::new(&string);
-    let f = f.file_stem().unwrap();
-    let mut f = f.to_str().unwrap().to_owned();
-    f.push('.');
-    f.push('j');
-    std::fs::File::create(&f).unwrap();
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .open(f)
-        .expect("Error");
 
-    file.write(&code).unwrap();
+        let code = emit_file::compile(&mut m).expect("Error");
+        use std::io::Write;
+        let f = std::path::Path::new(&string);
+        let f = f.file_stem().unwrap();
+        let mut f = f.to_str().unwrap().to_owned();
+        f.push('.');
+        f.push('j');
+        std::fs::File::create(&f).unwrap();
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(f)
+            .expect("Error");
+
+        file.write(&code).unwrap();
 }

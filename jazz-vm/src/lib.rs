@@ -16,6 +16,7 @@ pub mod fields;
 pub mod hash;
 pub mod jit;
 pub mod module;
+
 pub mod opcode;
 pub mod value;
 #[macro_use]
@@ -24,6 +25,40 @@ pub mod vm;
 pub struct Cell<T> {
     val: *mut T,
 }
+
+use vm::*;
+use module::*;
+use builtins::*;
+use fields::*;
+
+pub fn initialize(args: Vec<String>) {
+    
+
+    let mut vm = VM::new();
+    init_fields();
+    register_builtins(&mut vm);
+    
+    use std::io::Read;
+    
+    let mut f = std::fs::File::open(&args[1]).unwrap();
+    let mut buf = vec![];
+    f.read_to_end(&mut buf).unwrap();
+    let reader = Reader {  
+        code: buf,
+        pc: 0,
+    };  
+    use std::path::Path;
+    let p = Path::new(&args[1]);
+    let f = p.file_stem().unwrap().to_str().unwrap().to_owned();
+
+    let mut module = read_module(reader, &f);
+    
+    vm.code = module.code.clone();
+    *VM_THREAD.borrow_mut() = vm;
+    VM_THREAD.borrow_mut().interp(&mut module);
+
+}
+
 
 unsafe impl<T: Sync> Sync for Cell<T> {}
 unsafe impl<T: Send> Send for Cell<T> {}
@@ -60,9 +95,7 @@ impl<T> Cell<T> {
         self.val
     }
 }
-impl<T> Drop for Cell<T> {
-    fn drop(&mut self) {}
-}
+
 impl<T> Clone for Cell<T> {
     fn clone(&self) -> Self {
         Self { val: self.val }
@@ -97,11 +130,12 @@ impl<T> DerefMut for Cell<T> {
     }
 }
 
-/*impl<T> Drop for Cell<T> {
+
+impl<T> Drop for Cell<T> {
     fn drop(&mut self) {
-        unsafe {
-            free(self.val as *mut u8);
-        }
+        let val = self.borrow();
+        drop(val);
+           // std::alloc::dealloc(self.val as *mut u8, std::alloc::Layout::new::<T>());
+        
     }
 }
-*/

@@ -1,4 +1,4 @@
-var ord = function(x,y) -> {
+var ord = function(x,y)  {
     if x < y {
         return "Less"
     } else if x > y {

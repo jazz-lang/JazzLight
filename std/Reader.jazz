@@ -1,4 +1,4 @@
-var new = function(fname) -> {
+var new = function(fname)  {
     var f = $file(fname)
     
     var bytes = $array()
@@ -12,7 +12,7 @@ var new = function(fname) -> {
 
 }
 
-var read_byte = function(r) -> {
+var read_byte = function(r)  {
     var byte = $aget(r.bytes,r.pc)
 
     r.pc = r.pc + 1
@@ -20,21 +20,21 @@ var read_byte = function(r) -> {
     return byte
 }
 
-var read_short = function(r) -> {
+var read_short = function(r)  {
     var bytes = $array(read_byte(r),read_byte(r))
     $areverse(bytes)
     var i = $int_from_bytes(bytes)
 
     return i
 }
-var read_int = function(r) -> {
+var read_int = function(r)  {
     var bytes = $array(read_byte(r),read_byte(r),read_byte(r),read_byte(r))
     $areverse(bytes)
     var i = $int_from_bytes(bytes)
     return i
 }
 
-var read_long = function(r) -> {
+var read_long = function(r)  {
     var bytes = $array(read_byte(r),read_byte(r),read_byte(r),read_byte(r),
     read_byte(r),read_byte(r),read_byte(r),read_byte(r))
     $areverse(bytes)

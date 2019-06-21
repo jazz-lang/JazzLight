@@ -1,4 +1,4 @@
-var to_digit = function(ch,radix) -> {
+var to_digit = function(ch,radix)  {
     if radix > 36 {
         return null
     }
@@ -33,13 +33,13 @@ var to_digit = function(ch,radix) -> {
 }
 
 
-var is_digit = function(ch) -> {
+var is_digit = function(ch)  {
 
     return to_digit(ch,10) != null
 }
 
 
-var to_int = function(ch) -> {
+var to_int = function(ch)  {
     return $char_to_int(ch)
 }
 

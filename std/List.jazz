@@ -1,4 +1,4 @@
-var create = function() -> {
+var create = function()  {
     var o = $new(null)
     o.l = 0
     o.h = null
@@ -6,10 +6,10 @@ var create = function() -> {
     return o
 }
 
-var get_len = function(l) -> {
+var get_len = function(l)  {
     return l.l
 }
-var add = function(list,x) -> {
+var add = function(list,x)  {
     var a = $array(x,null)
     if list.q != null {
         list.q[1] = a
@@ -19,7 +19,7 @@ var add = function(list,x) -> {
     list.q = a
     list.l = list.l + 1
 }
-var push = function(list,x) -> {
+var push = function(list,x)  {
     var a = $array(x,list.h)
     list.h = a
     if list.q == null {
@@ -28,7 +28,7 @@ var push = function(list,x) -> {
     list.l = list.l + 1
 }
 
-var remove = function(list,x) -> {
+var remove = function(list,x)  {
     var cur = list.h
     var prev = null
     while cur != null {
@@ -49,7 +49,7 @@ var remove = function(list,x) -> {
     return false
 }
 
-var at = function(list,p) -> { 
+var at = function(list,p)  { 
     var cur = list.h
 
     while cur != null {
@@ -61,7 +61,7 @@ var at = function(list,p) -> {
     }
     return null
 }
-var pop = function(list) -> {
+var pop = function(list)  {
     if list.h == null {
         return null
     }
@@ -74,7 +74,7 @@ var pop = function(list) -> {
     return x
 }
 
-var find = function(list,f) -> {
+var find = function(list,f)  {
     var p = list.h
     while p != null {
         var x = f(p[0])

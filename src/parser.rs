@@ -100,7 +100,6 @@ impl<'a> Parser<'a> {
             tmp
         };
         self.expect_token(TokenKind::RParen)?;
-        self.expect_token(TokenKind::Arrow)?;
         let body = self.parse_expression()?;
         Ok(expr!(ExprDecl::Function(params, body), pos))
     }
