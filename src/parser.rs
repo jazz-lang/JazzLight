@@ -558,7 +558,10 @@ impl<'a> Parser<'a> {
         let tok = self.advance_token()?;
         let _pos = tok.position;
         if let TokenKind::LitChar(_c) = tok.kind {
-            unimplemented!()
+            Ok(expr!(
+                ExprDecl::Const(Constant::Str(_c.to_string())),
+                _pos
+            ))
         } else {
             unreachable!()
         }

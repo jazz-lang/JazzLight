@@ -11,10 +11,10 @@
 
 var __array__ = $new(null) 
 __array__.buff = $array() 
-__array__.len = function() -> {
+__array__.len = function()  {
     return $alen(this.buff)
 }
-__array__.iter = function(f) -> {
+__array__.iter = function(f)  {
     
 	var i = 0 
     
@@ -29,7 +29,7 @@ __array__.iter = function(f) -> {
 	return null
 }
 
-__array__.iteri = function(f) -> {
+__array__.iteri = function(f)  {
 	var i = 0 
 	while i < this.len() {
 		var elem = this.get(i)
@@ -39,23 +39,23 @@ __array__.iteri = function(f) -> {
     return null
 }
 
-__array__.push = function(v) -> {
+__array__.push = function(v)  {
 	$apush(this.buff, v) return null
 }
 
-__array__.pop = function() -> {
+__array__.pop = function()  {
 	return $apop(this.buff)
 }
 
-__array__.get = function(x) -> {
+__array__.get = function(x)  {
 	return $aget(this.buff, x)
 }
 
-__array__.set = function(x, v) -> {
+__array__.set = function(x, v)  {
 	return $aset(this.buff, x, v)
 }
 
-var Array = function() -> {
+var Array = function()  {
 	return $new(__array__)
 }
 
@@ -66,4 +66,4 @@ var arr = Array()
 arr.push("Hello,world!")
 arr.push("Hello,world!x2")
 
-arr.iter(function(x) -> $print(x))
+arr.iter(function(x)  $print(x))
