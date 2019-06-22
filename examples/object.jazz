@@ -3,7 +3,7 @@ var point = $new(null)
 point.x = 3
 point.y = 6
 
-point.__add = function(point) -> {
+point.__add = function(point) {
     var n = $new(null)
     if $typeof(point) == "Int"  {
         n.x = this.x + point

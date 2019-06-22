@@ -1,5 +1,5 @@
-var thread = $thread_spawn(function() -> {
-    var fac = function(x) -> {
+var thread = $thread_spawn(function() {
+    var fac = function(x) {
         if x == 0 {
             return 1 
         } else {
