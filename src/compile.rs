@@ -1,6 +1,6 @@
-use jazzvm::hash::hash_bytes;
-use jazzvm::opcode::Opcode;
-use jazzvm::Cell;
+use nabox::hash::hash_bytes;
+use nabox::opcode::Opcode;
+use nabox::Cell;
 
 #[derive(Clone, Debug)]
 pub enum UOP {
@@ -404,7 +404,7 @@ impl Context {
             Access::Field(f) => {
                 let mut h = 0xcbf29ce484222325;
                 hash_bytes(&mut h, f.as_bytes());
-                jazzvm::vm::FIELDS.borrow_mut().insert(h, f.to_owned());
+                nabox::vm::FIELDS.borrow_mut().insert(h, f.to_owned());
                 self.fields.insert(h, f.to_owned());
                 self.write(Opcode::SetField(h));
             }

@@ -1,7 +1,7 @@
-use jazzvm::module::Module;
-use jazzvm::opcode::Opcode;
-use jazzvm::value::*;
-use jazzvm::P;
+use nabox::module::Module;
+use nabox::opcode::Opcode;
+use nabox::value::*;
+use nabox::P;
 
 pub trait Encoder {
     fn write_u8(&mut self, b: u8);

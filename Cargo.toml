@@ -6,11 +6,12 @@ edition = "2018"
 
 [dependencies]
 hmap = "0.1"
-jazzvm = {path = "jazz-vm"}
+nabox = {path = "nabox"}
 structopt = "0.2"
 time = "0.1.42"
 linked-hash-map = "0.5"
 byteorder = "1.3.2"
+libc = "0.2"
 
 [profile.release]
 lto = true

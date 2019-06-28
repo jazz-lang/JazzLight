@@ -7,10 +7,9 @@ use jazzc::emit_file;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
 
-use jazzvm::module::Module;
-use jazzvm::value::*;
-use jazzvm::vm::VM;
-use jazzvm::P;
+use nabox::module::Module;
+use nabox::value::*;
+use nabox::P;
 pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
     let mut m = Module::new(&ctx.cur_file);
     m.globals = vec![P(Value::Null); ctx.g.table.len()];
