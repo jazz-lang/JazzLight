@@ -124,17 +124,17 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
         code: vec![],
         pc: 0,
     };
-
-    let env: Option<&'static str> = option_env!("JAZZ_PATH");
+    let home = env!("HOME").to_string();
+    let env = Some(home + "/.jazz");
 
     let path = if env.is_some() {
-        let path = format!("{}{}", env.unwrap(), name);
+        let path = format!("{}/{}", env.as_ref().unwrap(), name);
 
         let p = std::path::Path::new(&path);
         if p.exists() {
             path
         } else {
-            let path = format!("{}{}.j", env.unwrap(), name);
+            let path = format!("{}/{}.j", env.as_ref().unwrap(), name);
 
             let p = if std::path::Path::new(&path).exists() {
                 path
@@ -156,6 +156,9 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
             }
         }
     };
+    if !std::path::Path::new(&path).exists() {
+        println!("NOT FOUND SHIT {}",path);
+    }
 
     let mut f = File::open(&path).unwrap();
     f.read_to_end(&mut reader.code).unwrap();
