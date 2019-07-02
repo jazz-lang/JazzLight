@@ -637,7 +637,7 @@ impl Context {
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _vname: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
         let mut ctx = Context {
             g: self.g.clone(), // we don't clone this globals, basically just copy ptr,
             ops: Vec::new(),
@@ -663,12 +663,15 @@ impl Context {
         }
 
         let s = ctx.stack.clone();
+        let gid = ctx.g.table.len();
+        if vname.is_some() {
+            self.g
+                .globals
+                .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
         ctx.compile(e);
 
         ctx.write(Opcode::Ret);
         ctx.check_stack(s, "");
-
-        let gid = ctx.g.table.len();
 
         ctx.g.functions.push((
             ctx.ops.clone(),
@@ -677,11 +680,8 @@ impl Context {
             params.len() as i32,
         ));
         ctx.g.table.push(Global::Func(gid as i32, -1));
-        /*if vname.is_some() {
-            self.g
-                .globals
-                .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
-        }*/
+        
+        }
         for (k, v) in ctx.labels.iter() {
             self.labels.insert(k.clone(), v.clone());
         }

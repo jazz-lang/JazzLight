@@ -130,48 +130,48 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 c.push(3); // this
             }
             Opcode::LdField(field) => {
-                c.push(3);
-                c.push(4);
-                c.write_u64(*field);
+                c.push(3); // ld
+                c.push(4); // field
+                c.write_u64(*field); // hash
             }
             Opcode::LdLocal(u) => {
-                c.push(3);
-                c.push(5);
-                c.write_u32(*u);
+                c.push(3); // ld 
+                c.push(5); // local
+                c.write_u32(*u); // index
             }
             Opcode::LdGlobal(u) => {
-                c.push(3);
-                c.push(6);
-                c.write_u32(*u);
+                c.push(3); // ld 
+                c.push(6); // global
+                c.write_u32(*u); // index
             }
             Opcode::LdEnv(u) => {
-                c.push(3);
-                c.push(7);
-                c.write_u32(*u);
+                c.push(3); // ld 
+                c.push(7); // env
+                c.write_u32(*u); // index
             }
             Opcode::LdBuiltin(u) => {
-                c.push(3);
-                c.push(8);
-                c.write_u32(*u);
+                c.push(3); // ld
+                c.push(8); // builtin
+                c.write_u32(*u); // index
             }
             Opcode::LdIndex(u) => {
-                c.push(3);
-                c.push(9);
-                c.write_u32(*u);
+                c.push(3); // ld
+                c.push(9); // index
+                c.write_u32(*u); // index
             }
             Opcode::LdArray => {
-                c.push(3);
-                c.push(10);
+                c.push(3); // ld 
+                c.push(10); // array
             }
             Opcode::SetLocal(u) => {
-                c.push(4);
-                c.push(0);
-                c.write_u32(*u);
+                c.push(4); // set
+                c.push(0); // local
+                c.write_u32(*u); // index
             }
             Opcode::SetGlobal(u) => {
-                c.push(4);
-                c.push(1);
-                c.write_u32(*u);
+                c.push(4); // set
+                c.push(1); // global
+                c.write_u32(*u); // index
             }
             Opcode::SetEnv(u) => {
                 c.push(4);
