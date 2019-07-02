@@ -135,17 +135,17 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 c.write_u64(*field); // hash
             }
             Opcode::LdLocal(u) => {
-                c.push(3); // ld 
+                c.push(3); // ld
                 c.push(5); // local
                 c.write_u32(*u); // index
             }
             Opcode::LdGlobal(u) => {
-                c.push(3); // ld 
+                c.push(3); // ld
                 c.push(6); // global
                 c.write_u32(*u); // index
             }
             Opcode::LdEnv(u) => {
-                c.push(3); // ld 
+                c.push(3); // ld
                 c.push(7); // env
                 c.write_u32(*u); // index
             }
@@ -160,7 +160,7 @@ pub fn compile(m: &mut P<Module>) -> Result<Vec<u8>, std::io::Error> {
                 c.write_u32(*u); // index
             }
             Opcode::LdArray => {
-                c.push(3); // ld 
+                c.push(3); // ld
                 c.push(10); // array
             }
             Opcode::SetLocal(u) => {

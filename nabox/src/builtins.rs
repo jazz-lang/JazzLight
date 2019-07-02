@@ -12,19 +12,19 @@ pub extern "C" fn load(_: &mut VM, args: Vec<P<Value>>) -> P<Value> {
         let symbol_name = val_str(&args[1]);
         let nargs = val_int(&args[2]);
         unsafe {
+            use libc::{dlopen, dlsym, RTLD_LAZY};
             use std::ffi::CString;
-            use libc::{dlopen,dlsym,RTLD_LAZY};
             let name = CString::new(path.clone()).unwrap();
-            let handle = dlopen(name.as_ptr(),RTLD_LAZY);
+            let handle = dlopen(name.as_ptr(), RTLD_LAZY);
             if handle.is_null() {
-                panic!("Failed to load dynamic library '{}'",path);
+                panic!("Failed to load dynamic library '{}'", path);
             }
             let symbol_name_ = CString::new(symbol_name.clone()).unwrap();
-            let symbol = dlsym(handle,symbol_name_.as_ptr());
+            let symbol = dlsym(handle, symbol_name_.as_ptr());
             if symbol.is_null() {
-                panic!("Failed to load symbol '{}'",symbol_name);
+                panic!("Failed to load symbol '{}'", symbol_name);
             }
-            
+
             let func = symbol;
             let func = Function {
                 var: FuncVar::Native(func as *const u8),
@@ -157,7 +157,7 @@ pub extern "C" fn loader_loadmodule(_: &mut VM, args: Vec<P<Value>>) -> P<Value>
         }
     };
     if !std::path::Path::new(&path).exists() {
-        println!("NOT FOUND SHIT {}",path);
+        println!("NOT FOUND SHIT {}", path);
     }
 
     let mut f = File::open(&path).unwrap();

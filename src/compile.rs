@@ -29,8 +29,6 @@ pub enum Access {
     This,
 }
 
-
-
 #[derive(Clone, Debug)]
 pub struct Globals {
     pub globals: LinkedHashMap<Global, i32>,
@@ -668,19 +666,18 @@ impl Context {
             self.g
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
-        ctx.compile(e);
+            ctx.compile(e);
 
-        ctx.write(Opcode::Ret);
-        ctx.check_stack(s, "");
+            ctx.write(Opcode::Ret);
+            ctx.check_stack(s, "");
 
-        ctx.g.functions.push((
-            ctx.ops.clone(),
-            ctx.pos.clone(),
-            gid as i32,
-            params.len() as i32,
-        ));
-        ctx.g.table.push(Global::Func(gid as i32, -1));
-        
+            ctx.g.functions.push((
+                ctx.ops.clone(),
+                ctx.pos.clone(),
+                gid as i32,
+                params.len() as i32,
+            ));
+            ctx.g.table.push(Global::Func(gid as i32, -1));
         }
         for (k, v) in ctx.labels.iter() {
             self.labels.insert(k.clone(), v.clone());

@@ -1,7 +1,4 @@
-
 extern crate nabox;
-
-
 
 use std::env::args;
 

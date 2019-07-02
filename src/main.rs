@@ -70,11 +70,15 @@ pub struct Options {
     /// Try to optimize bytecode
     optimize: bool,
     #[structopt(long = "run")]
-    run: bool
+    run: bool,
 }
 
 fn main() {
-    let ops = Options::from_args();
+    let ops: Options = Options::from_args();
+    if ops.file.is_none() {
+        eprintln!("Expected file path as input");
+        std::process::exit(-1);
+    }
     let string = ops.file.unwrap().to_str().unwrap().to_owned();
     let reader = Reader::from_file(&string).unwrap();
     let mut ast = vec![];
@@ -103,18 +107,18 @@ fn main() {
 
     m.borrow_mut().code = ctx.finish();
 
-        let code = emit_file::compile(&mut m).expect("Error");
-        use std::io::Write;
-        let f = std::path::Path::new(&string);
-        let f = f.file_stem().unwrap();
-        let mut f = f.to_str().unwrap().to_owned();
-        f.push('.');
-        f.push('j');
-        std::fs::File::create(&f).unwrap();
-        let mut file = std::fs::OpenOptions::new()
-            .write(true)
-            .open(f)
-            .expect("Error");
+    let code = emit_file::compile(&mut m).expect("Error");
+    use std::io::Write;
+    let f = std::path::Path::new(&string);
+    let f = f.file_stem().unwrap();
+    let mut f = f.to_str().unwrap().to_owned();
+    f.push('.');
+    f.push('j');
+    std::fs::File::create(&f).unwrap();
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(f)
+        .expect("Error");
 
-        file.write(&code).unwrap();
+    file.write(&code).unwrap();
 }

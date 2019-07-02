@@ -396,7 +396,6 @@ impl VM {
                 LdField(field) => {
                     let acc = self.pop().unwrap();
 
-                    
                     let obj_p = val_object(&acc);
                     let obj: &Object = obj_p.borrow();
                     let f = obj.find(field as i64);
