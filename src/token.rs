@@ -127,7 +127,7 @@ impl TokenKind {
 
             // Keywords
             TokenKind::This => "this",
-            TokenKind::Fun => "function",
+            TokenKind::Fun => "actor",
             TokenKind::Let => "let",
             TokenKind::Var => "var",
             TokenKind::Try => "try",

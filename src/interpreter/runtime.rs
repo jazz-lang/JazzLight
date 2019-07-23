@@ -40,6 +40,6 @@ pub fn register_builtins(interp: &mut Interpreter) {
     err.borrow_mut().set("__name__","JLRuntimeError");
     declare_var(&interp.env, "JLRuntimeError", new_ref(ValueData::Object(err)),&pos ).unwrap();
     declare_var(&interp.env, "instanceof", new_exfunc(builtin_instanceof),&pos).unwrap();
-    declare_var(&interp.env, "print",new_exfunc(builtin_print),&pos);
+    declare_var(&interp.env, "print",new_exfunc(builtin_print),&pos).unwrap();
 }
 

@@ -98,11 +98,11 @@ impl Visitor<Interpreter> for Expr {
             }
             ExprDecl::Block(exprs) => {
                 let mut result = new_ref(ValueData::Nil);
-                interp.push_env();
+                //interp.push_env();
                 for x in exprs.iter() {
                     result = x.visit(interp)?;
                 }
-                interp.pop_env();
+                //interp.pop_env();
                 return Ok(result)
             }
             ExprDecl::While(cond,body) => {
@@ -149,9 +149,16 @@ impl Visitor<Interpreter> for Expr {
                     Some(val) => val.visit(interp)?,
                     None => return Ok(new_ref(ValueData::Nil))
                 };
-                match declare_var(&interp.env,name,val,&pos) {
-                    Ok(()) => return Ok(new_ref(ValueData::Nil)),
-                    Err(e) => return Err(e) 
+                if !var_declared(&interp.env,name) {
+                    match declare_var(&interp.env,name,val,&pos) {
+                        Ok(()) => return Ok(new_ref(ValueData::Nil)),
+                        Err(e) => return Err(e) 
+                    }
+                } else {
+                    match set_variable_in_scope(&interp.env,name,val,&pos) {
+                        Ok(()) => return Ok(new_ref(ValueData::Nil)),
+                        Err(e) => return Err(e)
+                    }
                 }
             }
             ExprDecl::Try(expr,name,body) => {
@@ -175,7 +182,8 @@ impl Visitor<Interpreter> for Expr {
                 let func = Function::Regular {
                     environment:  new_env,
                     args: args.clone(),
-                    body: body.clone()
+                    body: body.clone(),
+                    args_set: std::cell::Cell::new(false)
                 };
                 return Ok(new_ref(
                     ValueData::Function(new_ref(func))
@@ -216,14 +224,19 @@ impl Visitor<Interpreter> for Expr {
                             Function::Regular {
                                 environment,
                                 body,
-                                args
+                                args,
+                                args_set    
                             } => {
                                 let old_env = interp.env.clone();
                                 interp.env = environment.clone();
                                 for (i,arg_name) in args.iter().enumerate() {
-                                    declare_var(&interp.env,arg_name,args_.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),&pos)?;
+                                    if !var_declared(&interp.env,arg_name) {
+                                        declare_var(&interp.env,arg_name,args_.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),&pos)?;
+                                    } else {
+                                        set_variable_in_scope(&interp.env, arg_name ,args_.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),&pos)?;
+                                    }
                                 }
-                                declare_var(&interp.env,"this",this,&pos)?;
+                                declare_var(&interp.env,"this",this,&pos); //ignore error;
                                 let result = body.visit(interp)?;
                                 interp.env = old_env;
                                 return Ok(result);
@@ -238,6 +251,12 @@ impl Visitor<Interpreter> for Expr {
                         pos.line as _, None, "not a function")
                 )
 
+            }
+            ExprDecl::Binop(op,lhs,rhs) => {
+                let op: &str = op;
+                match op {
+                    _ => unimplemented!()
+                }
             }
             _ => unimplemented!()
         }

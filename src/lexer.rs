@@ -23,7 +23,7 @@ impl Lexer {
         let keywords = hmap!(
             "yield" => TokenKind::Yield,
             "this" => TokenKind::This,
-            "function" => TokenKind::Fun,
+            "actor" => TokenKind::Fun,
             "func" => TokenKind::Fun,
             "let" => TokenKind::Let,
             "var" => TokenKind::Var,

@@ -1,5 +1,6 @@
 use wrc::WRC;
 use std::cell::RefCell;
+use std::cell::Cell;
 
 pub fn new_ref<T>(val: T) -> Ref<T> {
     Ref::new(
@@ -80,7 +81,8 @@ pub enum Function {
     Regular {
         environment: Environment,
         body: crate::P<Expr>,
-        args: Vec<String>
+        args: Vec<String>,
+        args_set: Cell<bool>
     }
 }
 
@@ -298,6 +300,12 @@ pub fn declare_var(scope: &Ref<Object>,key: impl Into<ValueData>,val: Ref<ValueD
     Ok(())
 }
 
+pub fn var_declared(scope: &Ref<Object>,key: impl Into<ValueData>) -> bool {
+    let scope: &Object = &scope.borrow();
+    let key = key.into();
+    scope.table.contains_key(&key)
+}
+
 pub fn get_variable(scope: &Ref<Object>,key: impl Into<ValueData>,pos: &Position) -> Result<Value,ValueData> {
     let scopes: &mut Object = &mut scope.borrow_mut();
     let key = key.into();
@@ -463,4 +471,123 @@ pub fn instanceof(obj: &Ref<Object>,of: &Ref<Object>) -> bool {
 
     *obj.borrow().proto.as_ref().unwrap().borrow() == *of
 }
+
+
+
+use std::ops::*;
+
+impl Add for ValueData {
+    type Output = Self;
+    fn add(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(x + y),
+            (ValueData::Array(x),ValueData::Array(y)) => {
+                let mut array = vec![];
+                for x in x.borrow().iter() {
+                    array.push(x.clone());
+                }
+
+                for y in y.borrow().iter() {
+                    array.push(y.clone());
+                }
+
+                return ValueData::Array(new_ref(array));
+            }
+            (ValueData::String(x),val) => ValueData::String(format!("{}{}",x,val)),
+            (val,ValueData::String(x)) => ValueData::String(format!("{}{}",val,x)),
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+impl Sub for ValueData {
+    type Output = Self;
+    fn sub(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(x - y),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+impl Mul for ValueData {
+    type Output = Self;
+    fn mul(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(x * y),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+impl Div for ValueData {
+    type Output = Self;
+    fn div(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(x / y),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+
+
+impl Rem for ValueData {
+    type Output = Self;
+    fn rem(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(x % y),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+impl Shr for ValueData {
+    type Output = Self;
+    fn shr(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(((x.floor() as i64) >> y.floor() as i64) as f64),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+impl Shl for ValueData {
+    type Output = Self;
+    fn shl(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(((x.floor() as i64) << y.floor() as i64) as f64),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+
+impl BitXor for ValueData {
+    type Output = Self;
+    fn bitxor(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(((x.floor() as i64) ^ y.floor() as i64) as f64),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
+impl BitOr for ValueData {
+    type Output = Self;
+    fn bitor(self,other: Self) -> Self {
+        match (self,other) {
+            (ValueData::Number(x),ValueData::Number(y)) => ValueData::Number(((x.floor() as i64) | y.floor() as i64) as f64),
+
+            _ => ValueData::Undefined
+        }
+    }
+}
+
 
