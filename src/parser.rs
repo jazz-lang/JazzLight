@@ -515,6 +515,7 @@ impl<'a> Parser<'a> {
             TokenKind::True => self.parse_bool_literal(),
             TokenKind::False => self.parse_bool_literal(),
             TokenKind::Nil => self.parse_nil(),
+            TokenKind::Undefined => self.parse_undef(),
             TokenKind::LBracket => self.parse_array_const(),
             _ => Err(MsgWithPos::new(
                 self.lexer.path(),
@@ -571,6 +572,14 @@ impl<'a> Parser<'a> {
         } else {
             unreachable!()
         }
+    }
+    fn parse_undef(&mut self) -> EResult {
+        let pos = self.advance_token()?.position;
+        Ok(
+            expr!(
+                ExprDecl::Const(Constant::Undefined),pos
+            )
+        )
     }
 
     fn parse_bool_literal(&mut self) -> EResult {

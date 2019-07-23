@@ -30,6 +30,7 @@ impl Lexer {
             "while" => TokenKind::While,
             "for" => TokenKind::For,
             "foreach" => TokenKind::ForEach,
+            "undefined" => TokenKind::Undefined,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "in" => TokenKind::In,

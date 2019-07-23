@@ -5,6 +5,7 @@ pub enum Constant {
     False,
     Null,
     This,
+    Undefined,
     Int(i64),
     Float(f64),
     Str(String),

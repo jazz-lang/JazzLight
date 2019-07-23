@@ -61,6 +61,7 @@ impl Visitor<Interpreter> for Expr {
                         )
                     ) 
                 } 
+                Constant::Undefined => Ok(new_ref(ValueData::Undefined)),
                 Constant::This => get_variable(&interp.env, "this", &pos),
                 _ => unreachable!()
             }
@@ -236,7 +237,11 @@ impl Visitor<Interpreter> for Expr {
                                         set_variable_in_scope(&interp.env, arg_name ,args_.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),&pos)?;
                                     }
                                 }
-                                declare_var(&interp.env,"this",this,&pos); //ignore error;
+                                if !var_declared(&interp.env,"this") {
+                                    declare_var(&interp.env,"this",this,&pos)?;
+                                } else {
+                                    set_variable_in_scope(&interp.env, "this", this, &pos)?;
+                                }
                                 let result = body.visit(interp)?;
                                 interp.env = old_env;
                                 return Ok(result);
@@ -254,11 +259,57 @@ impl Visitor<Interpreter> for Expr {
             }
             ExprDecl::Binop(op,lhs,rhs) => {
                 let op: &str = op;
-                match op {
+                let lhs = lhs.visit(interp)?;
+                let rhs = rhs.visit(interp)?;
+                let lhs: ValueData = lhs.borrow().clone();
+                let rhs: ValueData = rhs.borrow().clone();
+                let val = match op {
+                    "+" => lhs + rhs,
+                    "-" => lhs - rhs,
+                    "*" => lhs * rhs,
+                    "/" => lhs / rhs,
+                    "%" => lhs % rhs,
+                    "^" => lhs ^ rhs,
+                    "|" => lhs | rhs,
+                    "&&" => {
+                        match (lhs,rhs) {
+                            (ValueData::Bool(x),ValueData::Bool(y)) => ValueData::Bool(x && y),
+                            _ => ValueData::Undefined
+                        }
+                    },
+                    "||" => {
+                        match (lhs,rhs) {
+                            (ValueData::Bool(x),ValueData::Bool(y)) => ValueData::Bool(x || y),
+                            _ => ValueData::Undefined
+                        }
+                    }
+                    ">" => ValueData::Bool(lhs > rhs),
+                    "<" => ValueData::Bool(lhs < rhs),
+                    ">=" => ValueData::Bool(lhs >= rhs),
+                    "<=" => ValueData::Bool(lhs <= rhs),
+                    "==" => ValueData::Bool(lhs == rhs),
+                    "!=" => ValueData::Bool(lhs != rhs),
                     _ => unimplemented!()
+                };
+
+                Ok(new_ref(val))
+            }
+
+            ExprDecl::If(cond,then,or) => {
+                let cond = cond.visit(interp)?;
+                let boolean = bool::from(cond.borrow().clone());
+
+                if boolean {
+                    return Ok(then.visit(interp)?);
+                } else {
+                    match or {
+                        Some(x) => Ok(x.visit(interp)?),
+                        None => return Ok(new_ref(ValueData::Nil))
+                    }
                 }
             }
-            _ => unimplemented!()
+            
+            x => panic!("{:?}",x)
         }
     }
 }
