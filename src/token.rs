@@ -36,6 +36,8 @@ pub enum TokenKind {
     This,
     Match,
     Fun,
+    Try,
+    Catch,
     Let,
     Var,
     While,
@@ -124,10 +126,12 @@ impl TokenKind {
             TokenKind::RQuote => ">",
 
             // Keywords
-            TokenKind::This => "self",
+            TokenKind::This => "this",
             TokenKind::Fun => "function",
             TokenKind::Let => "let",
             TokenKind::Var => "var",
+            TokenKind::Try => "try",
+            TokenKind::Catch => "catch",
             TokenKind::While => "while",
             TokenKind::If => "if",
             TokenKind::Else => "else",

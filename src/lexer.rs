@@ -41,14 +41,16 @@ impl Lexer {
             "return" => TokenKind::Return,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
-            "null" => TokenKind::Nil,
+            "nil" => TokenKind::Nil,
             "type" => TokenKind::Type,
             "throw" => TokenKind::Throw,
             "do" => TokenKind::Do,
             "import" => TokenKind::Import,
             "internal" => TokenKind::Internal,
             "include" => TokenKind::Include,
-            "for" => TokenKind::For
+            "for" => TokenKind::For,
+            "try" => TokenKind::Try,
+            "catch" => TokenKind::Catch
         );
 
         Lexer {

@@ -1,57 +1,11 @@
 extern crate jazzc;
 
-use jazzc::compile::compile_ast;
-use jazzc::compile::Context;
-use jazzc::compile::Global;
-use jazzc::emit_file;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
-
-use nabox::module::Module;
-use nabox::value::*;
-use nabox::P;
-pub fn module_from_ctx(ctx: &mut Context) -> P<Module> {
-    let mut m = Module::new(&ctx.cur_file);
-    m.globals = vec![P(Value::Null); ctx.g.table.len()];
-    let m = P(m);
-
-    for (i, g) in ctx.g.table.iter().enumerate() {
-        match g {
-            Global::Func(off, nargs) => {
-                let func = P(Function {
-                    var: FuncVar::Offset(*off as usize),
-                    nargs: *nargs,
-                    env: P(Value::Array(P(vec![]))),
-                    module: P(Module::new("_")),
-                    jit: false,
-                    yield_point: 0,
-                });
-                func.borrow_mut().module = m.clone();
-                m.borrow_mut().globals[i] = P(Value::Func(func));
-            }
-            _ => (),
-        };
-    }
-
-    // fix global variables
-    /*for (i, g) in ctx.g.table.iter().enumerate() {
-        match g {
-            Global::Var(name) => {
-                let idx = ctx.g.globals.get(&Global::Var(name.to_owned())).unwrap();
-
-                m.borrow_mut().globals[i] = m.borrow().globals[*idx as usize].clone();
-            }
-            _ => (),
-        }
-    }*/
-
-    m.borrow_mut().code = ctx.finish();
-    for (hash, field) in ctx.fields.iter() {
-        m.borrow_mut().fields.insert(*hash, field.clone());
-    }
-    m
-}
-
+use jazzc::ast::Visitor;
+use jazzc::interpreter::Interpreter;
+use jazzc::interpreter::runtime::register_builtins;
+use jazzc::interpreter::value::*;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -64,7 +18,7 @@ pub struct Options {
     /// Print bytecode to stdout
     dump_op: bool,
     #[structopt(short = "v", long = "verbose")]
-    /// Show more information e.g current opcode, field lists etc
+    /// Show more information e.g current opcodes, field lists etc
     verbose: bool,
     #[structopt(long = "optimize")]
     /// Try to optimize bytecode
@@ -84,41 +38,27 @@ fn main() {
     let mut ast = vec![];
     let mut parser = Parser::new(reader, &mut ast);
 
-    parser.parse().unwrap();
-    let mut ctx = compile_ast(ast, ops.optimize);
-
-    let mut m = module_from_ctx(&mut ctx);
-    if ops.verbose && m.fields.len() != 0 {
-        println!("Fields:");
-        for (hash, name) in m.fields.iter() {
-            println!("\t{}: \t0{:x}", name, *hash as u64);
+    match parser.parse() {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("{}",e);
+            std::process::exit(1);
         }
-        println!("");
     }
 
-    let code = ctx.finish();
-    if ops.dump_op || ops.verbose {
-        println!("Byteocde:");
-        for (i, op) in code.iter().enumerate() {
-            println!("{:04}: {:?}", i, op)
+
+    let mut result = new_ref(ValueData::Nil);
+    let mut interp = Interpreter::new();
+    register_builtins(&mut interp);
+    for x in ast.iter() {
+        match x.visit(&mut interp) {
+            Ok(val) => result = val,
+            Err(e) => {
+                eprintln!("{}",e);
+                std::process::exit(1);
+            }
         }
-        println!("");
     }
 
-    m.borrow_mut().code = ctx.finish();
-
-    let code = emit_file::compile(&mut m).expect("Error");
-    use std::io::Write;
-    let f = std::path::Path::new(&string);
-    let f = f.file_stem().unwrap();
-    let mut f = f.to_str().unwrap().to_owned();
-    f.push('.');
-    f.push('j');
-    std::fs::File::create(&f).unwrap();
-    let mut file = std::fs::OpenOptions::new()
-        .write(true)
-        .open(f)
-        .expect("Error");
-
-    file.write(&code).unwrap();
+    println!("{}",result.borrow());
 }

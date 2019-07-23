@@ -4,14 +4,14 @@
 pub mod ast;
 #[macro_use]
 pub mod macros;
-pub mod compile;
-pub mod emit_file;
+pub mod gc;
 pub mod lexer;
 pub mod msg;
 pub mod parser;
 pub mod reader;
+pub mod interpreter;
 pub mod token;
-use std::sync::Arc;
+use wrc::WRC as Arc;
 
 pub type P<T> = Arc<T>;
 

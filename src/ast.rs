@@ -10,6 +10,7 @@ pub enum Constant {
     Str(String),
     Builtin(String),
     Ident(String),
+    Array(Vec<P<Expr>>),
 }
 
 use crate::P;
@@ -41,6 +42,7 @@ pub enum ExprDecl {
     If(P<Expr>, P<Expr>, Option<P<Expr>>),
     Try(P<Expr>, String, P<Expr>),
     Function(Vec<String>, P<Expr>),
+    FunctionDecl(String,Vec<String>,P<Expr>),
     Binop(String, P<Expr>, P<Expr>),
     Return(Option<P<Expr>>),
     Break(Option<P<Expr>>),
@@ -51,8 +53,8 @@ pub enum ExprDecl {
     Label(String),
     Switch(P<Expr>, Vec<(P<Expr>, P<Expr>)>, Option<P<Expr>>),
     Unop(String, P<Expr>),
-    Throw(String),
-    Include(String),
+
+    Throw(P<Expr>),
     Yield(P<Expr>),
     Jazz(String),
 }
@@ -97,6 +99,7 @@ pub fn make_bin(op: String, e1: P<Expr>, e2: P<Expr>, pos: Position) -> Expr {
 }
 
 impl Expr {
+
     pub fn iter(&self, mut f: impl FnMut(&P<Expr>)) {
         match &self.decl {
             ExprDecl::Block(el) => {
@@ -146,4 +149,9 @@ impl Expr {
             _ => (),
         }
     }
+}
+
+pub trait Visitor<T> {
+    type Output;
+    fn visit(&self,_: &mut T) -> Self::Output;
 }

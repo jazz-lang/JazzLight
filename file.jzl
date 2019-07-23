@@ -1,0 +1,8 @@
+var f = function() {
+    x
+}
+
+try f() 
+catch e {
+    print(e)
+}
