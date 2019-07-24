@@ -1,15 +1,18 @@
 #![feature(const_string_new)]
+#![feature(unsize)]
+#![feature(coerce_unsized)]
+#![feature(allocator_api)]
 #![allow(dead_code)]
 
 pub mod ast;
 #[macro_use]
 pub mod macros;
 pub mod gc;
+pub mod interpreter;
 pub mod lexer;
 pub mod msg;
 pub mod parser;
 pub mod reader;
-pub mod interpreter;
 pub mod token;
 use wrc::WRC as Arc;
 

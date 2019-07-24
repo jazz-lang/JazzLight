@@ -1,3 +1,0 @@
-var arr = $array(1,2,3,4,5)
-arr[4] = 0
-$print($apop(arr))

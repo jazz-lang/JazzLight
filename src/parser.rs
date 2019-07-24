@@ -73,13 +73,10 @@ impl<'a> Parser<'a> {
         }*/
     }
 
-    
-
     fn parse_function(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Fun)?.position;
 
         let name = if let TokenKind::Identifier(name) = &self.token.kind {
-            
             Some(name.to_owned())
         } else {
             None
@@ -105,9 +102,10 @@ impl<'a> Parser<'a> {
         if name.is_none() {
             Ok(expr!(ExprDecl::Function(params, body), pos))
         } else {
-            Ok(
-                expr!(ExprDecl::FunctionDecl(name.as_ref().unwrap().to_owned(),params,body),pos)
-            )
+            Ok(expr!(
+                ExprDecl::FunctionDecl(name.as_ref().unwrap().to_owned(), params, body),
+                pos
+            ))
         }
     }
 
@@ -182,12 +180,7 @@ impl<'a> Parser<'a> {
 
     fn parse_throw(&mut self) -> EResult {
         let pos = self.advance_token()?.position;
-        Ok(expr!(
-            ExprDecl::Throw(
-                self.parse_expression()?
-            ),
-            pos
-        ))
+        Ok(expr!(ExprDecl::Throw(self.parse_expression()?), pos))
     }
 
     fn parse_for(&mut self) -> EResult {
@@ -463,7 +456,6 @@ impl<'a> Parser<'a> {
 
         Ok(data)
     }
-    
 
     fn advance_token(&mut self) -> Result<Token, MsgWithPos> {
         let tok = self.lexer.read_token()?;
@@ -486,17 +478,8 @@ impl<'a> Parser<'a> {
 
     fn parse_array_const(&mut self) -> EResult {
         let pos = self.advance_token()?.position;
-        let values = self.parse_comma_list(TokenKind::RBracket,|p| p.parse_expression())?;
-        Ok(
-            expr!(
-                ExprDecl::Const(
-                    Constant::Array(
-                        values
-                    )
-                ),
-                pos
-            )
-        )
+        let values = self.parse_comma_list(TokenKind::RBracket, |p| p.parse_expression())?;
+        Ok(expr!(ExprDecl::Const(Constant::Array(values)), pos))
     }
 
     pub fn parse_factor(&mut self) -> EResult {
@@ -544,17 +527,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::Catch)?;
         let name = self.expect_identifier()?;
         let catch_body = self.parse_expression()?;
-        Ok(
-            expr!(
-                ExprDecl::Try(
-                    expr,
-                    name,
-                    catch_body
-                ),
-                pos
-            )
-        )
-
+        Ok(expr!(ExprDecl::Try(expr, name, catch_body), pos))
     }
 
     fn parse_parentheses(&mut self) -> EResult {
@@ -575,11 +548,7 @@ impl<'a> Parser<'a> {
     }
     fn parse_undef(&mut self) -> EResult {
         let pos = self.advance_token()?.position;
-        Ok(
-            expr!(
-                ExprDecl::Const(Constant::Undefined),pos
-            )
-        )
+        Ok(expr!(ExprDecl::Const(Constant::Undefined), pos))
     }
 
     fn parse_bool_literal(&mut self) -> EResult {

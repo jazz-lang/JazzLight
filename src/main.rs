@@ -1,11 +1,11 @@
 extern crate jazzc;
 
-use jazzc::parser::Parser;
-use jazzc::reader::Reader;
 use jazzc::ast::Visitor;
-use jazzc::interpreter::Interpreter;
 use jazzc::interpreter::runtime::register_builtins;
 use jazzc::interpreter::value::*;
+use jazzc::interpreter::Interpreter;
+use jazzc::parser::Parser;
+use jazzc::reader::Reader;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -41,11 +41,10 @@ fn main() {
     match parser.parse() {
         Ok(_) => (),
         Err(e) => {
-            eprintln!("{}",e);
+            eprintln!("{}", e);
             std::process::exit(1);
         }
     }
-
 
     let mut result = new_ref(ValueData::Nil);
     let mut interp = Interpreter::new();
@@ -54,11 +53,11 @@ fn main() {
         match x.visit(&mut interp) {
             Ok(val) => result = val,
             Err(e) => {
-                eprintln!("{}",e);
+                eprintln!("{}", e);
                 std::process::exit(1);
             }
         }
     }
 
-    println!("{}",result.borrow());
+    println!("{}", result.borrow());
 }

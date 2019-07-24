@@ -1,4 +1,0 @@
-var mod = $loadmodule("examples/file.j")
-
-
-$print(mod.fac(5))
