@@ -14,6 +14,7 @@ macro_rules! expr {
         P(Expr {
             pos: $pos,
             decl: $e,
+            id: crate::ast::next_id()
         })
     };
 }

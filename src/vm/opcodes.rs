@@ -12,10 +12,14 @@ pub enum Opcode {
     Load,
     /// Store value into object or array
     Store,
+    NewObj,
+    ConstructArray(u32),
     DeclVar(Name),
     StoreVar(Name),
     /// Push catch block address to exception stack
     PushCatch(usize),
+    /// Pop exception from exception stack
+    PopCatch,
     /// Throw exception, if there are exception block jump to it otherwise print error and exit program
     Throw,
     /// Jump to instruction
@@ -34,6 +38,8 @@ pub enum Opcode {
     PopEnv,
     /// Push empty environment
     PushEnv,
+    /// Initialize function environment
+    InitEnv,
     /// No opcode
     Nop,
     /// Yield value from stack

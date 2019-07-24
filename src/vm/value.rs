@@ -1,10 +1,26 @@
 use crate::gc::gc;
 use crate::gc::*;
 
-pub fn new_ref<T: 'static + Mark>(val: T) -> Ref<T> {
-    gc::new_gc(val)
+use wrc::WRC;
+use std::cell::{RefCell,Ref as CRef,RefMut};
+
+pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
+    Ref(WRC::new(RefCell::new(val)))
 }
-pub type Ref<T> = Gc<T>;
+
+
+
+#[derive(Clone,PartialEq,PartialOrd,Debug)]
+pub struct Ref<T>(WRC<RefCell<T>>);
+
+impl<T> Ref<T> {
+    pub fn borrow(&self) -> CRef<'_,T> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<'_,T> {
+        self.0.borrow_mut()
+    }
+}
 
 use hashlink::LinkedHashMap;
 
@@ -20,7 +36,7 @@ pub enum ValueData {
     Array(Ref<Vec<Value>>),
     Function(Ref<Function>),
 }
-
+/*
 impl Mark for Object {
     fn mark(&self, gc: &mut InGcEnv) {
         match &self.proto {
@@ -61,7 +77,7 @@ impl Mark for ValueData {
         }
     }
 }
-
+*/
 impl From<ValueData> for i64 {
     fn from(val: ValueData) -> i64 {
         match val {
@@ -128,15 +144,17 @@ pub enum Function {
     Native(usize),
     Regular {
         environment: Environment,
-        code: Gc<Vec<super::opcodes::Opcode>>, // code of function module,not of function itself
+        code: wrc::WRC<std::cell::RefCell<Vec<super::opcodes::Opcode>>>, // code of function module,not of function itself
         addr: usize,
         yield_pos: Option<usize>,
+        yield_env: Ref<Object>,
         args: Vec<String>,
     },
 }
 
+
 pub trait SetGet {
-    fn set(&mut self, _: impl Into<ValueData>, _: impl Into<ValueData>) {
+    fn set(&mut self, _: impl Into<ValueData>, _: impl Into<Value>) {
         unimplemented!()
     }
     fn get(&self, _: &ValueData) -> Value {
@@ -144,8 +162,10 @@ pub trait SetGet {
     }
 }
 
+
+
 impl SetGet for ValueData {
-    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<ValueData>) {
+    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
         let key = key.into();
         let val = val.into();
         match self {
@@ -154,16 +174,22 @@ impl SetGet for ValueData {
                 match func {
                     Function::Regular { environment, .. } => {
                         environment.borrow_mut().set(key, val);
+                        //gc::new_ref(*environment,val);
                     }
                     _ => (),
                 }
             }
-            ValueData::Object(object) => object.borrow_mut().set(key, val),
-            ValueData::Array(array) => {
-                let mut array = array.borrow_mut();
+            ValueData::Object(object) => 
+            {
+                object.borrow_mut().set(key, val);
+                //gc::new_ref(*object,val);
+            },
+            ValueData::Array(array_) => {
+                let mut array = array_.borrow_mut();
                 let idx = i64::from(key);
                 assert!(idx >= 0);
-                array[idx as usize] = new_ref(val);
+                array[idx as usize] = val;
+                //gc::new_ref(*array_,val);
             }
             _ => (),
         }
@@ -174,7 +200,14 @@ impl SetGet for ValueData {
             ValueData::Function(func) => {
                 let func: &Function = &func.borrow();
                 match func {
-                    Function::Regular { environment, .. } => return environment.borrow().get(key),
+                    Function::Regular { environment: _,yield_pos, .. } => {
+                        let val: String = String::from(key.clone());
+                        let val: &str = &val;
+                        match val {
+                            "yields" => new_ref(ValueData::Bool(yield_pos.is_some())),
+                            _ => new_ref(ValueData::Undefined)
+                        }
+                    },
                     _ => return new_ref(ValueData::Undefined),
                 }
             }
@@ -320,6 +353,12 @@ pub struct Object {
     pub table: LinkedHashMap<ValueData, Ref<ValueData>>,
 }
 
+
+pub fn set_obj_proto(obj: Ref<Object>,proto: Ref<Object>) {
+    obj.borrow_mut().proto = Some(proto);
+    //gc::new_ref(obj,proto);
+}
+
 use crate::token::Position;
 pub fn set_variable_in_scope(
     scopes: &Ref<Object>,
@@ -327,14 +366,15 @@ pub fn set_variable_in_scope(
     val: Ref<ValueData>,
     pos: &Position,
 ) -> Result<(), ValueData> {
-    let scopes: &mut Object = &mut scopes.borrow_mut();
+    let scope: &mut Object = &mut scopes.borrow_mut();
     let key = key.into();
-    if scopes.table.contains_key(&key) {
-        scopes.table.insert(key, val);
+    if scope.table.contains_key(&key) {
+        scope.table.insert(key, val);
+        //gc::new_ref(*scopes,val);
         return Ok(());
     }
-    if scopes.proto.is_some() {
-        return set_variable_in_scope(scopes.proto.as_ref().unwrap(), key, val, pos);
+    if scope.proto.is_some() {
+        return set_variable_in_scope(scope.proto.as_ref().unwrap(), key, val, pos);
     }
     Err(new_error(
         pos.line as i32,
@@ -344,12 +384,12 @@ pub fn set_variable_in_scope(
 }
 
 pub fn declare_var(
-    scope: &Ref<Object>,
+    scope_: &Ref<Object>,
     key: impl Into<ValueData>,
     val: Ref<ValueData>,
     pos: &Position,
 ) -> Result<(), ValueData> {
-    let scope: &mut Object = &mut scope.borrow_mut();
+    let scope: &mut Object = &mut scope_.borrow_mut();
     let key = key.into();
     if scope.table.contains_key(&key) {
         return Err(new_error(
@@ -359,6 +399,7 @@ pub fn declare_var(
         ));
     }
     scope.table.insert(key, val);
+    //gc::new_ref(*scope_,val);
     Ok(())
 }
 
@@ -389,8 +430,9 @@ pub fn get_variable(
 }
 
 impl SetGet for Object {
-    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<ValueData>) {
-        self.table.insert(key.into(), new_ref(val.into()));
+    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
+
+        self.table.insert(key.into(), val.into());
     }
     fn get(&self, key: &ValueData) -> Value {
         match key {
@@ -495,6 +537,12 @@ into_num!(
     u8 u32 u64 usize u16 u128
 );
 
+
+impl<T: Into<ValueData>> From<T> for Value {
+    fn from(v: T) -> Value {
+        new_ref(v.into())
+    }
+}
 impl<T: Into<ValueData>> From<Option<T>> for ValueData {
     fn from(val: Option<T>) -> ValueData {
         match val {
@@ -508,9 +556,12 @@ pub fn new_error(line: i32, file: Option<&str>, err: &str) -> ValueData {
     let object = new_object();
     let proto = new_object();
     proto.borrow_mut().set("__name__", "JLRuntimeError");
-    object.borrow_mut().proto = Some(proto);
+    //object.borrow_mut().proto = Some(proto);
+    set_obj_proto(object.clone(), proto);
     object.borrow_mut().set("line", line);
-    object.borrow_mut().set("file", file);
+    if file.is_some() {
+        object.borrow_mut().set("file", file);
+    }
     object.borrow_mut().set("error", err);
 
     ValueData::Object(object)

@@ -1,9 +1,7 @@
 extern crate jazzc;
 
-use jazzc::ast::Visitor;
-use jazzc::interpreter::runtime::register_builtins;
-use jazzc::interpreter::value::*;
-use jazzc::interpreter::Interpreter;
+use jazzc::vm::Machine;
+use jazzc::compiler::*;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
 use std::path::PathBuf;
@@ -45,19 +43,14 @@ fn main() {
             std::process::exit(1);
         }
     }
-
-    let mut result = new_ref(ValueData::Nil);
-    let mut interp = Interpreter::new();
-    register_builtins(&mut interp);
-    for x in ast.iter() {
-        match x.visit(&mut interp) {
-            Ok(val) => result = val,
-            Err(e) => {
-                eprintln!("{}", e);
-                std::process::exit(1);
-            }
+    let mut m = Machine::new();
+    let mut c = Compiler::new(&mut m);
+    c.compile_ast(&ast);
+    if ops.dump_op {
+        for (i,op) in c.frame.code.borrow().iter().enumerate() {
+            println!("{:x}: {:?}",i,op);
         }
     }
-
-    println!("{}", result.borrow());
+    c.frame.execute();
+    
 }
