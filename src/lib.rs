@@ -8,12 +8,14 @@ pub mod ast;
 #[macro_use]
 pub mod macros;
 pub mod gc;
+pub mod interner;
 pub mod interpreter;
 pub mod lexer;
 pub mod msg;
 pub mod parser;
 pub mod reader;
 pub mod token;
+pub mod vm;
 use wrc::WRC as Arc;
 
 pub type P<T> = Arc<T>;
@@ -22,3 +24,5 @@ pub type P<T> = Arc<T>;
 pub fn P<T>(value: T) -> Arc<T> {
     Arc::new(value)
 }
+
+pub use interner::{intern, str, Name};

@@ -1,6 +1,5 @@
 use crate::gc::gc;
 use crate::gc::*;
-use std::cell::Cell;
 
 pub fn new_ref<T: 'static + Mark>(val: T) -> Ref<T> {
     gc::new_gc(val)
@@ -102,6 +101,12 @@ impl From<ValueData> for bool {
     }
 }
 
+impl From<bool> for ValueData {
+    fn from(val: bool) -> ValueData {
+        ValueData::Bool(val)
+    }
+}
+
 impl From<ValueData> for String {
     fn from(val: ValueData) -> String {
         match val {
@@ -116,16 +121,17 @@ impl From<ValueData> for String {
     }
 }
 
-use crate::ast::Expr;
+
 
 #[derive(Clone)]
 pub enum Function {
     Native(usize),
     Regular {
         environment: Environment,
-        body: crate::P<Expr>,
+        code: Gc<Vec<super::opcodes::Opcode>>, // code of function module,not of function itself
+        addr: usize,
+        yield_pos: Option<usize>,
         args: Vec<String>,
-        args_set: Cell<bool>,
     },
 }
 
@@ -472,11 +478,12 @@ impl Into<ValueData> for &String {
 macro_rules! into_num {
     ($($t: ty)*) => {
         $(
-        impl Into<ValueData> for $t {
-            fn into(self) -> ValueData {
-                ValueData::Number(self as f64)
+        impl From<$t> for ValueData {
+            fn from(x: $t) -> ValueData {
+                ValueData::Number(x as f64)
             }
         }
+
         )*
     };
 }
@@ -619,6 +626,19 @@ impl BitXor for ValueData {
         match (self, other) {
             (ValueData::Number(x), ValueData::Number(y)) => {
                 ValueData::Number(((x.floor() as i64) ^ y.floor() as i64) as f64)
+            }
+
+            _ => ValueData::Undefined,
+        }
+    }
+}
+
+impl BitAnd for ValueData {
+    type Output = Self;
+    fn bitand(self, other: Self) -> Self {
+        match (self, other) {
+            (ValueData::Number(x), ValueData::Number(y)) => {
+                ValueData::Number(((x.floor() as i64) & y.floor() as i64) as f64)
             }
 
             _ => ValueData::Undefined,

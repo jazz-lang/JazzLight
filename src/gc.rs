@@ -27,26 +27,26 @@ enum GcColor {
     Black,
 }
 
-#[cfg(feature = "gc_debug")]
+#[cfg(feature = "gc_stats")]
 pub trait Mark: fmt::Debug {
     fn mark(&self, _: &mut InGcEnv) {}
 }
 
-#[cfg(not(feature = "gc_debug"))]
+#[cfg(not(feature = "gc_stats"))]
 pub trait Mark {
     fn mark(&self, _: &mut InGcEnv) {}
 }
 
 impl<T: Mark + ?Sized + Unsize<U>, U: Mark + ?Sized> CoerceUnsized<Gc<U>> for Gc<T> {}
 
-struct InGc<T: Mark + ?Sized> {
+pub(crate) struct InGc<T: Mark + ?Sized> {
     valid: u16,
     color: GcColor,
     content: RefCell<T>,
 }
 
 pub struct Gc<T: Mark + ?Sized> {
-    ptr: *mut InGc<T>,
+    pub(crate) ptr: *mut InGc<T>,
 }
 
 impl<T: Mark + ?Sized> Copy for Gc<T> {}
@@ -66,7 +66,7 @@ impl<T: Mark + ?Sized> Gc<T> {
         }
     }
     fn forget(&self) {
-        #[cfg(feature = "gc_debug")]
+        #[cfg(feature = "gc_stats")]
         println!("forgetting {:?}", self);
         unsafe {
             (*self.ptr).valid = 0;
@@ -143,18 +143,18 @@ impl<T: Mark + ?Sized + Eq> Eq for Gc<T> {}
 use std::cmp::{Ord, Ordering, PartialOrd};
 
 impl<T: Mark + ?Sized + PartialOrd> PartialOrd for Gc<T> {
-    fn partial_cmp(&self,other: &Self) -> Option<Ordering> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.borrow().partial_cmp(&other.borrow())
     }
 }
 
 impl<T: Mark + ?Sized + Ord> Ord for Gc<T> {
-    fn cmp(&self,other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         self.borrow().cmp(&other.borrow())
     }
 }
 
-#[cfg(feature = "gc_debug")]
+#[cfg(feature = "gc_stats")]
 impl<T: Mark + ?Sized> fmt::Debug for Gc<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         unsafe {
@@ -167,14 +167,14 @@ impl<T: Mark + ?Sized> fmt::Debug for Gc<T> {
     }
 }
 
-#[cfg(not(feature = "gc_debug"))]
+#[cfg(not(feature = "gc_stats"))]
 impl<T: fmt::Debug + Mark + ?Sized> fmt::Debug for Gc<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self.borrow())
     }
 }
 
-const MAX_WHITES: usize = 100;
+const MAX_WHITES: usize = 256;
 
 pub struct InGcEnv {
     whites: Vec<Gc<dyn Mark>>,
@@ -186,7 +186,7 @@ pub struct InGcEnv {
 }
 
 impl InGcEnv {
-    #[cfg(feature = "gc_debug")]
+    #[cfg(feature = "gc_stats")]
     fn col(&self, c: GcColor) -> &'static str {
         match c {
             GcColor::Unbound => &"unbound",
@@ -276,9 +276,6 @@ impl InGcEnv {
     }
 
     fn swap_white_and_black(&mut self) {
-        if cfg!(feature = "gc_debug") {
-            println!("swap white and black");
-        }
         let oldblacks = mem::replace(&mut (self.blacks), vec![]);
         let oldwhites = mem::replace(&mut (self.whites), oldblacks);
         mem::replace(&mut (self.blacks), oldwhites);
@@ -407,9 +404,6 @@ impl GcEnv {
     }
 
     pub fn mark(&self, mut steps: usize) {
-        #[cfg(feature = "gc_debug")]
-        println!("mark");
-
         let mut gc = self.inner.borrow_mut();
         while !gc.greys.is_empty() && steps > 0 {
             if let Some(obj) = gc.greys.pop() {
@@ -418,13 +412,11 @@ impl GcEnv {
                 steps = steps - 1;
             }
         }
-        #[cfg(feature = "gc_debug")]
-        println!("end mark");
     }
 
     pub fn sweep(&self) {
         let mut gc = self.inner.borrow_mut();
-        #[cfg(feature = "gc_debug")]
+        #[cfg(feature = "gc_stats")]
         {
             println!("sweep");
             println!("{:?}", gc.roots);
@@ -445,9 +437,6 @@ impl GcEnv {
 
         let mut it = Vec::<Gc<dyn Mark>>::new();
         for obj in gc.roots.iter() {
-            #[cfg(feature = "gc_debug")]
-            println!("marking root {:?}", obj);
-
             it.push(*obj);
         }
         for obj in it {
@@ -456,8 +445,6 @@ impl GcEnv {
     }
 
     fn finalize(&self) {
-        #[cfg(feature = "gc_debug")]
-        println!("dropping GcEnv");
         self.sweep();
 
         let mut gc = self.inner.borrow_mut();
@@ -534,6 +521,16 @@ pub mod gc {
 
 impl<T: Mark> Mark for Vec<Gc<T>> {
     fn mark(&self, gc: &mut InGcEnv) {
+        for x in self.iter() {
+            x.mark(gc);
+        }
+    }
+}
+
+
+
+impl<T: Mark> Mark for Vec<T> {
+    fn mark(&self,gc: &mut InGcEnv) {
         for x in self.iter() {
             x.mark(gc);
         }

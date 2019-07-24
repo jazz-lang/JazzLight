@@ -35,12 +35,11 @@ pub fn new_exfunc(f: fn(Value, &[Value]) -> Result<Value, ValueData>) -> Value {
     new_ref(ValueData::Function(new_ref(Function::Native(f as usize))))
 }
 
-pub fn builtin_gc(_: Value,_: &[Value]) -> Result<Value,ValueData> {
+pub fn builtin_gc(_: Value, _: &[Value]) -> Result<Value, ValueData> {
     crate::gc::gc::mark(100);
     //crate::gc::gc::sweep();
     Ok(new_ref(ValueData::Nil))
 }
-
 
 pub fn register_builtins(interp: &mut Interpreter) {
     let err = new_object();
