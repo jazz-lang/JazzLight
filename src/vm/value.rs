@@ -1,23 +1,20 @@
-use crate::gc::gc;
-use crate::gc::*;
-
+use super::runtime::array::*;
+use super::runtime::new_exfunc;
+use std::cell::{Ref as CRef, RefCell, RefMut};
 use wrc::WRC;
-use std::cell::{RefCell,Ref as CRef,RefMut};
 
 pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
     Ref(WRC::new(RefCell::new(val)))
 }
 
-
-
-#[derive(Clone,PartialEq,PartialOrd,Debug)]
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct Ref<T>(WRC<RefCell<T>>);
 
 impl<T> Ref<T> {
-    pub fn borrow(&self) -> CRef<'_,T> {
+    pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
     }
-    pub fn borrow_mut(&self) -> RefMut<'_,T> {
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
         self.0.borrow_mut()
     }
 }
@@ -137,8 +134,6 @@ impl From<ValueData> for String {
     }
 }
 
-
-
 #[derive(Clone)]
 pub enum Function {
     Native(usize),
@@ -152,7 +147,6 @@ pub enum Function {
     },
 }
 
-
 pub trait SetGet {
     fn set(&mut self, _: impl Into<ValueData>, _: impl Into<Value>) {
         unimplemented!()
@@ -161,8 +155,6 @@ pub trait SetGet {
         unimplemented!()
     }
 }
-
-
 
 impl SetGet for ValueData {
     fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
@@ -179,11 +171,10 @@ impl SetGet for ValueData {
                     _ => (),
                 }
             }
-            ValueData::Object(object) => 
-            {
+            ValueData::Object(object) => {
                 object.borrow_mut().set(key, val);
                 //gc::new_ref(*object,val);
-            },
+            }
             ValueData::Array(array_) => {
                 let mut array = array_.borrow_mut();
                 let idx = i64::from(key);
@@ -200,14 +191,18 @@ impl SetGet for ValueData {
             ValueData::Function(func) => {
                 let func: &Function = &func.borrow();
                 match func {
-                    Function::Regular { environment: _,yield_pos, .. } => {
+                    Function::Regular {
+                        environment: _,
+                        yield_pos,
+                        ..
+                    } => {
                         let val: String = String::from(key.clone());
                         let val: &str = &val;
                         match val {
                             "yields" => new_ref(ValueData::Bool(yield_pos.is_some())),
-                            _ => new_ref(ValueData::Undefined)
+                            _ => new_ref(ValueData::Undefined),
                         }
-                    },
+                    }
                     _ => return new_ref(ValueData::Undefined),
                 }
             }
@@ -219,16 +214,19 @@ impl SetGet for ValueData {
                         let s: &str = s;
                         match s {
                             "length" => return new_ref(ValueData::Number(array.len() as f64)),
-                            _ => (),
+                            "push" => return new_exfunc(array_push),
+                            "pop" => return new_exfunc(array_pop),
+                            "sort" => return new_exfunc(array_sort),
+                            _ => return new_ref(ValueData::Undefined),
                         }
                     }
-
-                    _ => (),
+                    ValueData::Number(idx) => {
+                        let idx = *idx as i64;
+                        assert!(idx >= 0);
+                        return array[idx as usize].clone();
+                    }
+                    _ => return new_ref(ValueData::Undefined),
                 }
-
-                let idx = i64::from(key.clone());
-                assert!(idx >= 0);
-                return array[idx as usize].clone();
             }
             _ => new_ref(ValueData::Undefined),
         }
@@ -353,8 +351,7 @@ pub struct Object {
     pub table: LinkedHashMap<ValueData, Ref<ValueData>>,
 }
 
-
-pub fn set_obj_proto(obj: Ref<Object>,proto: Ref<Object>) {
+pub fn set_obj_proto(obj: Ref<Object>, proto: Ref<Object>) {
     obj.borrow_mut().proto = Some(proto);
     //gc::new_ref(obj,proto);
 }
@@ -431,7 +428,6 @@ pub fn get_variable(
 
 impl SetGet for Object {
     fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
-
         self.table.insert(key.into(), val.into());
     }
     fn get(&self, key: &ValueData) -> Value {
@@ -537,7 +533,6 @@ into_num!(
     u8 u32 u64 usize u16 u128
 );
 
-
 impl<T: Into<ValueData>> From<T> for Value {
     fn from(v: T) -> Value {
         new_ref(v.into())
@@ -558,7 +553,9 @@ pub fn new_error(line: i32, file: Option<&str>, err: &str) -> ValueData {
     proto.borrow_mut().set("__name__", "JLRuntimeError");
     //object.borrow_mut().proto = Some(proto);
     set_obj_proto(object.clone(), proto);
-    object.borrow_mut().set("line", line);
+    if line != -1 {
+        object.borrow_mut().set("line", line);
+    }
     if file.is_some() {
         object.borrow_mut().set("file", file);
     }

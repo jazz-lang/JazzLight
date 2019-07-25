@@ -25,7 +25,9 @@ pub struct NodeIdGenerator {
 
 impl NodeIdGenerator {
     pub fn new() -> NodeIdGenerator {
-        NodeIdGenerator { value: RefCell::new(1) }
+        NodeIdGenerator {
+            value: RefCell::new(1),
+        }
     }
 
     pub fn next(&self) -> usize {
@@ -41,21 +43,15 @@ lazy_static::lazy_static!(
     pub static ref IDGEN: Mutex< NodeIdGenerator > = Mutex::new(NodeIdGenerator::new());
 );
 
-
 pub fn next_id() -> usize {
     IDGEN.lock().next()
 }
-
-
-
-
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Expr {
     pub pos: Position,
     pub decl: ExprDecl,
-    pub id: usize
+    pub id: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Copy)]
@@ -102,42 +98,42 @@ pub fn make_call(v: P<Expr>, args: Vec<P<Expr>>, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Call(v, args),
-        id: next_id()
+        id: next_id(),
     }
 }
 pub fn make_ident(i: String, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Const(Constant::Ident(i)),
-        id: next_id()
+        id: next_id(),
     }
 }
 pub fn make_builtin(b: String, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Const(Constant::Builtin(b)),
-        id: next_id()
+        id: next_id(),
     }
 }
 pub fn make_int(i: i64, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Const(Constant::Int(i)),
-        id: next_id()
+        id: next_id(),
     }
 }
 pub fn make_str(s: String, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Const(Constant::Str(s)),
-        id: next_id()
+        id: next_id(),
     }
 }
 pub fn make_bin(op: String, e1: P<Expr>, e2: P<Expr>, pos: Position) -> Expr {
     Expr {
         pos: pos,
         decl: ExprDecl::Binop(op, e1, e2),
-        id: next_id()
+        id: next_id(),
     }
 }
 

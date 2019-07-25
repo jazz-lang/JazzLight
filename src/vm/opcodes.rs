@@ -41,7 +41,7 @@ pub enum Opcode {
     /// Initialize function environment
     InitEnv,
     /// No opcode
-    Nop,
+    Label,
     /// Yield value from stack
     Yield,
     /// Return from function
@@ -67,8 +67,10 @@ pub enum Opcode {
     BitAnd,
     Not,
     Neg,
+    BlockEnd,
+    BlockStart,
 }
-use crate::gc::{InGcEnv,Mark};
+use crate::gc::{InGcEnv, Mark};
 impl Mark for Opcode {
-    fn mark(&self,_: &mut InGcEnv) {}
+    fn mark(&self, _: &mut InGcEnv) {}
 }

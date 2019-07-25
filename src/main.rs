@@ -1,9 +1,10 @@
 extern crate jazzc;
 
-use jazzc::vm::Machine;
 use jazzc::compiler::*;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
+use jazzc::vm::codegen::basicblock;
+use jazzc::vm::Machine;
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -47,10 +48,17 @@ fn main() {
     let mut c = Compiler::new(&mut m);
     c.compile_ast(&ast);
     if ops.dump_op {
-        for (i,op) in c.frame.code.borrow().iter().enumerate() {
-            println!("{:x}: {:?}",i,op);
+        for (i, op) in c.frame.code.borrow().iter().enumerate() {
+            println!("{:04}: {:?}", i, op);
+        }
+    }
+
+    let code_with_blocks = basicblock::translate_to_blocks(c.frame.code.borrow().clone());
+    for (i,bb) in code_with_blocks.iter().enumerate() {
+        println!("BBlock #{}",i);
+        for (j,x) in bb.opcodes.iter().enumerate() {
+            println!("  {:02}: {:?}",j,x);
         }
     }
     c.frame.execute();
-    
 }

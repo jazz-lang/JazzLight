@@ -1,12 +1,13 @@
 pub mod opcodes;
-pub mod value;
+#[macro_use]
 pub mod runtime;
-use crate::{intern, str};
+pub mod codegen;
+pub mod value;
+use crate::str;
 use opcodes::Opcode;
-use value::*;
-use crate::gc::Gc;
-use wrc::WRC;
 use std::cell::RefCell;
+use value::*;
+use wrc::WRC;
 
 pub fn nil() -> Value {
     new_ref(ValueData::Nil)
@@ -16,14 +17,14 @@ use hashlink::LinkedHashMap;
 
 pub struct Machine {
     pub constants: Vec<ValueData>,
-    pub line_no: LinkedHashMap<(usize,Opcode), Position>,
+    pub line_no: LinkedHashMap<(usize, Opcode), Position>,
 }
 
 impl Machine {
     pub fn new() -> Machine {
         Machine {
             constants: vec![],
-            line_no: LinkedHashMap::new()
+            line_no: LinkedHashMap::new(),
         }
     }
 }
@@ -47,7 +48,6 @@ pub struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-
     pub fn new(m: &'a mut Machine) -> Frame<'a> {
         Frame {
             m,
@@ -57,7 +57,7 @@ impl<'a> Frame<'a> {
             env: new_object(),
             funs: vec![],
             exec_stack: vec![],
-            exception_stack: vec![]
+            exception_stack: vec![],
         }
     }
 
@@ -213,8 +213,8 @@ impl<'a> Frame<'a> {
                 }
                 LoadVar(var) => {
                     //let pos = *self.m.line_no.get(&(self.pc, opcode)).unwrap();
-                    let pos =  Position::new(0,0);
-                    
+                    let pos = Position::new(0, 0);
+
                     let variable = catch!(get_variable(
                         &self.env,
                         ValueData::String(str(var).to_string()),
@@ -225,8 +225,8 @@ impl<'a> Frame<'a> {
                 DeclVar(name) => {
                     //println!("{} {:#?}",self.pc,self.m.line_no);
                     //let pos = *self.m.line_no.get(&(self.pc - 1, opcode)).unwrap();
-                    // 
-                    let pos =  Position::new(0,0);
+                    //
+                    let pos = Position::new(0, 0);
                     let val = catch!(self.pop());
                     catch!(declare_var(
                         &self.env,
@@ -236,9 +236,10 @@ impl<'a> Frame<'a> {
                     ));
                 }
                 StoreVar(name) => {
-                    //let pos = *self.m.line_no.get(&(self.pc - 1, opcode)).unwrap();   
-                    let pos =  Position::new(0,0);
+                    //let pos = *self.m.line_no.get(&(self.pc - 1, opcode)).unwrap();
+                    let pos = Position::new(0, 0);
                     let val = catch!(self.pop());
+
                     catch!(set_variable_in_scope(
                         &self.env,
                         ValueData::String(str(name).to_string()),
@@ -264,8 +265,7 @@ impl<'a> Frame<'a> {
                     let value = catch!(self.pop());
                     let key = catch!(self.pop());
                     let object = catch!(self.pop());
-                    
-                    
+
                     object
                         .borrow_mut()
                         .set(key.borrow().clone(), value.borrow().clone());
@@ -277,11 +277,14 @@ impl<'a> Frame<'a> {
                     let key = catch!(self.pop());
                     let key: &ValueData = &key.borrow();
                     let object = catch!(self.pop());
-                    
+
                     self.push_ref(object.borrow().get(key));
                 }
                 Return => {
-                    let return_ = catch!(self.pop());
+                    let return_ = match self.stack.pop() {
+                        Some(val) => val,
+                        None => new_ref(ValueData::Undefined),
+                    };
                     self.restore_state(true, true, true, true);
                     match self.funs.last() {
                         Some(fun) => {
@@ -300,12 +303,16 @@ impl<'a> Frame<'a> {
                 }
                 Yield => {
                     let return_ = catch!(self.pop());
-                    
+
                     match self.funs.last() {
                         Some(fun) => {
                             let fun: &mut Function = &mut fun.borrow_mut();
                             match fun {
-                                Function::Regular { yield_pos,yield_env, .. } => {
+                                Function::Regular {
+                                    yield_pos,
+                                    yield_env,
+                                    ..
+                                } => {
                                     match yield_pos {
                                         Some(ref mut pos) => *pos = self.pc,
                                         None => *yield_pos = Some(self.pc),
@@ -356,10 +363,15 @@ impl<'a> Frame<'a> {
                             let fun: &Function = &fun_.borrow();
                             match fun {
                                 Function::Native(addr) => {
-                                    let fun: fn(&mut Self,Value, &[Value]) -> Result<Value, ValueData> =
+                                    let fun: fn(
+                                        &mut Self,
+                                        Value,
+                                        &[Value],
+                                    )
+                                        -> Result<Value, ValueData> =
                                         unsafe { std::mem::transmute(*addr) };
 
-                                    let result = catch!(fun(self,this, &args));
+                                    let result = catch!(fun(self, this, &args));
                                     self.push_ref(result);
                                 }
                                 Function::Regular {
@@ -368,9 +380,8 @@ impl<'a> Frame<'a> {
                                     yield_pos,
                                     code,
                                     args: args_,
-                                    yield_env
+                                    yield_env,
                                 } => {
-                                    
                                     self.funs.push(fun_2);
                                     match yield_pos {
                                         Some(ref pos) => {
@@ -388,8 +399,7 @@ impl<'a> Frame<'a> {
                                             self.env = environment.clone();
                                         }
                                     }
-                                    
-                                    
+
                                     for (i, arg) in args_.iter().enumerate() {
                                         if var_declared(&environment, arg) {
                                             catch!(set_variable_in_scope(
@@ -407,9 +417,6 @@ impl<'a> Frame<'a> {
                                             ))
                                         }
                                     }
-                                    
-                                    
-                                    
                                 }
                             }
                         }
@@ -445,23 +452,21 @@ impl<'a> Frame<'a> {
                             let fun: &mut Function = &mut fun.borrow_mut();
 
                             match fun {
-                                Function::Native(_) => {}, // TODO: maybe we should throw exception there
-                                Function::Regular {
-                                    environment,..
-                                } => {
+                                Function::Native(_) => {} // TODO: maybe we should throw exception there
+                                Function::Regular { environment, .. } => {
                                     let env = new_object();
-                                    set_obj_proto(env.clone(),self.env.clone());
+                                    set_obj_proto(env.clone(), self.env.clone());
                                     *environment = env;
                                 }
-                            }   
+                            }
                         }
-                        _ => throw!("function expected")
+                        _ => throw!("function expected"),
                     }
                     self.push(fun.clone());
                 }
                 PushEnv => self.push_env(),
                 PopEnv => self.pop_env(),
-                Nop => (), // nothing to do,relax :D
+                Label => (), // nothing to do,relax :D
                 Add | Sub | Div | Mul | Rem | Shl | Shr | BitAnd | BitOr | BitXor | And | Or
                 | Gt | Ge | Lt | Le | Eq | Ne => {
                     let lhs = catch!(self.pop());
@@ -490,7 +495,7 @@ impl<'a> Frame<'a> {
                         _ => unreachable!(),
                     };
                     self.push(result);
-                },
+                }
                 _ => (),
             }
         }

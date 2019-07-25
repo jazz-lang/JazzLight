@@ -1,8 +1,25 @@
 use super::value::*;
 use super::*;
 use crate::token::Position;
+pub mod array;
+pub mod object;
 
-pub fn builtin_instanceof(_: &mut Frame<'_>,_: Value, args: &[Value]) -> Result<Value, ValueData> {
+pub macro decl_fun {
+    (function $name : ident ($frame: ident,$this: ident $($arg: ident),*)  $b: block ) => {
+        pub fn $name ( $frame: &mut Frame<'_>,$this: Value,args: &[Value]) -> Result<Value,ValueData> {
+            let mut ___i = 0;
+            $(
+
+                let $arg = args[___i].clone();
+                ___i += 1;
+            )*
+            $b
+        }
+    };
+
+}
+
+pub fn builtin_instanceof(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     if args.len() < 2 {
         return Err(new_error(-1, None, "instanceof: two arguments expected"));
     }
@@ -23,7 +40,7 @@ pub fn builtin_instanceof(_: &mut Frame<'_>,_: Value, args: &[Value]) -> Result<
     Ok(new_ref(ValueData::Bool(check)))
 }
 
-pub fn builtin_print(_: &mut Frame<'_>,_: Value, args: &[Value]) -> Result<Value, ValueData> {
+pub fn builtin_print(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     for arg in args.iter() {
         print!("{}", arg.borrow());
     }
@@ -31,26 +48,26 @@ pub fn builtin_print(_: &mut Frame<'_>,_: Value, args: &[Value]) -> Result<Value
     Ok(new_ref(ValueData::Nil))
 }
 
-pub fn new_exfunc(f: fn(&mut Frame<'_>,Value, &[Value]) -> Result<Value, ValueData>) -> Value {
+pub fn new_exfunc(f: fn(&mut Frame<'_>, Value, &[Value]) -> Result<Value, ValueData>) -> Value {
     new_ref(ValueData::Function(new_ref(Function::Native(f as usize))))
 }
 
-pub fn builtin_gc(_: &mut Frame<'_>,_: Value, _: &[Value]) -> Result<Value, ValueData> {
+pub fn builtin_gc(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
     crate::gc::gc::mark(100);
     //crate::gc::gc::sweep();
     Ok(new_ref(ValueData::Nil))
 }
 
-pub fn builtin_spawn(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     if args.is_empty() {
-        return Err(new_error(0,None,"function expected"));
+        return Err(new_error(0, None, "function expected"));
     }
 
     let val = args[0].clone();
     let val: &ValueData = &val.borrow();
     match val {
         ValueData::Function(fun) => {
-            let fun: &Function = &fun.borrow(); 
+            let fun: &Function = &fun.borrow();
             match fun {
                 Function::Regular {
                     environment,
@@ -58,23 +75,39 @@ pub fn builtin_spawn(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,
                     code,
                     addr,
                     ..
-                }  => {
+                } => {
                     let func = Function::Regular {
                         environment: environment.clone(),
                         args: args.clone(),
                         code: code.clone(),
-                        addr: *addr,     
+                        addr: *addr,
                         yield_env: new_object(),
                         yield_pos: None,
                     };
 
                     return Ok(new_ref(ValueData::Function(new_ref(func))));
                 }
-                _ => return Err(new_error(0,None,"regular function expected"))
+                _ => return Err(new_error(0, None, "regular function expected")),
             }
         }
-        _ => return Err(new_error(0,None,"function expected"))
+        _ => return Err(new_error(0, None, "function expected")),
     }
+}
+
+pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let arg = args[0].clone();
+    let val: &ValueData = &arg.borrow();
+    let name = match val {
+        ValueData::Number(_) => "number",
+        ValueData::Nil => "nil",
+        ValueData::Undefined => "undefined",
+        ValueData::String(_) => "string",
+        ValueData::Object(_) => "object",
+        ValueData::Array(_) => "array",
+        ValueData::Function(_) => "function",
+        ValueData::Bool(_) => "bool",
+    };
+    Ok(new_ref(ValueData::String(name.to_owned())))
 }
 
 pub fn register_builtins(interp: &mut Frame<'_>) {
@@ -97,7 +130,6 @@ pub fn register_builtins(interp: &mut Frame<'_>) {
     .unwrap();
     declare_var(&interp.env, "print", new_exfunc(builtin_print), &pos).unwrap();
     declare_var(&interp.env, "gc", new_exfunc(builtin_gc), &pos).unwrap();
-
     declare_var(&interp.env, "spawn", new_exfunc(builtin_spawn), &pos).unwrap();
-    
+    declare_var(&interp.env, "typeof", new_exfunc(type_of), &pos).unwrap();
 }

@@ -3,11 +3,13 @@
 #![feature(coerce_unsized)]
 #![feature(allocator_api)]
 #![feature(unboxed_closures)]
+#![feature(decl_macro)]
 #![allow(dead_code)]
 
 pub mod ast;
 #[macro_use]
 pub mod macros;
+pub mod compiler;
 pub mod gc;
 pub mod interner;
 pub mod lexer;
@@ -16,7 +18,6 @@ pub mod parser;
 pub mod reader;
 pub mod token;
 pub mod vm;
-pub mod compiler;
 use wrc::WRC as Arc;
 
 pub type P<T> = Arc<T>;

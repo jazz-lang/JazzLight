@@ -527,10 +527,8 @@ impl<T: Mark> Mark for Vec<Gc<T>> {
     }
 }
 
-
-
 impl<T: Mark> Mark for Vec<T> {
-    fn mark(&self,gc: &mut InGcEnv) {
+    fn mark(&self, gc: &mut InGcEnv) {
         for x in self.iter() {
             x.mark(gc);
         }
@@ -548,6 +546,7 @@ impl<K: Mark + Hash + Eq, V: Mark> Mark for hashlink::LinkedHashMap<K, V> {
         }
     }
 }
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -667,3 +666,5 @@ mod tests {
         gc.finalize();
     }
 }
+
+*/
