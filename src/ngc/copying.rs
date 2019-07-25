@@ -207,6 +207,7 @@ impl CopyGC {
             
             unsafe {
                 let object: *mut InGC<dyn Collectable> = self.allocated[i].ptr;
+                assert!(!object.is_null());
                 for child in (*object).ptr.borrow().child().iter() {
                     let child_ptr: *mut InGC<dyn Collectable> = child.get_ptr();
                     if child_ptr.is_null() {
@@ -248,6 +249,7 @@ impl CopyGC {
 
     fn copy(&self, obj: *mut InGC<dyn Collectable>, top: &mut Address) -> Address {
         let obj: *mut InGC<dyn Collectable> = obj;
+        assert!(!obj.is_null());
         unsafe {
             if (*obj).fwd.is_non_null() {
                 assert!((*obj).fwd.is_non_null());
@@ -270,18 +272,13 @@ impl CopyGC {
 
     pub fn allocate<T: Collectable + Sized + 'static>(&mut self, val: T) -> GCValue<T> {
         let real_layout = std::alloc::Layout::new::<InGC<T>>();
-        if self.allocated.len() >= 512 {
-            self.collect();
-        }
         let ptr = self.alloc.bump_alloc(real_layout.size());
         
         if ptr.is_non_null() {
-
-            
-
             let val_ = GCValue {
                 ptr: ptr.to_mut_ptr(),
             };
+            
             unsafe {
                 ((*val_.ptr).fwd) = Address::null();
                 ((*val_.ptr).ptr) = RefCell::new(val);
@@ -297,6 +294,7 @@ impl CopyGC {
             return val_;
         }
         
+        println!("allocation failed");
         self.collect();
         let ptr = self.alloc.bump_alloc(real_layout.size());
         let val_ = GCValue {

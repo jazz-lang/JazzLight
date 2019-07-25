@@ -116,7 +116,7 @@ impl<'a> Frame<'a> {
             proto: Some(old_env),
             table: LinkedHashMap::new(),
         });
-       // gc_add_root(self.env.gc());
+        gc_add_root(self.env.gc());
         //crate::gc:://gc::new_ref(self.env,old_env);
     }
 
@@ -124,7 +124,7 @@ impl<'a> Frame<'a> {
         if self.env.borrow().proto.is_none() {
             panic!("No env to pop");
         }
-        //gc_rmroot(self.env.gc());
+        gc_rmroot(self.env.gc());
         
         
         let proto = {

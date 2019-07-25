@@ -776,9 +776,15 @@ impl Collectable for Object {
     fn child(&self) -> Vec<GCValue<dyn Collectable>> {
         let mut child = vec![];
         match &self.proto {
-            Some(proto) => child.push(proto.gc()),
+            Some(proto) => 
+            
+            {
+                crate::ngc::gc_add_root(proto.gc());
+                child.push(proto.gc())
+            },
             _ => ()
         };
+        
         for (key,val) in self.table.iter() {
             for child_ in key.child().iter() {
                 child.push(child_.clone());
