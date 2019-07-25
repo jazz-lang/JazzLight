@@ -37,7 +37,7 @@ pub fn array_object() -> Ref<Object> {
     array_proto
 }
 
-use crate::ngc::gc_add_root;
+
 
 pub fn register_array(f: &mut Frame<'_>) {
     let array_proto = array_object();

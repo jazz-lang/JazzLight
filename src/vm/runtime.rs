@@ -99,8 +99,6 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
     }
 }
 
-use crate::ngc::gc_add_root;
-
 pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let arg = args[0].clone();
     let val: &ValueData = &arg.borrow();

@@ -10,7 +10,6 @@ pub mod ast;
 #[macro_use]
 pub mod macros;
 pub mod compiler;
-pub mod gc;
 pub mod map;
 pub mod interner;
 pub mod lexer;

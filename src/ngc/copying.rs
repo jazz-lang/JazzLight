@@ -402,3 +402,23 @@ impl<T: Collectable + Ord + Eq> Ord for GCValue<T> {
     }
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::super::*;
+    #[test]
+    fn alloc_int() {;
+        let val = gc_allocate_sync(42);
+        gc_enable_stats();
+        assert_eq!(*val.borrow(),42);
+    }
+
+    #[test]
+    fn alloc_10000strings() {
+        for _ in 0..10000 {
+            gc_allocate("Hello,World!".to_owned());
+        }
+        gc_collect_not_par();
+        assert!(true);
+    }
+}

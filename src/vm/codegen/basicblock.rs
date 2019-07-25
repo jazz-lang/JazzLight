@@ -105,6 +105,6 @@ mod tests {
         ];
         let bbs = translate_to_blocks(code);
 
-        assert!(bbs.len() == 2);
+        assert!(bbs.len() == 1);
     }
 }

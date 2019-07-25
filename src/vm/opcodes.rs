@@ -70,7 +70,3 @@ pub enum Opcode {
     BlockEnd,
     BlockStart,
 }
-use crate::gc::{InGcEnv, Mark};
-impl Mark for Opcode {
-    fn mark(&self, _: &mut InGcEnv) {}
-}
