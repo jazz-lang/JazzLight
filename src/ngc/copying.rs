@@ -235,8 +235,9 @@ impl CopyGC {
                 (garbage as f64 / old_size as f64) * 100f64
             };
             println!(
-                "GC: {:.1} ms, {}->{} size, {}/{:.0}% garbage",
+                "GC: {:.1} ms ({:.1} ns ), {}->{} size, {}/{:.0}% garbage",
                 start_time.to(end).num_milliseconds(),
+                start_time.to(end).num_nanoseconds().unwrap_or(0),
                 formatted_size(old_size),
                 formatted_size(new_size),
                 formatted_size(garbage),
@@ -294,7 +295,6 @@ impl CopyGC {
             return val_;
         }
         
-        println!("allocation failed");
         self.collect();
         let ptr = self.alloc.bump_alloc(real_layout.size());
         let val_ = GCValue {
