@@ -3,7 +3,6 @@ extern crate jazzc;
 use jazzc::compiler::*;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
-use jazzc::vm::codegen::basicblock;
 use jazzc::vm::Machine;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -26,7 +25,27 @@ pub struct Options {
     run: bool,
 }
 
+use jazzc::ngc::*;
+
+
 fn main() {
+    lazy_static::lazy_static! {
+        pub static ref STOP: parking_lot::Mutex<bool> = parking_lot::Mutex::new(false);
+    }
+    /*let thread = std::thread::Builder::new().name("gc_thread".to_owned()).spawn(move || {
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            gc_collect();
+            if *STOP.lock() {
+                break;
+            }
+        }
+    }).unwrap();
+    */
+
+    
+
+
     let ops: Options = Options::from_args();
     if ops.file.is_none() {
         eprintln!("Expected file path as input");
@@ -52,13 +71,16 @@ fn main() {
             println!("{:04}: {:?}", i, op);
         }
     }
-
+    /*
     let code_with_blocks = basicblock::translate_to_blocks(c.frame.code.borrow().clone());
-    for (i,bb) in code_with_blocks.iter().enumerate() {
-        println!("BBlock #{}",i);
-        for (j,x) in bb.opcodes.iter().enumerate() {
-            println!("  {:02}: {:?}",j,x);
+    for (i, bb) in code_with_blocks.iter().enumerate() {
+        println!("BBlock #{}", i);
+        for (j, x) in bb.opcodes.iter().enumerate() {
+            println!("  {:02}: {:?}", j, x);
         }
-    }
+    }*/
     c.frame.execute();
+    //*STOP.lock() = true;
+    //thread.join().unwrap();
+    gc_collect_not_par();
 }

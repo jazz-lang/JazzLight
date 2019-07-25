@@ -1,6 +1,6 @@
 use crate::vm::runtime::decl_fun;
 use crate::vm::value::*;
-use crate::vm::{nil, Frame};
+
 decl_fun!(
     function object_create(_frame,_this) {
         let object = new_object();

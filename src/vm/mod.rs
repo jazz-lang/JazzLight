@@ -8,12 +8,13 @@ use opcodes::Opcode;
 use std::cell::RefCell;
 use value::*;
 use wrc::WRC;
+use crate::ngc::{gc_add_root,gc_rmroot};
 
 pub fn nil() -> Value {
     new_ref(ValueData::Nil)
 }
 use crate::token::Position;
-use hashlink::LinkedHashMap;
+use crate::map::LinkedHashMap;
 
 pub struct Machine {
     pub constants: Vec<ValueData>,
@@ -49,7 +50,7 @@ pub struct Frame<'a> {
 
 impl<'a> Frame<'a> {
     pub fn new(m: &'a mut Machine) -> Frame<'a> {
-        Frame {
+        let f = Frame {
             m,
             code: WRC::new(RefCell::new(vec![])),
             stack: vec![],
@@ -58,7 +59,9 @@ impl<'a> Frame<'a> {
             funs: vec![],
             exec_stack: vec![],
             exception_stack: vec![],
-        }
+        };
+        f
+
     }
 
     pub fn restore_state(
@@ -113,6 +116,7 @@ impl<'a> Frame<'a> {
             proto: Some(old_env),
             table: LinkedHashMap::new(),
         });
+       // gc_add_root(self.env.gc());
         //crate::gc:://gc::new_ref(self.env,old_env);
     }
 
@@ -120,9 +124,13 @@ impl<'a> Frame<'a> {
         if self.env.borrow().proto.is_none() {
             panic!("No env to pop");
         }
-        let env = self.env.borrow();
-        let proto = env.proto.as_ref().unwrap().clone();
-        drop(env);
+        //gc_rmroot(self.env.gc());
+        
+        
+        let proto = {
+            let env = self.env.borrow();
+            env.proto.as_ref().unwrap().clone()
+        };
         self.env = proto.clone();
     }
 
@@ -416,6 +424,17 @@ impl<'a> Frame<'a> {
                                                 &self.get_pos()
                                             ))
                                         }
+                                    }
+                                    if var_declared(&environment, "this") {
+                                        catch!(
+                                            set_variable_in_scope(
+                                                &environment, "this", this, &self.get_pos())
+                                        );
+                                    } else {
+                                        catch!(
+                                            declare_var(
+                                                &environment, "this", this, &self.get_pos())
+                                        );
                                     }
                                 }
                             }

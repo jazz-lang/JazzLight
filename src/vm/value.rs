@@ -1,25 +1,31 @@
 use super::runtime::array::*;
 use super::runtime::new_exfunc;
-use std::cell::{Ref as CRef, RefCell, RefMut};
-use wrc::WRC;
+use std::cell::{Ref as CRef,RefMut};
+use crate::ngc::{GCValue,gc_allocate,Collectable};
 
-pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
-    Ref(WRC::new(RefCell::new(val)))
+pub fn new_ref<T: 'static + Collectable>(val: T) -> Ref<T> {
+    Ref(gc_allocate(val))
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct Ref<T>(WRC<RefCell<T>>);
+pub struct Ref<T: Collectable + Sized>(GCValue<T>);
 
-impl<T> Ref<T> {
+unsafe impl<T: Send + Collectable> Send for Ref<T> {}
+unsafe impl<T: Sync + Collectable> Sync for Ref<T> {}
+impl<T: Collectable + 'static> Ref<T> {
     pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
     }
     pub fn borrow_mut(&self) -> RefMut<'_, T> {
         self.0.borrow_mut()
     }
+
+    pub fn gc(&self) -> GCValue<dyn Collectable> {
+        self.0
+    }
 }
 
-use hashlink::LinkedHashMap;
+use crate::map::LinkedHashMap;
 
 #[derive(Clone)]
 pub enum ValueData {
@@ -411,7 +417,7 @@ pub fn get_variable(
     key: impl Into<ValueData>,
     pos: &Position,
 ) -> Result<Value, ValueData> {
-    let scopes: &mut Object = &mut scope.borrow_mut();
+    let scopes: & Object = & scope.borrow();
     let key = key.into();
     if scopes.table.contains_key(&key) {
         return Ok(scopes.table.get(&key).unwrap().clone());
@@ -704,5 +710,84 @@ impl BitOr for ValueData {
 
             _ => ValueData::Undefined,
         }
+    }
+}
+
+impl<T: Collectable + 'static> Collectable for Ref<T> {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        self.borrow().child()
+    }
+
+    fn size(&self) -> usize {
+        self.borrow().size()
+    }
+}
+
+
+impl Collectable for ValueData {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut child = vec![];
+        match self {
+            ValueData::Function(fun) => {
+                child.push(fun.gc());
+            }
+            ValueData::Object(obj) => {
+                
+                child.push(obj.gc());
+            }
+            ValueData::Array(array) => {
+                child.push(array.gc());
+            }
+            _ => ()
+        }
+
+        child
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
+impl Collectable for Function {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        match self {
+            Function::Regular {
+                environment,
+                yield_env,
+                ..
+            } => {
+                let mut child = vec![];
+                child.push(yield_env.gc());
+                child.push(environment.gc());
+                return child;
+            }
+            _ => vec![]
+        }
+    }
+
+    fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
+
+
+impl Collectable for Object {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut child = vec![];
+        match &self.proto {
+            Some(proto) => child.push(proto.gc()),
+            _ => ()
+        };
+        for (key,val) in self.table.iter() {
+            for child_ in key.child().iter() {
+                child.push(child_.clone());
+            }
+            child.push(val.gc());
+        }
+        child
+    }
+    fn size(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 }

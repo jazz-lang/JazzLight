@@ -53,8 +53,13 @@ pub fn new_exfunc(f: fn(&mut Frame<'_>, Value, &[Value]) -> Result<Value, ValueD
 }
 
 pub fn builtin_gc(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
-    crate::gc::gc::mark(100);
+    crate::ngc::gc_collect_not_par();
     //crate::gc::gc::sweep();
+    Ok(new_ref(ValueData::Nil))
+}
+
+pub fn enable_stats(_: &mut Frame<'_>,_: Value,_: &[Value]) -> Result<Value,ValueData> {
+    crate::ngc::gc_enable_stats();
     Ok(new_ref(ValueData::Nil))
 }
 
@@ -94,6 +99,8 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
     }
 }
 
+use crate::ngc::gc_add_root;
+
 pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let arg = args[0].clone();
     let val: &ValueData = &arg.borrow();
@@ -114,10 +121,12 @@ pub fn register_builtins(interp: &mut Frame<'_>) {
     let err = new_object();
     let pos = &Position::new(0, 0);
     err.borrow_mut().set("__name__", "JLRuntimeError");
+    let obj = new_ref(ValueData::Object(err));
+    //gc_add_root(obj.gc());
     declare_var(
         &interp.env,
-        "JLRuntimeError",
-        new_ref(ValueData::Object(err)),
+        "JLRuntimeError",obj
+        ,
         &pos,
     )
     .unwrap();
@@ -130,6 +139,7 @@ pub fn register_builtins(interp: &mut Frame<'_>) {
     .unwrap();
     declare_var(&interp.env, "print", new_exfunc(builtin_print), &pos).unwrap();
     declare_var(&interp.env, "gc", new_exfunc(builtin_gc), &pos).unwrap();
+    declare_var(&interp.env, "gc_stats", new_exfunc(enable_stats), &pos).unwrap();
     declare_var(&interp.env, "spawn", new_exfunc(builtin_spawn), &pos).unwrap();
     declare_var(&interp.env, "typeof", new_exfunc(type_of), &pos).unwrap();
 }

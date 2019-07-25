@@ -1,7 +1,7 @@
 use crate::vm;
 use vm::opcodes::*;
 
-#[derive(Clone, PartialEq,Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct BBlock {
     pub opcodes: Vec<Opcode>,
 }
@@ -14,21 +14,18 @@ impl BBlock {
     }
 }
 
-
 pub fn translate_to_blocks(code: Vec<Opcode>) -> Vec<BBlock> {
-    let mut pc = 0;
     let mut blocks = vec![];
-    use hashlink::LinkedHashMap;
+    use crate::map::LinkedHashMap;
     let mut targets = LinkedHashMap::new();
     let mut bb = BBlock::empty();
     let mut block_id = 0;
-    for (i,op) in code.iter().enumerate() {
+    for (i, op) in code.iter().enumerate() {
         targets.insert(i, block_id);
         match op {
             Opcode::BlockEnd => {
                 blocks.push(bb.clone());
                 bb = BBlock::empty();
-                
 
                 continue;
             }
@@ -38,10 +35,8 @@ pub fn translate_to_blocks(code: Vec<Opcode>) -> Vec<BBlock> {
             Opcode::Return => {
                 blocks.push(bb.clone());
                 bb = BBlock::empty();
-                
             }
-            _ => 
-            {
+            _ => {
                 bb.push(op.clone());
             }
         }
@@ -54,19 +49,16 @@ pub fn translate_to_blocks(code: Vec<Opcode>) -> Vec<BBlock> {
                     let new_target = *targets.get(&(*target as usize)).unwrap();
                     *target = new_target + 1;
                 }
-                _ => ()
+                _ => (),
             }
-        }   
+        }
     }
     for bb in blocks.iter_mut() {
         bb.opcodes.retain(|op| *op != Opcode::Label);
     }
 
-
     blocks
 }
-
-
 
 /*
 pub fn translate_to_blocks(code: Vec<Opcode>) -> Vec<BBlock> {

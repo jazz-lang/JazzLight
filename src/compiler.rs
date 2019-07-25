@@ -4,7 +4,7 @@ use crate::vm::opcodes::*;
 use crate::vm::value::*;
 use crate::vm::*;
 use crate::P;
-use hashlink::LinkedHashMap;
+use crate::map::LinkedHashMap;
 #[derive(Clone, Debug)]
 pub enum UOP {
     Goto(String),
@@ -135,7 +135,8 @@ impl<'a> Compiler<'a> {
                 _ => (),
             }
         }
-        let mut code = self.code
+        let code = self
+            .code
             .iter()
             .map(|i| match *i {
                 UOP::Op(ref op) => op.clone(),
@@ -373,11 +374,11 @@ impl<'a> Compiler<'a> {
                 self.breaks.push(end.clone());
                 self.continues.push(check.clone());
                 self.end();
-                
+
                 self.label_here(&check);
                 self.start();
                 self.compile(cond);
-                
+
                 self.emit_gotof(&end);
                 self.end();
                 self.start();
@@ -385,7 +386,6 @@ impl<'a> Compiler<'a> {
                 self.emit_goto(&check);
                 self.end();
                 self.label_here(&end);
-                
             }
             ExprDecl::Field(obj, field) => {
                 let c = self.new_constant(field);
@@ -453,8 +453,9 @@ impl<'a> Compiler<'a> {
             self.frame.m.line_no.insert((i, *op), pos.clone());
         }
         self.frame.code = gc_code;
-        self.frame.env = new_object();
+        //self.frame.push_env();
         self.frame.pc = 0;
+        //crate::ngc::gc_add_root(self.frame.env.gc());
         crate::vm::runtime::register_builtins(&mut self.frame);
     }
 
