@@ -1,4 +1,4 @@
-use crate::vm::runtime::decl_fun;
+//use crate::vm::runtime::decl_fun;
 use crate::vm::value::*;
 use crate::vm::{Frame, nil};
 use crate::vm::runtime::new_exfunc;

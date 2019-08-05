@@ -554,7 +554,7 @@ impl<'a> Compiler<'a> {
         self.frame.pc = 0;
         //crate::ngc::gc_add_root(self.frame.env.gc());
         if declare_builtins {
-            crate::vm::runtime::register_builtins(&mut self.frame);
+            crate::vm::runtime::register_builtins(self.frame.env.clone());
         }
     }
 

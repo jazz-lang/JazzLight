@@ -3,7 +3,7 @@ pub mod opcodes;
 pub mod runtime;
 pub mod codegen;
 pub mod value;
-use cgc::generational::*;
+//use cgc::generational::*;
 use crate::str;
 use opcodes::Opcode;
 use std::cell::RefCell;

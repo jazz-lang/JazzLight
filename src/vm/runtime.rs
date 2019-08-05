@@ -1,7 +1,7 @@
 use super::value::*;
 use super::*;
 use crate::token::Position;
-use crate::vm::runtime::array::array_object;
+//use crate::vm::runtime::array::array_object;
 use crate::vm::runtime::math::math_object;
 use crate::reader::Reader;
 use crate::parser::Parser;
@@ -173,28 +173,28 @@ pub fn len(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData>
 
 }
 
-pub fn register_builtins(interp: &mut Frame<'_>) {
+pub fn register_builtins(env: Ref<Object>) {
     let err = new_object();
     let pos = &Position::new(0, 0);
     err.borrow_mut().set("__name__", "JLRuntimeError");
     let obj = new_ref(ValueData::Object(err));
     //gc_add_root(obj.gc());
-    declare_var(&interp.env, "JLRuntimeError", obj, &pos).unwrap();
+    declare_var(&env, "JLRuntimeError", obj, &pos).unwrap();
     declare_var(
-        &interp.env,
+        &env,
         "instanceof",
         new_exfunc(builtin_instanceof),
         &pos,
     )
     .unwrap();
-    declare_var(&interp.env, "exports",new_ref(ValueData::Object(new_object())),&pos).unwrap();
-    declare_var(&interp.env, "require",new_exfunc(require),&pos).unwrap();
-    declare_var(&interp.env, "print", new_exfunc(builtin_print), &pos).unwrap();
-    declare_var(&interp.env, "gc", new_exfunc(builtin_gc), &pos).unwrap();
-    declare_var(&interp.env, "gc_stats", new_exfunc(enable_stats), &pos).unwrap();
-    declare_var(&interp.env, "spawn", new_exfunc(builtin_spawn), &pos).unwrap();
-    declare_var(&interp.env, "typeof", new_exfunc(type_of), &pos).unwrap();
-    declare_var(&interp.env, "Math", new_ref(ValueData::Object(math_object())),&pos).unwrap();
-    declare_var(&interp.env,"object_keys",new_exfunc(crate::vm::runtime::object::object_keys),&pos).unwrap();
-    declare_var(&interp.env,"len",new_exfunc(len),&pos).unwrap();
+    declare_var(&env, "exports",new_ref(ValueData::Object(new_object())),&pos).unwrap();
+    declare_var(&env, "require",new_exfunc(require),&pos).unwrap();
+    declare_var(&env, "print", new_exfunc(builtin_print), &pos).unwrap();
+    declare_var(&env, "gc", new_exfunc(builtin_gc), &pos).unwrap();
+    declare_var(&env, "gc_stats", new_exfunc(enable_stats), &pos).unwrap();
+    declare_var(&env, "spawn", new_exfunc(builtin_spawn), &pos).unwrap();
+    declare_var(&env, "typeof", new_exfunc(type_of), &pos).unwrap();
+    declare_var(&env, "Math", new_ref(ValueData::Object(math_object())),&pos).unwrap();
+    declare_var(&env,"object_keys",new_exfunc(crate::vm::runtime::object::object_keys),&pos).unwrap();
+    declare_var(&env,"len",new_exfunc(len),&pos).unwrap();
 }

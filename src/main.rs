@@ -84,7 +84,7 @@ fn repl() {
     let mut code = String::new();
     let mut m = Machine::new();
     let mut f = Frame::new(&mut m);
-    register_builtins(&mut f);
+    register_builtins(f.env.clone());
     let mut compiler = Compiler::new(&mut f);
     loop {
         let readline = rl.readline(">> ");

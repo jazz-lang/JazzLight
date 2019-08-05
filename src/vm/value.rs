@@ -2,17 +2,17 @@ use super::runtime::array::*;
 use super::runtime::new_exfunc;
 use cgc::generational::*;
 use std::cell::{Ref as CRef, RefMut};
-
+use std::sync::Arc;
 pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
-    Ref(Rc::new(RefCell::new(val)))
+    Ref(Arc::new(RefCell::new(val)))
 }
-use std::rc::Rc;
+//use std::rc::Rc;
 use std::cell::RefCell;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct Ref<T: Sized>(Rc<RefCell<T>>);
+pub struct Ref<T: Sized>(Arc<RefCell<T>>);
 
 
 
@@ -126,6 +126,8 @@ impl From<ValueData> for i64 {
     }
 }
 
+
+
 impl From<ValueData> for f64 {
     fn from(val: ValueData) -> f64 {
         match val {
@@ -195,6 +197,17 @@ pub trait SetGet {
     }
     fn get(&self, _: &ValueData) -> Value {
         unimplemented!()
+    }
+}
+
+impl<T: Into<ValueData> + Clone> From<Vec<T>> for ValueData {
+    fn from(x: Vec<T>) -> ValueData {
+        let mut array = vec![];
+        for x in x.iter() {
+            array.push(new_ref(x.clone().into()));
+        }
+
+        ValueData::Array(new_ref(array))
     }
 }
 
