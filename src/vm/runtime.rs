@@ -1,7 +1,14 @@
 use super::value::*;
 use super::*;
 use crate::token::Position;
+use crate::vm::runtime::array::array_object;
+use crate::vm::runtime::math::math_object;
+use crate::reader::Reader;
+use crate::parser::Parser;
+use crate::compiler::Compiler;
+
 pub mod array;
+pub mod math;
 pub mod object;
 
 pub macro decl_fun {
@@ -58,7 +65,7 @@ pub fn builtin_gc(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, Val
     Ok(new_ref(ValueData::Nil))
 }
 
-pub fn enable_stats(_: &mut Frame<'_>,_: Value,_: &[Value]) -> Result<Value,ValueData> {
+pub fn enable_stats(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
     crate::ngc::gc_enable_stats();
     Ok(new_ref(ValueData::Nil))
 }
@@ -79,6 +86,7 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                     args,
                     code,
                     addr,
+                    //constants,
                     ..
                 } => {
                     let func = Function::Regular {
@@ -86,6 +94,7 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                         args: args.clone(),
                         code: code.clone(),
                         addr: *addr,
+                        //constants: constants.clone(),
                         yield_env: new_object(),
                         yield_pos: None,
                     };
@@ -111,8 +120,57 @@ pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Val
         ValueData::Array(_) => "array",
         ValueData::Function(_) => "function",
         ValueData::Bool(_) => "bool",
+        ValueData::Iterator(_) => "iterator",
     };
     Ok(new_ref(ValueData::String(name.to_owned())))
+}
+
+pub fn require(frame: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let name = String::from(args[0].borrow().clone());
+    let cur_dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+    let cur_path = format!("{}/{}",cur_dir,name);
+    let path = if std::path::Path::new(&cur_path).exists() {
+        cur_path
+    } else {
+        let home_dir = option_env!("JAZZ_HOME");
+        if let Some(home_dir) = home_dir {
+            format!("{}/{}", home_dir, name)
+        } else {
+            name
+        }
+    };
+
+    let r = match Reader::from_file(&path) {
+        Ok(r) => r,
+        Err(e) => return Err(new_error(-1,None,&format!("{}",e)))
+    };
+    let mut ast = vec![];
+    let mut p = Parser::new(r,&mut ast);
+    match p.parse() {
+        Ok(_) => (),
+        Err(e) => return Err(new_error(-1,None,&format!("{}",e)))
+    }
+
+    let mut f = Frame::new(frame.m);
+    let mut c = Compiler::new(&mut f);
+    c.compile_ast(&ast,true);
+    c.frame.execute();
+    let exports = get_variable(&c.frame.env,"exports",&Position::new(0,0)).unwrap();
+    Ok(exports)
+}
+
+pub fn len(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let arg = args[0].clone();
+    let arg: &ValueData = &arg.borrow();
+    match arg {
+        ValueData::Array(arr) => Ok(new_ref(ValueData::Number(arr.borrow().len() as f64))),
+        ValueData::Object(object) => Ok(new_ref(ValueData::Number(object.borrow().table.len() as f64))),
+        ValueData::String(s) => Ok(new_ref(ValueData::Number(s.len() as f64))),
+        _ => Ok(new_ref(ValueData::Nil))
+
+
+    }
+
 }
 
 pub fn register_builtins(interp: &mut Frame<'_>) {
@@ -121,13 +179,7 @@ pub fn register_builtins(interp: &mut Frame<'_>) {
     err.borrow_mut().set("__name__", "JLRuntimeError");
     let obj = new_ref(ValueData::Object(err));
     //gc_add_root(obj.gc());
-    declare_var(
-        &interp.env,
-        "JLRuntimeError",obj
-        ,
-        &pos,
-    )
-    .unwrap();
+    declare_var(&interp.env, "JLRuntimeError", obj, &pos).unwrap();
     declare_var(
         &interp.env,
         "instanceof",
@@ -135,9 +187,14 @@ pub fn register_builtins(interp: &mut Frame<'_>) {
         &pos,
     )
     .unwrap();
+    declare_var(&interp.env, "exports",new_ref(ValueData::Object(new_object())),&pos).unwrap();
+    declare_var(&interp.env, "require",new_exfunc(require),&pos).unwrap();
     declare_var(&interp.env, "print", new_exfunc(builtin_print), &pos).unwrap();
     declare_var(&interp.env, "gc", new_exfunc(builtin_gc), &pos).unwrap();
     declare_var(&interp.env, "gc_stats", new_exfunc(enable_stats), &pos).unwrap();
     declare_var(&interp.env, "spawn", new_exfunc(builtin_spawn), &pos).unwrap();
     declare_var(&interp.env, "typeof", new_exfunc(type_of), &pos).unwrap();
+    declare_var(&interp.env, "Math", new_ref(ValueData::Object(math_object())),&pos).unwrap();
+    declare_var(&interp.env,"object_keys",new_exfunc(crate::vm::runtime::object::object_keys),&pos).unwrap();
+    declare_var(&interp.env,"len",new_exfunc(len),&pos).unwrap();
 }

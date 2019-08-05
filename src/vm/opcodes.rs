@@ -46,7 +46,9 @@ pub enum Opcode {
     Yield,
     /// Return from function
     Return,
-
+    NewIter,
+    IterHasNext,
+    IterNext,
     Add,
     Sub,
     Div,

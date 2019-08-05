@@ -3,7 +3,7 @@ extern crate jazzc;
 use jazzc::compiler::*;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
-use jazzc::vm::Machine;
+use jazzc::vm::{Machine, Frame};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -25,8 +25,9 @@ pub struct Options {
     run: bool,
 }
 
-use jazzc::ngc::*;
-
+use cgc::generational::*;
+use jazzc::vm::value::new_object;
+use jazzc::vm::runtime::register_builtins;
 
 fn main() {
     lazy_static::lazy_static! {
@@ -43,13 +44,9 @@ fn main() {
     }).unwrap();
     */
 
-    
-
-
     let ops: Options = Options::from_args();
     if ops.file.is_none() {
-        eprintln!("Expected file path as input");
-        std::process::exit(-1);
+        repl();
     }
     let string = ops.file.unwrap().to_str().unwrap().to_owned();
     let reader = Reader::from_file(&string).unwrap();
@@ -64,23 +61,75 @@ fn main() {
         }
     }
     let mut m = Machine::new();
-    let mut c = Compiler::new(&mut m);
-    c.compile_ast(&ast);
+    let mut frame = Frame::new(&mut m);
+    let mut c = Compiler::new(&mut frame);
+    c.compile_ast(&ast,true);
     if ops.dump_op {
         for (i, op) in c.frame.code.borrow().iter().enumerate() {
             println!("{:04}: {:?}", i, op);
         }
     }
-    /*
-    let code_with_blocks = basicblock::translate_to_blocks(c.frame.code.borrow().clone());
-    for (i, bb) in code_with_blocks.iter().enumerate() {
-        println!("BBlock #{}", i);
-        for (j, x) in bb.opcodes.iter().enumerate() {
-            println!("  {:02}: {:?}", j, x);
-        }
-    }*/
+
     c.frame.execute();
     //*STOP.lock() = true;
     //thread.join().unwrap();
-    gc_collect_not_par();
+    //gc_collect_not_par();
+}
+
+
+
+fn repl() {
+    use rustyline::{Editor,error::ReadlineError};
+    let mut rl = Editor::<()>::new();
+    let mut code = String::new();
+    let mut m = Machine::new();
+    let mut f = Frame::new(&mut m);
+    register_builtins(&mut f);
+    let mut compiler = Compiler::new(&mut f);
+    loop {
+        let readline = rl.readline(">> ");
+        match readline {
+            Ok(line) => {
+                
+                rl.add_history_entry(line.clone());
+                let s: &str = &line;
+                if s == "exit" {
+                    gc_collect_not_par();
+                    std::process::exit(0);
+
+                }
+                code.push_str(s);
+                let reader = Reader::from_string(&code);
+                let mut ast = vec![];
+                let mut p = Parser::new(reader,&mut ast);
+                match p.parse() {
+                    Ok(_) => (),
+                    Err(e) => {
+                        eprintln!("{}",e);
+                        std::process::exit(1);
+                    }
+                }
+                //gc_rmroot(compiler.frame.env.gc());
+                compiler.frame.env = new_object();
+                //gc_add_root(compiler.frame.env.gc());
+                compiler.compile_ast(&ast,true);
+                compiler.frame.execute();
+                //gc_collect_not_par();
+            }
+
+            Err(ReadlineError::Interrupted) => {
+                println!("Use Ctrl + D or type 'exit' to leave repl ");
+            }
+            Err(ReadlineError::Eof) => {
+                break;
+            }
+            Err(e) => {
+                eprintln!("{}",e);
+                break;
+            }
+
+        }
+    }
+
+
 }

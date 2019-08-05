@@ -8,19 +8,17 @@ edition = "2018"
 hmap = "0.1"
 structopt = "0.2"
 time = "0.1.42"
-hashlink = "0.3"
 byteorder = "1.3.2"
 libc = "0.2"
 wrc = "0.4"
+cgc = {git = "https://github.com/playxe/cgc"}
 parking_lot = "0.9"
 lazy_static = "1.3"
-rayon = "1.1"
-
+rustyline = "5.0"
+rand = "0.7.0"
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser"] }
+winapi = { version = "0.3", features = ["winuser","memoryapi","errhandlingapi"] }
 kernel32-sys = "0.2"
 [profile.release]
 lto = true
-opt-level = 'z'
 codegen-units = 1
-panic = 'abort'

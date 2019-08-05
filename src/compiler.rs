@@ -1,10 +1,10 @@
 use crate::intern;
+use crate::map::LinkedHashMap;
 use crate::token::Position;
 use crate::vm::opcodes::*;
 use crate::vm::value::*;
 use crate::vm::*;
 use crate::P;
-use crate::map::LinkedHashMap;
 #[derive(Clone, Debug)]
 pub enum UOP {
     Goto(String),
@@ -18,7 +18,7 @@ pub enum UOP {
 }
 
 pub struct Compiler<'a> {
-    pub frame: Frame<'a>,
+    pub frame: &'a mut Frame<'a>,
     stack_size: u32,
     code: Vec<UOP>,
     pos: Position,
@@ -31,11 +31,13 @@ pub struct Compiler<'a> {
 }
 
 use crate::ast::*;
+use crate::reader::Reader;
+use crate::parser::Parser;
 
 impl<'a> Compiler<'a> {
-    pub fn new(m: &'a mut Machine) -> Compiler<'a> {
+    pub fn new(m: &'a mut Frame<'a>) -> Compiler<'a> {
         Compiler {
-            frame: Frame::new(m),
+            frame: m,
             stack_size: 0,
             code: vec![],
             ret: String::new(),
@@ -47,6 +49,7 @@ impl<'a> Compiler<'a> {
             continues: vec![],
         }
     }
+
 
     pub fn pos(&self) -> usize {
         self.code.len()
@@ -158,10 +161,37 @@ impl<'a> Compiler<'a> {
         code
     }
 
+    pub fn include(&mut self,name: &str) {
+        let name = name.to_owned();
+        let cur_dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
+        let cur_path = format!("{}/{}",cur_dir,name);
+        let path = if std::path::Path::new(&cur_path).exists() {
+            cur_path
+        } else {
+            let home_dir = option_env!("JAZZ_HOME");
+            if let Some(home_dir) = home_dir {
+                format!("{}/{}", home_dir, name)
+            } else {
+                name
+            }
+        };
+
+        let mut ast = vec![];
+
+        let r = Reader::from_file(&path).unwrap();
+        let mut p = Parser::new(r,&mut ast);
+        p.parse().unwrap();
+        for expr in ast.iter() {
+            self.compile(expr);
+        }
+
+    }
+
     pub fn compile(&mut self, expr: &Expr) {
         self.pos = expr.pos;
         self.id = expr.id;
         match &expr.decl {
+            ExprDecl::Include(name) => self.include(name),
             ExprDecl::Const(constant) => match constant {
                 Constant::Ident(name) => self.write(Opcode::LoadVar(intern(name))),
                 Constant::Int(val) => self.write(Opcode::LoadInt(*val)),
@@ -269,24 +299,33 @@ impl<'a> Compiler<'a> {
                 };
             }
             ExprDecl::Assign(lhs, rhs) => {
-                self.compile(rhs);
+
                 self.write(Opcode::Dup);
                 match &lhs.decl {
                     ExprDecl::Field(obj, field) => {
+                        self.compile(obj);
                         let loc = self.new_constant(field);
                         self.write(Opcode::LoadConst(loc as _));
-                        self.compile(obj);
+                        self.compile(rhs);
                         self.write(Opcode::Store);
                     }
                     ExprDecl::Array(array, idx) => {
-                        self.compile(idx);
                         self.compile(array);
+                        self.compile(idx);
+
+                        self.compile(rhs);
                         self.write(Opcode::Store);
                     }
                     ExprDecl::Const(Constant::Ident(name)) => {
+                        self.compile(rhs);
                         self.write(Opcode::StoreVar(intern(name)))
                     }
-                    ExprDecl::Const(Constant::This) => self.write(Opcode::StoreVar(intern("this"))),
+                    ExprDecl::Const(Constant::This) =>
+                        {
+                            self.compile(rhs);
+                            self.write(Opcode::StoreVar(intern("this")));
+                        }
+
                     _ => panic!("Can not assign"),
                 };
             }
@@ -296,6 +335,16 @@ impl<'a> Compiler<'a> {
             ExprDecl::FunctionDecl(name, args, body) => {
                 self.compile_function(&body, &args, Some(name));
             }
+            ExprDecl::New(e,el) => {
+                for arg in el.iter().rev() {
+                    self.compile(arg);
+                }
+                self.write(Opcode::NewObj);
+                self.compile(e);
+                self.write(Opcode::Call(el.len() as _));
+
+            }
+
             ExprDecl::Call(e, el) => {
                 for arg in el.iter().rev() {
                     self.compile(arg);
@@ -368,6 +417,53 @@ impl<'a> Compiler<'a> {
                 self.label_here(&end);
                 self.end();
             }
+            ExprDecl::DoWhile(cond,body) => {
+
+                let end = self.new_empty_label();
+                let start = self.new_empty_label();
+                self.breaks.push(end.clone());
+                self.continues.push(start.clone());
+                self.end();
+                self.label_here(&start);
+                self.start();
+                self.compile(body);
+                self.end();
+                self.start();
+                self.compile(cond);
+                self.emit_gotot(&start);
+                self.end();
+                self.label_here(&end);
+
+            }
+
+            ExprDecl::ForIn(name,in_,body) => {
+                let check = self.new_empty_label();
+                let end = self.new_empty_label();
+                self.breaks.push(end.clone());
+                self.continues.push(check.clone());
+                self.end();
+                self.write(Opcode::PushEnv);
+                self.write(Opcode::LoadNil);
+                self.write(Opcode::DeclVar(intern(name)));
+                self.compile(in_);
+                
+                self.write(Opcode::NewIter);
+                self.write(Opcode::DeclVar(intern("@iterator")));
+                self.label_here(&check);
+                self.write(Opcode::LoadVar(intern("@iterator")));
+                self.write(Opcode::IterHasNext);
+                self.emit_gotof(&end);
+                self.write(Opcode::PushEnv);
+                self.write(Opcode::LoadVar(intern("@iterator")));
+                self.write(Opcode::IterNext);
+                self.write(Opcode::StoreVar(intern(name)));
+                self.compile(body);
+                self.write(Opcode::PopEnv);
+                self.emit_goto(&check);
+                self.end();
+                self.label_here(&end);
+                
+            }
             ExprDecl::While(cond, body) => {
                 let check = self.new_empty_label();
                 let end = self.new_empty_label();
@@ -398,7 +494,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub fn compile_ast(&mut self, ast: &[P<Expr>]) {
+    pub fn compile_ast(&mut self, ast: &[P<Expr>],declare_builtins: bool) {
         let ret = self.new_empty_label();
         self.ret = ret.clone();
         for expr in ast.iter() {
@@ -436,6 +532,7 @@ impl<'a> Compiler<'a> {
                         addr: *addresses.get(&gid).unwrap(),
                         yield_pos: None,
                         args: args.clone(),
+                        //constants: ref_,
                         code: gc_code.clone(),
                         yield_env: new_object(),
                     }));
@@ -456,7 +553,9 @@ impl<'a> Compiler<'a> {
         //self.frame.push_env();
         self.frame.pc = 0;
         //crate::ngc::gc_add_root(self.frame.env.gc());
-        crate::vm::runtime::register_builtins(&mut self.frame);
+        if declare_builtins {
+            crate::vm::runtime::register_builtins(&mut self.frame);
+        }
     }
 
     pub fn compile_function(&mut self, body: &Expr, args: &Vec<String>, name: Option<&str>) {

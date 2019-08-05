@@ -6,8 +6,6 @@ pub const M: usize = K * K;
 use std::cmp::{Ord, Ordering, PartialOrd};
 use std::fmt;
 
-
-
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Address(usize);
 
@@ -214,8 +212,7 @@ fn formatted_size(size: usize) -> FormattedSize {
     FormattedSize { size }
 }
 
-
-pub (crate)use self::ProtType::*;
+pub(crate) use self::ProtType::*;
 
 #[cfg(not(target_family = "windows"))]
 use libc;
@@ -248,7 +245,7 @@ fn determine_page_size() -> u32 {
 #[cfg(target_family = "windows")]
 pub fn determine_page_size() -> u32 {
     use std::mem;
-    use winapi::um::sysinfoapi::{SYSTEM_INFO,GetSystemInfo};
+    use winapi::um::sysinfoapi::{GetSystemInfo, SYSTEM_INFO};
 
     unsafe {
         let mut system_info: SYSTEM_INFO = mem::uninitialized();
@@ -335,13 +332,12 @@ pub fn mmap(size: usize, prot: ProtType) -> *const u8 {
     ptr as *const u8
 }
 
-    extern "C" {
-        fn malloc(_: usize) -> *mut u8;
-    }
+extern "C" {
+    fn malloc(_: usize) -> *mut u8;
+}
 
 #[cfg(target_family = "windows")]
 pub fn mmap(size: usize, exec: ProtType) -> *const u8 {
-
     use winapi::um::memoryapi::VirtualAlloc;
     use winapi::um::winnt::{MEM_COMMIT, MEM_RESERVE, PAGE_EXECUTE_READWRITE, PAGE_READWRITE};
 
@@ -355,7 +351,11 @@ pub fn mmap(size: usize, exec: ProtType) -> *const u8 {
 
     if ptr.is_null() {
         use winapi::um::errhandlingapi::GetLastError;
-        panic!("VirtualAlloc failed with error code '{:x}',size '{}'",unsafe {GetLastError()},size);
+        panic!(
+            "VirtualAlloc failed with error code '{:x}',size '{}'",
+            unsafe { GetLastError() },
+            size
+        );
     }
 
     ptr as *const u8
@@ -371,7 +371,7 @@ pub fn munmap(ptr: *const u8, size: usize) {
 }
 
 #[cfg(target_family = "windows")]
-pub fn munmap(ptr: *const u8,_size: usize) {
+pub fn munmap(ptr: *const u8, _size: usize) {
     use winapi::um::memoryapi::VirtualFree;
     use winapi::um::winnt::MEM_RELEASE;
 
@@ -402,14 +402,12 @@ unsafe impl Sync for CopyGC {}
 use parking_lot::Mutex;
 
 lazy_static::lazy_static!(
-    pub static ref GC: Mutex<CopyGC> = Mutex::new(CopyGC::new());
+    pub static ref GC: Mutex<CopyGC> = Mutex::new(CopyGC::new(Option::None));
 );
 
 pub fn gc_collect() {
     std::thread::spawn(|| {
-        
-            GC.lock().collect();
-        
+        GC.lock().collect();
     });
 }
 
@@ -418,17 +416,14 @@ pub fn gc_collect_not_par() {
 }
 
 pub fn gc_allocate_sync<T: Collectable + Sized + 'static + Send>(val: T) -> GCValue<T> {
-    std::thread::spawn(move || {
-        
-            GC.lock().allocate(val)
-        
-    }).join().unwrap()
+    std::thread::spawn(move || GC.lock().allocate(val))
+        .join()
+        .unwrap()
 }
 
 pub fn gc_allocate<T: Collectable + Sized + 'static>(val: T) -> GCValue<T> {
     //GC.with(|x| {
-        GC.lock().allocate(val)
-    
+    GC.lock().allocate(val)
 }
 
 pub fn gc_rmroot(val: GCValue<dyn Collectable>) {
@@ -445,7 +440,7 @@ pub fn gc_enable_stats() {
 
 pub fn gc_allocated_size() -> usize {
     //GC.with(|x| {
-        GC.lock().total_allocated()
+    GC.lock().total_allocated()
     //})
 }
 

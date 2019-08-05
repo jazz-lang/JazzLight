@@ -43,6 +43,7 @@ pub enum TokenKind {
     Var,
     While,
     If,
+    New,
     Else,
     Loop,
     For,
@@ -128,6 +129,7 @@ impl TokenKind {
 
             // Keywords
             TokenKind::This => "this",
+            TokenKind::New => "new",
             TokenKind::Fun => "function",
             TokenKind::Let => "let",
             TokenKind::Var => "var",

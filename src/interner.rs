@@ -4,10 +4,16 @@ use parking_lot::Mutex;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
-use wrc::WRC as Arc;
+use std::sync::Arc;
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[derive(Copy, Clone, PartialEq, Eq,  Hash)]
 pub struct Name(pub usize);
+
+impl fmt::Debug for Name {
+    fn fmt(&self,f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"{:?}",str(*self))
+    }
+}
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct ArcStr(Arc<String>);

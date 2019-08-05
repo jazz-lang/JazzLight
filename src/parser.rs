@@ -74,6 +74,21 @@ impl<'a> Parser<'a> {
         }*/
     }
 
+    fn parse_include(&mut self) -> EResult {
+        let tok = self.advance_token()?;
+        let name = self.lit_str()?;
+        if let ExprDecl::Const(Constant::Str(name)) = &name.decl {
+            return Ok(
+                expr!(
+                ExprDecl::Include(name.clone()),tok.position
+                )
+            )
+        } else {
+            unreachable!();
+        }
+
+    }
+
     fn parse_function(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Fun)?.position;
 
@@ -144,9 +159,12 @@ impl<'a> Parser<'a> {
             TokenKind::Let | TokenKind::Var => self.parse_let(),
             TokenKind::Yield => self.parse_yield(),
             TokenKind::LBrace => self.parse_block(),
+            TokenKind::Include => self.parse_include(),
             TokenKind::If => self.parse_if(),
             TokenKind::For => self.parse_for(),
             TokenKind::While => self.parse_while(),
+            TokenKind::Do => self.parse_dowhile(),
+            TokenKind::New => self.parse_new(),
             TokenKind::Break => self.parse_break(),
             TokenKind::Continue => self.parse_continue(),
             TokenKind::Return => self.parse_return(),
@@ -155,6 +173,18 @@ impl<'a> Parser<'a> {
             TokenKind::Try => self.parse_try(),
             _ => self.parse_binary(0),
         }
+    }
+
+
+
+    fn parse_dowhile(&mut self) -> EResult {
+
+        let pos = self.expect_token(TokenKind::Do)?.position;
+        let block = self.parse_block()?;
+        self.expect_token(TokenKind::While)?;
+        let cond = self.parse_expression()?;
+        Ok(expr!(ExprDecl::DoWhile(cond, block), pos))
+
     }
 
     fn parse_self(&mut self) -> EResult {
@@ -190,9 +220,13 @@ impl<'a> Parser<'a> {
         let decl = self.parse_expression()?;
         if self.token.is(TokenKind::In) {
             self.advance_token()?;
+            let name = match &decl.decl {
+                ExprDecl::Const(Constant::Ident(name)) => name.to_owned(),
+                _ => return Err(MsgWithPos::new(self.lexer.path(),pos,Msg::ExpectedIdentifier("".to_owned()))),
+            };
             let in_ = self.parse_expression()?;
             let block = self.parse_expression()?;
-            let name = self.expect_identifier()?;
+            
             Ok(expr!(ExprDecl::ForIn(name, in_, block), pos))
         } else {
             self.expect_token(TokenKind::Semicolon)?;
@@ -368,6 +402,7 @@ impl<'a> Parser<'a> {
         let mut left = self.parse_factor()?;
         loop {
             left = match self.token.kind {
+                //TokenKind::New => return self.parse_new(),
                 TokenKind::Dot => {
                     let tok = self.advance_token()?;
                     let ident = self.expect_identifier()?;
@@ -392,6 +427,7 @@ impl<'a> Parser<'a> {
                         expr!(ExprDecl::Array(left, val_or_index), tok.position)
                     }
                 }
+
                 _ => {
                     if self.token.is(TokenKind::LParen) {
                         let expr = left;
@@ -408,6 +444,22 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn parse_new(&mut self) -> EResult {
+        let pos = self.advance_token()?.position;
+        let expr = self.parse_expression()?;
+        match &expr.decl {
+            ExprDecl::Call(expr,args) => {
+                Ok(expr!(
+                    ExprDecl::New(expr.clone(),args.clone()),
+                    pos
+                ))
+            },
+            _ => return Err(MsgWithPos::new(self.lexer.path(), pos, Msg::FctCallExpected))
+        }
+
+        
     }
 
     fn expect_identifier(&mut self) -> Result<String, MsgWithPos> {

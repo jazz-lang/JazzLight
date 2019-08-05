@@ -3,18 +3,17 @@ pub mod opcodes;
 pub mod runtime;
 pub mod codegen;
 pub mod value;
+use cgc::generational::*;
 use crate::str;
 use opcodes::Opcode;
 use std::cell::RefCell;
 use value::*;
 use wrc::WRC;
-use crate::ngc::{gc_add_root,gc_rmroot};
-
 pub fn nil() -> Value {
     new_ref(ValueData::Nil)
 }
-use crate::token::Position;
 use crate::map::LinkedHashMap;
+use crate::token::Position;
 
 pub struct Machine {
     pub constants: Vec<ValueData>,
@@ -46,6 +45,7 @@ pub struct Frame<'a> {
     pub funs: Vec<Ref<Function>>,
     exec_stack: Vec<ExecData>,
     exception_stack: Vec<usize>,
+    cur_ins: Opcode,
 }
 
 impl<'a> Frame<'a> {
@@ -57,11 +57,11 @@ impl<'a> Frame<'a> {
             pc: 0,
             env: new_object(),
             funs: vec![],
+            cur_ins: Opcode::BlockEnd,
             exec_stack: vec![],
             exception_stack: vec![],
         };
         f
-
     }
 
     pub fn restore_state(
@@ -83,9 +83,9 @@ impl<'a> Frame<'a> {
         }
         if restore_code {
             if let Some(ExecData::Code(code)) = self.exec_stack.pop() {
-                if self.code != code {
-                    self.code = code;
-                }
+                
+                self.code = code;
+                
             }
         }
         if restore_stack {
@@ -116,7 +116,7 @@ impl<'a> Frame<'a> {
             proto: Some(old_env),
             table: LinkedHashMap::new(),
         });
-        gc_add_root(self.env.gc());
+        //gc_add_root(self.env.gc());
         //crate::gc:://gc::new_ref(self.env,old_env);
     }
 
@@ -124,9 +124,8 @@ impl<'a> Frame<'a> {
         if self.env.borrow().proto.is_none() {
             panic!("No env to pop");
         }
-        gc_rmroot(self.env.gc());
-        
-        
+        //gc_rmroot(self.env.gc());
+
         let proto = {
             let env = self.env.borrow();
             env.proto.as_ref().unwrap().clone()
@@ -154,7 +153,7 @@ impl<'a> Frame<'a> {
     pub fn pop(&mut self) -> Result<Value, ValueData> {
         match self.stack.pop() {
             Some(val) => Ok(val),
-            None => Err(new_error(self.get_pos().line as _, None, "Stack empty")),
+            None => Err(new_error(-1, None, &format!("Stack empty. Current instruction: {:?}",self.cur_ins))),
         }
     }
 
@@ -169,7 +168,7 @@ impl<'a> Frame<'a> {
                             self.push(e);
                             continue;
                         } else {
-                            eprintln!("{}", e);
+                            eprintln!("{}: {}",line!(), e);
                             std::process::exit(1);
                         }
                     }
@@ -180,7 +179,7 @@ impl<'a> Frame<'a> {
         macro_rules! throw {
             ($msg: expr) => {{
                 let error = new_error(
-                    self.get_pos().line as _,
+                    -1,
                     None,
                     &format!("Runtime exception: {}", $msg),
                 );
@@ -197,9 +196,57 @@ impl<'a> Frame<'a> {
 
         while self.pc < self.code.borrow().len() {
             let opcode = self.code.borrow()[self.pc];
+            self.cur_ins = opcode;
             self.pc += 1;
             use Opcode::*;
             match opcode {
+                NewIter => {
+                    let value = catch!(self.pop());
+                    let mut values = vec![];
+                    let value: &ValueData = &value.borrow();
+                    match value {
+                        ValueData::Object(object) => {
+                            
+                            for (key,val) in object.borrow().table.iter() {
+                                let entry = new_object();
+                                entry.borrow_mut().set("key",new_ref(key.clone()));
+                                entry.borrow_mut().set("value",val.clone());
+                                values.push(new_ref(ValueData::Object(entry)));
+                            }
+                            
+                        }
+                        ValueData::Array(values_) => {
+                            for val in values_.borrow().iter() {
+                                values.push(val.clone());
+                            }
+                        }
+                        _ => throw!("Array or object expected in iterator instance"),
+                    }
+                    let iter = new_ref(ValueIter {values});
+                    //gc_add_root(iter);
+                    
+                    self.stack.push(new_ref(ValueData::Iterator(iter)));
+                }
+                IterHasNext => {
+                    let maybe_iter = catch!(self.pop());
+                    let maybe_iter: &ValueData = &maybe_iter.borrow();
+                    match maybe_iter {
+                        ValueData::Iterator(iter) => {
+                            self.stack.push(new_ref(ValueData::Bool(iter.borrow().has_next())));
+                        }
+                        x => panic!("{:?}",x)
+                    }
+                }
+                IterNext => {
+                    let maybe_iter = catch!(self.pop());
+                    let maybe_iter: &ValueData = &maybe_iter.borrow();
+                    match maybe_iter {
+                        ValueData::Iterator(iter) => {
+                            self.stack.push(iter.borrow_mut().next());
+                        }
+                        _ => unreachable!()
+                    }
+                }
                 LoadConst(index) => {
                     let constant = self.m.constants[index as usize].clone();
                     self.push(constant);
@@ -213,6 +260,7 @@ impl<'a> Frame<'a> {
                 LoadTrue => {
                     self.push(true);
                 }
+
                 LoadNil => {
                     self.push(ValueData::Nil);
                 }
@@ -301,7 +349,7 @@ impl<'a> Frame<'a> {
                                 Function::Regular { yield_pos, .. } => {
                                     *yield_pos = None;
                                 }
-                                _ => (), // do nothin,external function
+                                _ => (), // do nothing,external function
                             }
                         }
                         None => (), // do nothing
@@ -363,8 +411,8 @@ impl<'a> Frame<'a> {
                         args.push(catch!(self.pop()));
                     }
 
-                    let mauybe_function = function.borrow();
-                    let maybe_function: &ValueData = &mauybe_function;
+                    let maybe_function = function.borrow();
+                    let maybe_function: &ValueData = &maybe_function;
                     match maybe_function {
                         ValueData::Function(fun_) => {
                             let fun_2 = fun_.clone();
@@ -378,7 +426,7 @@ impl<'a> Frame<'a> {
                                     )
                                         -> Result<Value, ValueData> =
                                         unsafe { std::mem::transmute(*addr) };
-
+                                    
                                     let result = catch!(fun(self, this, &args));
                                     self.push_ref(result);
                                 }
@@ -390,15 +438,16 @@ impl<'a> Frame<'a> {
                                     args: args_,
                                     yield_env,
                                 } => {
+                                    self.code = code.clone();
                                     self.funs.push(fun_2);
                                     match yield_pos {
                                         Some(ref pos) => {
                                             self.save_state(true, true, true, true);
                                             self.pc = *pos;
 
-                                            if &self.code != code {
-                                                self.code = code.clone();
-                                            }
+                                            
+                                            
+                                            
                                             self.env = yield_env.clone();
                                         }
                                         None => {
@@ -413,33 +462,42 @@ impl<'a> Frame<'a> {
                                             catch!(set_variable_in_scope(
                                                 &environment,
                                                 arg,
-                                                args[i].clone(),
-                                                &self.get_pos()
+                                                args.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),
+                                                &Position::new(0,0)
                                             ));
                                         } else {
                                             catch!(declare_var(
                                                 &environment,
                                                 arg,
-                                                args[i].clone(),
-                                                &self.get_pos()
+                                                args.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),
+                                                &Position::new(0,0)
                                             ))
                                         }
                                     }
                                     if var_declared(&environment, "this") {
-                                        catch!(
-                                            set_variable_in_scope(
-                                                &environment, "this", this, &self.get_pos())
-                                        );
+                                        catch!(set_variable_in_scope(
+                                            &environment,
+                                            "this",
+                                            this,
+                                            &Position::new(0,0)
+                                        ));
                                     } else {
-                                        catch!(
-                                            declare_var(
-                                                &environment, "this", this, &self.get_pos())
-                                        );
+                                        catch!(declare_var(
+                                            &environment,
+                                            "this",
+                                            this,
+                                            &Position::new(0,0)
+                                        ));
                                     }
                                 }
                             }
                         }
-                        _ => throw!("function expected"),
+                        _ => {
+
+                            println!("{}",maybe_function);
+                            throw!("function expected")
+
+                        },
                     }
                 }
                 PopCatch => {

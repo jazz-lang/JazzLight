@@ -10,16 +10,16 @@ pub mod ast;
 #[macro_use]
 pub mod macros;
 pub mod compiler;
-pub mod map;
 pub mod interner;
 pub mod lexer;
+pub mod map;
 pub mod msg;
 pub mod ngc;
 pub mod parser;
 pub mod reader;
 pub mod token;
 pub mod vm;
-use wrc::WRC as Arc;
+use Box as Arc;
 
 pub type P<T> = Arc<T>;
 
@@ -29,3 +29,12 @@ pub fn P<T>(value: T) -> Arc<T> {
 }
 
 pub use interner::{intern, str, Name};
+
+
+pub struct State {
+    
+}
+
+impl State {
+    
+}

@@ -1,18 +1,33 @@
 use super::runtime::array::*;
 use super::runtime::new_exfunc;
-use std::cell::{Ref as CRef,RefMut};
-use crate::ngc::{GCValue,gc_allocate,Collectable};
+use cgc::generational::*;
+use std::cell::{Ref as CRef, RefMut};
 
-pub fn new_ref<T: 'static + Collectable>(val: T) -> Ref<T> {
-    Ref(gc_allocate(val))
+pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
+    Ref(Rc::new(RefCell::new(val)))
 }
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct Ref<T: Collectable + Sized>(GCValue<T>);
+pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
+#[derive(Clone, PartialEq, PartialOrd, Debug)]
+pub struct Ref<T: Sized>(Rc<RefCell<T>>);
 
-unsafe impl<T: Send + Collectable> Send for Ref<T> {}
-unsafe impl<T: Sync + Collectable> Sync for Ref<T> {}
-impl<T: Collectable + 'static> Ref<T> {
+
+
+impl<T: 'static> Ref<T> {
+    pub fn borrow(&self) -> CRef<'_,T> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<'_,T> {
+        self.0.borrow_mut()
+    }
+}
+
+//unsafe impl<T: Send + Collectable> Send for Ref<T> {}
+//unsafe impl<T: Sync + Collectable> Sync for Ref<T> {}
+impl<T: Collectable + 'static> _Ref<T> {
     pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
     }
@@ -28,6 +43,24 @@ impl<T: Collectable + 'static> Ref<T> {
 use crate::map::LinkedHashMap;
 
 #[derive(Clone)]
+pub struct ValueIter {
+    pub values: Vec<Value>
+}
+
+impl ValueIter {
+    #[inline]
+    pub fn has_next(&self) -> bool {
+        !self.values.is_empty()
+    }
+
+    pub fn next(&mut self) -> Value {
+        self.values.remove(0)
+    }
+}
+
+
+
+#[derive(Clone)]
 pub enum ValueData {
     Nil,
 
@@ -38,6 +71,7 @@ pub enum ValueData {
     Object(Ref<Object>),
     Array(Ref<Vec<Value>>),
     Function(Ref<Function>),
+    Iterator(Ref<ValueIter>),
 }
 /*
 impl Mark for Object {
@@ -136,6 +170,7 @@ impl From<ValueData> for String {
             ValueData::Object(_) => format!("{}", val),
             ValueData::Bool(b) => format!("{}", b),
             ValueData::Function(_) => "<function>".to_owned(),
+            ValueData::Iterator(_iter) => format!("<iterator>"),
         }
     }
 }
@@ -148,6 +183,7 @@ pub enum Function {
         code: wrc::WRC<std::cell::RefCell<Vec<super::opcodes::Opcode>>>, // code of function module,not of function itself
         addr: usize,
         yield_pos: Option<usize>,
+        //constants: WRC<RefCell<Vec<ValueData>>>,
         yield_env: Ref<Object>,
         args: Vec<String>,
     },
@@ -179,7 +215,6 @@ impl SetGet for ValueData {
             }
             ValueData::Object(object) => {
                 object.borrow_mut().set(key, val);
-                //gc::new_ref(*object,val);
             }
             ValueData::Array(array_) => {
                 let mut array = array_.borrow_mut();
@@ -188,7 +223,8 @@ impl SetGet for ValueData {
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
             }
-            _ => (),
+            _ => {
+            },
         }
     }
 
@@ -223,6 +259,8 @@ impl SetGet for ValueData {
                             "push" => return new_exfunc(array_push),
                             "pop" => return new_exfunc(array_pop),
                             "sort" => return new_exfunc(array_sort),
+                            "indexOf" => return new_exfunc(array_indexof),
+                            "remove" => return new_exfunc(array_remove),
                             _ => return new_ref(ValueData::Undefined),
                         }
                     }
@@ -251,6 +289,7 @@ impl fmt::Display for ValueData {
             ValueData::String(s) => write!(f, "{}", s),
             ValueData::Object(object) => {
                 let object: &Object = &object.borrow();
+
                 write!(f, "{{")?;
                 for (i, (key, val)) in object.table.iter().enumerate() {
                     write!(f, "{}: {}", key, val.borrow())?;
@@ -260,6 +299,7 @@ impl fmt::Display for ValueData {
                 }
                 write!(f, "}}")
             }
+            ValueData::Iterator(_) => write!(f,"<iterator>"),
             ValueData::Array(array) => {
                 let array = array.borrow();
                 write!(f, "[")?;
@@ -417,7 +457,7 @@ pub fn get_variable(
     key: impl Into<ValueData>,
     pos: &Position,
 ) -> Result<Value, ValueData> {
-    let scopes: & Object = & scope.borrow();
+    let scopes: &Object = &scope.borrow();
     let key = key.into();
     if scopes.table.contains_key(&key) {
         return Ok(scopes.table.get(&key).unwrap().clone());
@@ -434,25 +474,10 @@ pub fn get_variable(
 
 impl SetGet for Object {
     fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
-        self.table.insert(key.into(), val.into());
+        let key = key.into();
+        self.table.insert(key, val.into());
     }
     fn get(&self, key: &ValueData) -> Value {
-        match key {
-            ValueData::String(name) => {
-                let name: &str = name;
-                match name {
-                    "__proto__" => {
-                        return match &self.proto {
-                            Some(proto) => new_ref(ValueData::Object(proto.clone())),
-                            None => new_ref(ValueData::Undefined),
-                        }
-                    }
-                    _ => (),
-                }
-            }
-            _ => (),
-        };
-
         self.table
             .get(key)
             .unwrap_or(&new_ref(ValueData::Undefined))
@@ -713,87 +738,68 @@ impl BitOr for ValueData {
     }
 }
 
-impl<T: Collectable + 'static> Collectable for Ref<T> {
-    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
-        self.borrow().child()
+
+/*
+impl Collectable for Object {
+    fn visit(&self,gc: &mut GenerationalGC)  {
+        match &self.proto {
+            Some(proto) => {
+                gc_add_root(proto.gc());
+                gc.push_grey(proto.gc());
+
+            }
+            _ => (),
+        };
+
+        for (key, val) in self.table.iter() {
+            key.visit(gc);
+            gc.push_grey(val.gc());
+        }
     }
 
-    fn size(&self) -> usize {
-        self.borrow().size()
+}
+impl<T: Collectable + 'static> Collectable for Ref<T> {
+    fn visit(&self,gc: &mut GenerationalGC) {
+        gc.push_grey(self.0);
     }
 }
 
-
 impl Collectable for ValueData {
-    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
-        let mut child = vec![];
+    fn visit(&self,gc: &mut GenerationalGC)  {
         match self {
             ValueData::Function(fun) => {
-                child.push(fun.gc());
+                gc.push_grey(fun.gc());
             }
             ValueData::Object(obj) => {
-                
-                child.push(obj.gc());
+                gc.push_grey(obj.gc());
             }
             ValueData::Array(array) => {
-                child.push(array.gc());
+                gc.push_grey(array.gc());
             }
-            _ => ()
+            ValueData::Iterator(iter) => {
+                gc.push_grey(*iter);
+            }
+            _ => (),
         }
-
-        child
     }
-    fn size(&self) -> usize {
-        std::mem::size_of::<Self>()
-    }
+    
 }
 
 impl Collectable for Function {
-    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+    fn visit(&self,gc: &mut GenerationalGC) {
         match self {
             Function::Regular {
                 environment,
                 yield_env,
                 ..
             } => {
-                let mut child = vec![];
-                child.push(yield_env.gc());
-                child.push(environment.gc());
-                return child;
+                gc.push_grey(yield_env.gc());
+                gc.push_grey(environment.gc());
             }
-            _ => vec![]
+            _ => (),
         }
     }
 
-    fn size(&self) -> usize {
-        std::mem::size_of::<Self>()
-    }
 }
+*/
 
-
-
-impl Collectable for Object {
-    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
-        let mut child = vec![];
-        match &self.proto {
-            Some(proto) => 
-            
-            {
-                crate::ngc::gc_add_root(proto.gc());
-                child.push(proto.gc())
-            },
-            _ => ()
-        };
-        
-        for (key,val) in self.table.iter() {
-            for child_ in key.child().iter() {
-                child.push(child_.clone());
-            }
-            child.push(val.gc());
-        }
-        child
-    }
-    fn size(&self) -> usize {
-        std::mem::size_of::<Self>()
-    }
-}

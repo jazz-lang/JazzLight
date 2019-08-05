@@ -51,7 +51,9 @@ impl Lexer {
             "include" => TokenKind::Include,
             "for" => TokenKind::For,
             "try" => TokenKind::Try,
-            "catch" => TokenKind::Catch
+            "catch" => TokenKind::Catch,
+            "new" => TokenKind::New,
+            "do" => TokenKind::Do
         );
 
         Lexer {
