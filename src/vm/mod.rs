@@ -83,9 +83,7 @@ impl<'a> Frame<'a> {
         }
         if restore_code {
             if let Some(ExecData::Code(code)) = self.exec_stack.pop() {
-                
                 self.code = code;
-                
             }
         }
         if restore_stack {
@@ -153,7 +151,11 @@ impl<'a> Frame<'a> {
     pub fn pop(&mut self) -> Result<Value, ValueData> {
         match self.stack.pop() {
             Some(val) => Ok(val),
-            None => Err(new_error(-1, None, &format!("Stack empty. Current instruction: {:?}",self.cur_ins))),
+            None => Err(new_error(
+                -1,
+                None,
+                &format!("Stack empty. Current instruction: {:?}", self.cur_ins),
+            )),
         }
     }
 
@@ -168,7 +170,7 @@ impl<'a> Frame<'a> {
                             self.push(e);
                             continue;
                         } else {
-                            eprintln!("{}: {}",line!(), e);
+                            eprintln!("{}: {}", line!(), e);
                             std::process::exit(1);
                         }
                     }
@@ -178,11 +180,7 @@ impl<'a> Frame<'a> {
 
         macro_rules! throw {
             ($msg: expr) => {{
-                let error = new_error(
-                    -1,
-                    None,
-                    &format!("Runtime exception: {}", $msg),
-                );
+                let error = new_error(-1, None, &format!("Runtime exception: {}", $msg));
                 if let Some(location) = self.exception_stack.pop() {
                     self.pc = location;
                     self.push(error);
@@ -206,25 +204,28 @@ impl<'a> Frame<'a> {
                     let value: &ValueData = &value.borrow();
                     match value {
                         ValueData::Object(object) => {
-                            
-                            for (key,val) in object.borrow().table.iter() {
+                            for (key, val) in object.borrow().table.iter() {
                                 let entry = new_object();
-                                entry.borrow_mut().set("key",new_ref(key.clone()));
-                                entry.borrow_mut().set("value",val.clone());
+                                entry.borrow_mut().set("key", new_ref(key.clone()));
+                                entry.borrow_mut().set("value", val.clone());
                                 values.push(new_ref(ValueData::Object(entry)));
                             }
-                            
                         }
                         ValueData::Array(values_) => {
                             for val in values_.borrow().iter() {
                                 values.push(val.clone());
                             }
                         }
+                        ValueData::Iterator(iterator) => {
+                            self.stack
+                                .push(new_ref(ValueData::Iterator(iterator.clone())));
+                            continue;
+                        }
                         _ => throw!("Array or object expected in iterator instance"),
                     }
-                    let iter = new_ref(ValueIter {values});
+                    let iter = new_ref(ValueIter { values });
                     //gc_add_root(iter);
-                    
+
                     self.stack.push(new_ref(ValueData::Iterator(iter)));
                 }
                 IterHasNext => {
@@ -232,9 +233,10 @@ impl<'a> Frame<'a> {
                     let maybe_iter: &ValueData = &maybe_iter.borrow();
                     match maybe_iter {
                         ValueData::Iterator(iter) => {
-                            self.stack.push(new_ref(ValueData::Bool(iter.borrow().has_next())));
+                            self.stack
+                                .push(new_ref(ValueData::Bool(iter.borrow().has_next())));
                         }
-                        x => panic!("{:?}",x)
+                        x => panic!("{:?}", x),
                     }
                 }
                 IterNext => {
@@ -244,7 +246,7 @@ impl<'a> Frame<'a> {
                         ValueData::Iterator(iter) => {
                             self.stack.push(iter.borrow_mut().next());
                         }
-                        _ => unreachable!()
+                        _ => unreachable!(),
                     }
                 }
                 LoadConst(index) => {
@@ -426,7 +428,7 @@ impl<'a> Frame<'a> {
                                     )
                                         -> Result<Value, ValueData> =
                                         unsafe { std::mem::transmute(*addr) };
-                                    
+
                                     let result = catch!(fun(self, this, &args));
                                     self.push_ref(result);
                                 }
@@ -445,9 +447,6 @@ impl<'a> Frame<'a> {
                                             self.save_state(true, true, true, true);
                                             self.pc = *pos;
 
-                                            
-                                            
-                                            
                                             self.env = yield_env.clone();
                                         }
                                         None => {
@@ -462,15 +461,19 @@ impl<'a> Frame<'a> {
                                             catch!(set_variable_in_scope(
                                                 &environment,
                                                 arg,
-                                                args.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),
-                                                &Position::new(0,0)
+                                                args.get(i)
+                                                    .unwrap_or(&new_ref(ValueData::Undefined))
+                                                    .clone(),
+                                                &Position::new(0, 0)
                                             ));
                                         } else {
                                             catch!(declare_var(
                                                 &environment,
                                                 arg,
-                                                args.get(i).unwrap_or(&new_ref(ValueData::Undefined)).clone(),
-                                                &Position::new(0,0)
+                                                args.get(i)
+                                                    .unwrap_or(&new_ref(ValueData::Undefined))
+                                                    .clone(),
+                                                &Position::new(0, 0)
                                             ))
                                         }
                                     }
@@ -479,25 +482,23 @@ impl<'a> Frame<'a> {
                                             &environment,
                                             "this",
                                             this,
-                                            &Position::new(0,0)
+                                            &Position::new(0, 0)
                                         ));
                                     } else {
                                         catch!(declare_var(
                                             &environment,
                                             "this",
                                             this,
-                                            &Position::new(0,0)
+                                            &Position::new(0, 0)
                                         ));
                                     }
                                 }
                             }
                         }
                         _ => {
-
-                            println!("{}",maybe_function);
+                            println!("{}", maybe_function);
                             throw!("function expected")
-
-                        },
+                        }
                     }
                 }
                 PopCatch => {

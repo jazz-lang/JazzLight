@@ -30,7 +30,7 @@ decl_fun!(
 );
 //use crate::vm::value::*;
 
-pub fn array_indexof(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn array_indexof(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
     let array: &ValueData = &this.borrow();
     match array {
         ValueData::Array(array) => {
@@ -38,21 +38,32 @@ pub fn array_indexof(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Val
             let index = array.borrow().iter().position(|f| f == &arg);
             match index {
                 Some(num) => Ok(new_ref(ValueData::Number(num as f64))),
-                None => Ok(new_ref(ValueData::Nil))
+                None => Ok(new_ref(ValueData::Nil)),
             }
         }
-        _ => return Err(new_error(-1,None,"Array.indexOf: array expected"))
+        _ => return Err(new_error(-1, None, "Array.indexOf: array expected")),
     }
 }
 
-pub fn array_remove(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn array_remove(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
     let array: &ValueData = &this.borrow();
     match array {
         ValueData::Array(array) => {
             let idx = f64::from(args[0].borrow().clone()) as i64 as usize;
             array.borrow_mut().remove(idx);
-        },
-        _ => return Err(new_error(-1, None,"Array.push: array expected"))
+        }
+        _ => return Err(new_error(-1, None, "Array.push: array expected")),
+    };
+    Ok(nil())
+}
+
+pub fn array_reverse(_: &mut Frame<'_>, this: Value, _args: &[Value]) -> Result<Value, ValueData> {
+    let array: &ValueData = &this.borrow();
+    match array {
+        ValueData::Array(array) => {
+            array.borrow_mut().reverse();
+        }
+        _ => return Err(new_error(-1, None, "Array.push: array expected")),
     };
     Ok(nil())
 }
@@ -62,8 +73,12 @@ pub fn array_object() -> Ref<Object> {
     array_proto.borrow_mut().set("push", new_exfunc(array_push));
     array_proto.borrow_mut().set("pop", new_exfunc(array_pop));
     array_proto.borrow_mut().set("sort", new_exfunc(array_sort));
-    array_proto.borrow_mut().set("indexOf",new_exfunc(array_indexof));
-    array_proto.borrow_mut().set("remove",new_exfunc(array_remove));
+    array_proto
+        .borrow_mut()
+        .set("indexOf", new_exfunc(array_indexof));
+    array_proto
+        .borrow_mut()
+        .set("remove", new_exfunc(array_remove));
     array_proto
 }
 

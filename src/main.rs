@@ -3,7 +3,7 @@ extern crate jazzc;
 use jazzc::compiler::*;
 use jazzc::parser::Parser;
 use jazzc::reader::Reader;
-use jazzc::vm::{Machine, Frame};
+use jazzc::vm::{Frame, Machine};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
@@ -21,13 +21,17 @@ pub struct Options {
     #[structopt(long = "optimize")]
     /// Try to optimize bytecode
     optimize: bool,
-    #[structopt(long = "run")]
+    #[structopt(long = "run", help = "run bytecode file")]
     run: bool,
+    #[structopt(short = "c", long = "compile", help = "emit bytecode file")]
+    compile: bool,
+    #[structopt(short = "o", parse(from_os_str))]
+    output: Option<PathBuf>,
 }
-
 use cgc::generational::*;
-use jazzc::vm::value::new_object;
 use jazzc::vm::runtime::register_builtins;
+use std::fs::{File, OpenOptions};
+use std::io::{Read, Write};
 
 fn main() {
     lazy_static::lazy_static! {
@@ -45,6 +49,27 @@ fn main() {
     */
 
     let ops: Options = Options::from_args();
+    if ops.run {
+        let string = ops.file.unwrap().to_str().unwrap().to_owned();
+        let mut file = File::open(&string).unwrap();
+        let mut m = Machine::new();
+        let mut code = vec![];
+
+        file.read_to_end(&mut code).unwrap();
+
+        let mut reader = jazzc::decoder::BytecodeReader {
+            machine: &mut m,
+            bytecode: code,
+            pc: 0,
+        };
+
+        let code = reader.read();
+        let mut frame = Frame::new(&mut m);
+        frame.code = wrc::WRC::new(std::cell::RefCell::new(code));
+        jazzc::vm::runtime::register_builtins(frame.env.clone());
+        frame.execute();
+        return;
+    }
     if ops.file.is_none() {
         repl();
     }
@@ -60,61 +85,80 @@ fn main() {
             std::process::exit(1);
         }
     }
+
     let mut m = Machine::new();
     let mut frame = Frame::new(&mut m);
     let mut c = Compiler::new(&mut frame);
-    c.compile_ast(&ast,true);
+    c.compile_ast(&ast, true);
     if ops.dump_op {
         for (i, op) in c.frame.code.borrow().iter().enumerate() {
             println!("{:04}: {:?}", i, op);
         }
     }
+    let mut writer = jazzc::writer::Writer {
+        machine: c.frame.m,
+        code: c.frame.code.borrow().clone(),
+        bytecode: vec![],
+        names: jazzc::map::LinkedHashMap::new(),
+    };
+    writer.emit();
 
-    c.frame.execute();
+    let path = match ops.output {
+        Some(path) => path.to_str().unwrap().to_owned(),
+        None => "output.j".to_owned(),
+    };
+    if !std::path::Path::new(&path).exists() {
+        File::create(&path).unwrap();
+    }
+    let mut file = OpenOptions::new().write(true).open(&path).unwrap();
+    file.set_len(0).unwrap();
+    file.write_all(&writer.bytecode).unwrap();
+
     //*STOP.lock() = true;
     //thread.join().unwrap();
     //gc_collect_not_par();
 }
 
-
-
 fn repl() {
-    use rustyline::{Editor,error::ReadlineError};
+    use rustyline::{error::ReadlineError, Editor};
     let mut rl = Editor::<()>::new();
-    let mut code = String::new();
+    //let mut code = String::new();
     let mut m = Machine::new();
     let mut f = Frame::new(&mut m);
     register_builtins(f.env.clone());
     let mut compiler = Compiler::new(&mut f);
+    let mut last_loc = 0;
     loop {
         let readline = rl.readline(">> ");
         match readline {
             Ok(line) => {
-                
                 rl.add_history_entry(line.clone());
                 let s: &str = &line;
                 if s == "exit" {
                     gc_collect_not_par();
                     std::process::exit(0);
-
                 }
-                code.push_str(s);
-                let reader = Reader::from_string(&code);
+
+                let reader = Reader::from_string(s);
                 let mut ast = vec![];
-                let mut p = Parser::new(reader,&mut ast);
+                let mut p = Parser::new(reader, &mut ast);
                 match p.parse() {
                     Ok(_) => (),
                     Err(e) => {
-                        eprintln!("{}",e);
+                        eprintln!("{}", e);
                         std::process::exit(1);
                     }
                 }
-                //gc_rmroot(compiler.frame.env.gc());
-                compiler.frame.env = new_object();
-                //gc_add_root(compiler.frame.env.gc());
-                compiler.compile_ast(&ast,true);
+                compiler.compile_ast(&ast, false);
+                if last_loc != 0 {
+                    compiler
+                        .frame
+                        .code
+                        .borrow_mut()
+                        .insert(0, jazzc::vm::opcodes::Opcode::Jump(last_loc + 1));
+                }
                 compiler.frame.execute();
-                //gc_collect_not_par();
+                last_loc = compiler.frame.code.borrow().len() as u32;
             }
 
             Err(ReadlineError::Interrupted) => {
@@ -124,12 +168,9 @@ fn repl() {
                 break;
             }
             Err(e) => {
-                eprintln!("{}",e);
+                eprintln!("{}", e);
                 break;
             }
-
         }
     }
-
-
 }

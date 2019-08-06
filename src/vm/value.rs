@@ -14,13 +14,11 @@ pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct Ref<T: Sized>(Arc<RefCell<T>>);
 
-
-
 impl<T: 'static> Ref<T> {
-    pub fn borrow(&self) -> CRef<'_,T> {
+    pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
     }
-    pub fn borrow_mut(&self) -> RefMut<'_,T> {
+    pub fn borrow_mut(&self) -> RefMut<'_, T> {
         self.0.borrow_mut()
     }
 }
@@ -44,7 +42,7 @@ use crate::map::LinkedHashMap;
 
 #[derive(Clone)]
 pub struct ValueIter {
-    pub values: Vec<Value>
+    pub values: Vec<Value>,
 }
 
 impl ValueIter {
@@ -57,8 +55,6 @@ impl ValueIter {
         self.values.remove(0)
     }
 }
-
-
 
 #[derive(Clone)]
 pub enum ValueData {
@@ -125,8 +121,6 @@ impl From<ValueData> for i64 {
         }
     }
 }
-
-
 
 impl From<ValueData> for f64 {
     fn from(val: ValueData) -> f64 {
@@ -233,11 +227,13 @@ impl SetGet for ValueData {
                 let mut array = array_.borrow_mut();
                 let idx = i64::from(key);
                 assert!(idx >= 0);
+                if idx as usize >= array.len() {
+                    panic!("Index out of bounds {:?}", array);
+                }
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
             }
-            _ => {
-            },
+            _ => {}
         }
     }
 
@@ -274,12 +270,16 @@ impl SetGet for ValueData {
                             "sort" => return new_exfunc(array_sort),
                             "indexOf" => return new_exfunc(array_indexof),
                             "remove" => return new_exfunc(array_remove),
+                            "reverse" => return new_exfunc(array_reverse),
                             _ => return new_ref(ValueData::Undefined),
                         }
                     }
                     ValueData::Number(idx) => {
                         let idx = *idx as i64;
                         assert!(idx >= 0);
+                        if idx as usize >= array.len() {
+                            panic!("Index out of bounds {:?}", array);
+                        }
                         return array[idx as usize].clone();
                     }
                     _ => return new_ref(ValueData::Undefined),
@@ -312,7 +312,7 @@ impl fmt::Display for ValueData {
                 }
                 write!(f, "}}")
             }
-            ValueData::Iterator(_) => write!(f,"<iterator>"),
+            ValueData::Iterator(_) => write!(f, "<iterator>"),
             ValueData::Array(array) => {
                 let array = array.borrow();
                 write!(f, "[")?;
@@ -751,7 +751,6 @@ impl BitOr for ValueData {
     }
 }
 
-
 /*
 impl Collectable for Object {
     fn visit(&self,gc: &mut GenerationalGC)  {
@@ -795,7 +794,7 @@ impl Collectable for ValueData {
             _ => (),
         }
     }
-    
+
 }
 
 impl Collectable for Function {
@@ -815,4 +814,3 @@ impl Collectable for Function {
 
 }
 */
-

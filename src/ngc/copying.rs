@@ -31,7 +31,7 @@ impl<T: Collectable + ?Sized + Unsize<U>, U: Collectable + ?Sized> CoerceUnsized
 }
 struct InGC<T: Collectable + ?Sized> {
     fwd: Address,
-    ptr: RefCell<T>
+    ptr: RefCell<T>,
 }
 
 unsafe impl<T: Collectable + ?Sized + Send> Send for InGC<T> {}
@@ -394,8 +394,6 @@ impl<T: Collectable + Ord + Eq> Ord for GCValue<T> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::super::*;
@@ -414,6 +412,5 @@ mod tests {
         gc_collect_not_par();
         assert!(true);
     }
-
 
 }

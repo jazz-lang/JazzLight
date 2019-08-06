@@ -31,8 +31,8 @@ pub struct Compiler<'a> {
 }
 
 use crate::ast::*;
-use crate::reader::Reader;
 use crate::parser::Parser;
+use crate::reader::Reader;
 
 impl<'a> Compiler<'a> {
     pub fn new(m: &'a mut Frame<'a>) -> Compiler<'a> {
@@ -49,7 +49,6 @@ impl<'a> Compiler<'a> {
             continues: vec![],
         }
     }
-
 
     pub fn pos(&self) -> usize {
         self.code.len()
@@ -161,10 +160,14 @@ impl<'a> Compiler<'a> {
         code
     }
 
-    pub fn include(&mut self,name: &str) {
+    pub fn include(&mut self, name: &str) {
         let name = name.to_owned();
-        let cur_dir = std::env::current_dir().unwrap().to_str().unwrap().to_string();
-        let cur_path = format!("{}/{}",cur_dir,name);
+        let cur_dir = std::env::current_dir()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let cur_path = format!("{}/{}", cur_dir, name);
         let path = if std::path::Path::new(&cur_path).exists() {
             cur_path
         } else {
@@ -179,12 +182,11 @@ impl<'a> Compiler<'a> {
         let mut ast = vec![];
 
         let r = Reader::from_file(&path).unwrap();
-        let mut p = Parser::new(r,&mut ast);
+        let mut p = Parser::new(r, &mut ast);
         p.parse().unwrap();
         for expr in ast.iter() {
             self.compile(expr);
         }
-
     }
 
     pub fn compile(&mut self, expr: &Expr) {
@@ -299,7 +301,6 @@ impl<'a> Compiler<'a> {
                 };
             }
             ExprDecl::Assign(lhs, rhs) => {
-
                 self.write(Opcode::Dup);
                 match &lhs.decl {
                     ExprDecl::Field(obj, field) => {
@@ -320,11 +321,10 @@ impl<'a> Compiler<'a> {
                         self.compile(rhs);
                         self.write(Opcode::StoreVar(intern(name)))
                     }
-                    ExprDecl::Const(Constant::This) =>
-                        {
-                            self.compile(rhs);
-                            self.write(Opcode::StoreVar(intern("this")));
-                        }
+                    ExprDecl::Const(Constant::This) => {
+                        self.compile(rhs);
+                        self.write(Opcode::StoreVar(intern("this")));
+                    }
 
                     _ => panic!("Can not assign"),
                 };
@@ -335,14 +335,13 @@ impl<'a> Compiler<'a> {
             ExprDecl::FunctionDecl(name, args, body) => {
                 self.compile_function(&body, &args, Some(name));
             }
-            ExprDecl::New(e,el) => {
+            ExprDecl::New(e, el) => {
                 for arg in el.iter().rev() {
                     self.compile(arg);
                 }
                 self.write(Opcode::NewObj);
                 self.compile(e);
                 self.write(Opcode::Call(el.len() as _));
-
             }
 
             ExprDecl::Call(e, el) => {
@@ -417,8 +416,7 @@ impl<'a> Compiler<'a> {
                 self.label_here(&end);
                 self.end();
             }
-            ExprDecl::DoWhile(cond,body) => {
-
+            ExprDecl::DoWhile(cond, body) => {
                 let end = self.new_empty_label();
                 let start = self.new_empty_label();
                 self.breaks.push(end.clone());
@@ -433,10 +431,9 @@ impl<'a> Compiler<'a> {
                 self.emit_gotot(&start);
                 self.end();
                 self.label_here(&end);
-
             }
 
-            ExprDecl::ForIn(name,in_,body) => {
+            ExprDecl::ForIn(name, in_, body) => {
                 let check = self.new_empty_label();
                 let end = self.new_empty_label();
                 self.breaks.push(end.clone());
@@ -446,7 +443,7 @@ impl<'a> Compiler<'a> {
                 self.write(Opcode::LoadNil);
                 self.write(Opcode::DeclVar(intern(name)));
                 self.compile(in_);
-                
+
                 self.write(Opcode::NewIter);
                 self.write(Opcode::DeclVar(intern("@iterator")));
                 self.label_here(&check);
@@ -462,7 +459,6 @@ impl<'a> Compiler<'a> {
                 self.emit_goto(&check);
                 self.end();
                 self.label_here(&end);
-                
             }
             ExprDecl::While(cond, body) => {
                 let check = self.new_empty_label();
@@ -494,7 +490,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    pub fn compile_ast(&mut self, ast: &[P<Expr>],declare_builtins: bool) {
+    pub fn compile_ast(&mut self, ast: &[P<Expr>], declare_builtins: bool) {
         let ret = self.new_empty_label();
         self.ret = ret.clone();
         for expr in ast.iter() {

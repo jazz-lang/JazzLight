@@ -78,15 +78,10 @@ impl<'a> Parser<'a> {
         let tok = self.advance_token()?;
         let name = self.lit_str()?;
         if let ExprDecl::Const(Constant::Str(name)) = &name.decl {
-            return Ok(
-                expr!(
-                ExprDecl::Include(name.clone()),tok.position
-                )
-            )
+            return Ok(expr!(ExprDecl::Include(name.clone()), tok.position));
         } else {
             unreachable!();
         }
-
     }
 
     fn parse_function(&mut self) -> EResult {
@@ -175,16 +170,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-
-
     fn parse_dowhile(&mut self) -> EResult {
-
         let pos = self.expect_token(TokenKind::Do)?.position;
         let block = self.parse_block()?;
         self.expect_token(TokenKind::While)?;
         let cond = self.parse_expression()?;
         Ok(expr!(ExprDecl::DoWhile(cond, block), pos))
-
     }
 
     fn parse_self(&mut self) -> EResult {
@@ -222,11 +213,17 @@ impl<'a> Parser<'a> {
             self.advance_token()?;
             let name = match &decl.decl {
                 ExprDecl::Const(Constant::Ident(name)) => name.to_owned(),
-                _ => return Err(MsgWithPos::new(self.lexer.path(),pos,Msg::ExpectedIdentifier("".to_owned()))),
+                _ => {
+                    return Err(MsgWithPos::new(
+                        self.lexer.path(),
+                        pos,
+                        Msg::ExpectedIdentifier("".to_owned()),
+                    ))
+                }
             };
             let in_ = self.parse_expression()?;
             let block = self.parse_expression()?;
-            
+
             Ok(expr!(ExprDecl::ForIn(name, in_, block), pos))
         } else {
             self.expect_token(TokenKind::Semicolon)?;
@@ -450,16 +447,15 @@ impl<'a> Parser<'a> {
         let pos = self.advance_token()?.position;
         let expr = self.parse_expression()?;
         match &expr.decl {
-            ExprDecl::Call(expr,args) => {
-                Ok(expr!(
-                    ExprDecl::New(expr.clone(),args.clone()),
-                    pos
+            ExprDecl::Call(expr, args) => Ok(expr!(ExprDecl::New(expr.clone(), args.clone()), pos)),
+            _ => {
+                return Err(MsgWithPos::new(
+                    self.lexer.path(),
+                    pos,
+                    Msg::FctCallExpected,
                 ))
-            },
-            _ => return Err(MsgWithPos::new(self.lexer.path(), pos, Msg::FctCallExpected))
+            }
         }
-
-        
     }
 
     fn expect_identifier(&mut self) -> Result<String, MsgWithPos> {

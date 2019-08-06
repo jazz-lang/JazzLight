@@ -6,12 +6,12 @@ use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
 
-#[derive(Copy, Clone, PartialEq, Eq,  Hash)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Name(pub usize);
 
 impl fmt::Debug for Name {
-    fn fmt(&self,f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f,"{:?}",str(*self))
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", str(*self))
     }
 }
 
