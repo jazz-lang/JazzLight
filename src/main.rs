@@ -1,14 +1,14 @@
-extern crate jazzc;
+extern crate jazzlight;
 
-use jazzc::compiler::*;
-use jazzc::parser::Parser;
-use jazzc::reader::Reader;
-use jazzc::vm::{Frame, Machine};
+use jazzlight::compiler::*;
+use jazzlight::parser::Parser;
+use jazzlight::reader::Reader;
+use jazzlight::vm::{Frame, Machine};
 use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "jazzc", version = "0.0.1")]
+#[structopt(name = "jazzlight", version = "0.0.1")]
 pub struct Options {
     #[structopt(name = "FILE", parse(from_os_str))]
     file: Option<PathBuf>,
@@ -29,7 +29,7 @@ pub struct Options {
     output: Option<PathBuf>,
 }
 use cgc::generational::*;
-use jazzc::vm::runtime::register_builtins;
+use jazzlight::vm::runtime::register_builtins;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 
@@ -57,7 +57,7 @@ fn main() {
 
         file.read_to_end(&mut code).unwrap();
 
-        let mut reader = jazzc::decoder::BytecodeReader {
+        let mut reader = jazzlight::decoder::BytecodeReader {
             machine: &mut m,
             bytecode: code,
             pc: 0,
@@ -66,7 +66,7 @@ fn main() {
         let code = reader.read();
         let mut frame = Frame::new(&mut m);
         frame.code = wrc::WRC::new(std::cell::RefCell::new(code));
-        jazzc::vm::runtime::register_builtins(frame.env.clone());
+        jazzlight::vm::runtime::register_builtins(frame.env.clone());
         frame.execute();
         return;
     }
@@ -95,11 +95,11 @@ fn main() {
             println!("{:04}: {:?}", i, op);
         }
     }
-    let mut writer = jazzc::writer::Writer {
+    let mut writer = jazzlight::writer::Writer {
         machine: c.frame.m,
         code: c.frame.code.borrow().clone(),
         bytecode: vec![],
-        names: jazzc::map::LinkedHashMap::new(),
+        names: jazzlight::map::LinkedHashMap::new(),
     };
     writer.emit();
 
@@ -155,7 +155,7 @@ fn repl() {
                         .frame
                         .code
                         .borrow_mut()
-                        .insert(0, jazzc::vm::opcodes::Opcode::Jump(last_loc + 1));
+                        .insert(0, jazzlight::vm::opcodes::Opcode::Jump(last_loc + 1));
                 }
                 compiler.frame.execute();
                 last_loc = compiler.frame.code.borrow().len() as u32;

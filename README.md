@@ -7,44 +7,24 @@ This language written for learning purposes and as target for Jazz language and 
 ## How to use compiler and VM
 Firstly you need compile your file:
 ```bash
-$ jazzlight file.jazz
+$ jazzlight file.jazz -o file.j
 ```
-Then you can execute bytecode:
-```bash
-$ jazzlight-vm file.j
+And then you can run program: 
 ```
-If you want to dump bytecode you can use compiler or `decoder` program:
-```bash
-$ jazzlight -d file.jazz
-# Or
-$ jazzlight-vm ~/.jazz/decoder file.j
+$ jazzlight file.j --run
 ```
 
-# Example 
+# Examples
 
 factorial:
-```coffeescript
+```js
 
-var fac = function(x) -> if x == 0 {
-    return 1
-} else {
-    return fac(x - 1) * x
+function fac(x) {
+    if x < 2 {
+        return 1
+    } else {
+        return fac(x - 1) * x
+    }
 }
 
-
-$print(fac(5))
-
 ```
-
-Creating object:
-```coffeescript
-
-var object = $new(null)
-
-object.x = 2
-
-var object2  = $new(object)
-$print(object.x == object2.x)
-
-```
-
