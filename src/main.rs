@@ -67,6 +67,7 @@ fn main() {
         let mut frame = Frame::new(&mut m);
         frame.code = wrc::WRC::new(std::cell::RefCell::new(code));
         jazzlight::vm::runtime::register_builtins(frame.env.clone());
+        
         frame.execute();
         return;
     }
@@ -105,7 +106,7 @@ fn main() {
 
     let path = match ops.output {
         Some(path) => path.to_str().unwrap().to_owned(),
-        None => "output.j".to_owned(),
+        None => "output".to_owned(),
     };
     if !std::path::Path::new(&path).exists() {
         File::create(&path).unwrap();

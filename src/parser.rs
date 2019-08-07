@@ -65,14 +65,34 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_import(&mut self) -> EResult {
-        unimplemented!()
-        /*let pos = self.expect_token(TokenKind::Import)?.position;
-        if let ExprDecl::ConstStr(s) = self.lit_str()?.expr {
+        let pos = self.expect_token(TokenKind::Import)?.position;
+        if let ExprDecl::Const(Constant::Str(s)) = &self.lit_str()?.decl {
             return Ok(expr!(ExprDecl::Import(s.clone()), pos));
         } else {
             unreachable!()
-        }*/
+        }
     }
+
+    fn parse_from_import(&mut self) -> EResult {
+        let pos = self.expect_token(TokenKind::From)?.position;
+        let from = if let ExprDecl::Const(Constant::Str(s)) = &self.lit_str()?.decl {
+            s.clone()
+        } else {
+            unreachable!()
+        };
+        self.expect_token(TokenKind::Import)?;
+        self.expect_token(TokenKind::LBrace)?;
+        let decls = self.parse_comma_list(TokenKind::RBrace,|f| {
+            f.expect_identifier()
+        })?;
+
+        Ok(
+            expr!(
+                ExprDecl::FromImpot(from,decls),pos
+            )
+        )
+    }
+
 
     fn parse_include(&mut self) -> EResult {
         let tok = self.advance_token()?;
@@ -85,7 +105,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_function(&mut self) -> EResult {
-        let pos = self.expect_token(TokenKind::Fun)?.position;
+        let pos = self.advance_token()?.position;
 
         let name = if let TokenKind::Identifier(name) = &self.token.kind {
             Some(name.to_owned())
@@ -149,7 +169,7 @@ impl<'a> Parser<'a> {
 
     fn parse_expression(&mut self) -> EResult {
         match self.token.kind {
-            TokenKind::Fun => self.parse_function(),
+            TokenKind::Fun | TokenKind::Dollar => self.parse_function(),
             TokenKind::Match => self.parse_match(),
             TokenKind::Let | TokenKind::Var => self.parse_let(),
             TokenKind::Yield => self.parse_yield(),
@@ -165,6 +185,7 @@ impl<'a> Parser<'a> {
             TokenKind::Return => self.parse_return(),
             TokenKind::Throw => self.parse_throw(),
             TokenKind::Import => self.parse_import(),
+            TokenKind::From => self.parse_from_import(),
             TokenKind::Try => self.parse_try(),
             _ => self.parse_binary(0),
         }

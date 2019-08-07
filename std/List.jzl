@@ -1,0 +1,79 @@
+function List() {
+    this.l = 0
+    this.h = nil
+    this.q = nil
+
+    this.len = function() {
+        return this.l
+    }
+    this.add = function(x) {
+        var a = [x,nil]
+        if this.q != nil {
+            this.q[1] = a
+        } else {
+            this.h = a
+        }
+        this.q = a 
+        this.l = this.l + 1 
+    }
+    this.push = function(x) {
+        var a = [x,this.h]
+        this.h = a 
+        if this.q == nil {
+            this.q = a 
+        }
+        this.l = this.l + 1
+    }
+    this.remove = function(x) {
+        var cur = this.h
+        var prev = nil
+        while cur != nil {
+            if cur[0] == x {
+                if prev == nil {
+                    this.h = cur[1]
+                } else {
+                    prev[1] = cur[1]
+                }
+                if this.q == cur {
+                    this.q = cur
+                }
+                return true
+            }
+            prev = cur
+            cur = cur[1]
+        }
+        return false
+    }
+
+    this.find = function(f) {
+        
+        var p = this.h
+        while p != nil {
+            
+            var x = f(p[0])
+            if x != nil {
+                return x
+            }
+            p = p[1]
+        }
+        return undefined
+    }
+
+    this.pop = function(x) {
+        if this.h == nil {
+            throw "No value to pop"
+        }
+        if this.q == this.h {
+            this.q = nil
+        }
+        var x = this.h[0]
+        this.h = this.h[1]
+        this.l = this.l - 1
+        return x
+    }
+
+
+    return this
+}
+
+exports.List = List

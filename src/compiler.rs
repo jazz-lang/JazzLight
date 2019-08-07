@@ -193,6 +193,36 @@ impl<'a> Compiler<'a> {
         self.pos = expr.pos;
         self.id = expr.id;
         match &expr.decl {
+            ExprDecl::Import(filename) => {
+                self.compile(&Expr {
+                    id: expr.id,
+                    pos: expr.pos,
+                    decl: ExprDecl::Call(crate::P(Expr {
+                        id: expr.id,
+                        pos: expr.pos,
+                        decl: ExprDecl::Const(Constant::Str("require".to_owned()))
+                    }),vec![crate::P(Expr {id: expr.id,pos: expr.pos,decl: ExprDecl::Const(Constant::Str(filename.to_owned()))})])
+                });
+                self.write(Opcode::DeclVar(intern(filename)));
+            }
+            ExprDecl::FromImpot(filename,decls) => {
+                let c = self.new_constant(filename);
+                self.write(Opcode::LoadConst(c as _));
+                self.write(Opcode::NewObj);
+                self.write(Opcode::LoadVar(intern("require")));
+                self.write(Opcode::Call(1));
+
+                let name = format!("@import_{}",expr.id);
+
+                self.write(Opcode::DeclVar(intern(&name)));
+                for decl in decls.iter() {
+                    self.write(Opcode::LoadVar(intern(&name)));
+                    let s = self.new_constant(decl);
+                    self.write(Opcode::LoadConst(s as _));
+                    self.write(Opcode::Load);
+                    self.write(Opcode::DeclVar(intern(decl)));
+                }
+            }
             ExprDecl::Include(name) => self.include(name),
             ExprDecl::Const(constant) => match constant {
                 Constant::Ident(name) => self.write(Opcode::LoadVar(intern(name))),

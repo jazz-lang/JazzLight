@@ -53,7 +53,7 @@ impl<'a> Writer<'a> {
                 self.get_str_id(s);
             }
         }
-        self.write_u8(0x24);
+        self.write_u32(self.names.len() as u32);
         for (string, idx) in self.names.clone().iter() {
             self.write_u32(*idx);
             self.write_u32(string.len() as _);
@@ -61,7 +61,6 @@ impl<'a> Writer<'a> {
                 self.write_u8(*byte);
             }
         }
-        self.write_u8(0x24);
         self.write_u32(self.machine.constants.len() as _);
 
         for i in 0..self.machine.constants.len() {
@@ -285,9 +284,10 @@ impl<'a> Writer<'a> {
                 Opcode::BlockStart => {
                     self.write_u8(52);
                 }
+                
             }
         }
-        self.write_u8(53);
+        self.write_u8(57);
         //self.write_u8(0);
     }
 }

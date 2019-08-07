@@ -2,8 +2,14 @@ use crate::vm::runtime::decl_fun;
 use crate::vm::value::*;
 
 decl_fun!(
-    function object_create(_frame,_this) {
+    function object_create(_frame,_this proto) {
         let object = new_object();
+        let proto: &ValueData = &proto.borrow();
+        let proto = match proto {
+            ValueData::Object(obj) => Some(obj.clone()),
+            _ => None
+        };
+        object.borrow_mut().proto = proto;
         Ok(new_ref(ValueData::Object(object)))
     } 
 );

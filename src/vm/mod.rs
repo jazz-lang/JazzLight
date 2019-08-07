@@ -286,12 +286,18 @@ impl<'a> Frame<'a> {
                     //
                     let pos = Position::new(0, 0);
                     let val = catch!(self.pop());
-                    catch!(declare_var(
-                        &self.env,
-                        ValueData::String(str(name).to_string()),
-                        val,
-                        &pos
-                    ));
+                    if var_declared(&self.env, ValueData::String(str(name).to_string())) {
+                        catch!(
+                            set_variable_in_scope(&self.env, ValueData::String(str(name).to_string()), val, &pos)
+                        );
+                    } else {
+                        catch!(declare_var(
+                            &self.env,
+                            ValueData::String(str(name).to_string()),
+                            val,
+                            &pos
+                        ));
+                    }
                 }
                 StoreVar(name) => {
                     //let pos = *self.m.line_no.get(&(self.pc - 1, opcode)).unwrap();
@@ -496,7 +502,7 @@ impl<'a> Frame<'a> {
                             }
                         }
                         _ => {
-                            println!("{}", maybe_function);
+                            println!("{} {:?}", maybe_function,args);
                             throw!("function expected")
                         }
                     }
@@ -521,6 +527,7 @@ impl<'a> Frame<'a> {
                         self.pc = to as usize;
                     }
                 }
+
                 InitEnv => {
                     let fun = catch!(self.pop());
                     let fun: &ValueData = &fun.borrow();
@@ -569,7 +576,11 @@ impl<'a> Frame<'a> {
                         Le => (lhs <= rhs).into(),
                         Ge => (lhs >= rhs).into(),
                         Eq => (lhs == rhs).into(),
-                        Ne => (lhs != rhs).into(),
+                        Ne => 
+                        {
+                           
+                            (lhs != rhs).into()
+                        },
                         _ => unreachable!(),
                     };
                     self.push(result);

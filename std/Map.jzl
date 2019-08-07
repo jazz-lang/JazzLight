@@ -1,0 +1,43 @@
+function Map() {
+    this.entries = []
+
+    this.insert = function(key,val) {
+        for entry in this.entries {
+            if entry[0] == key {
+                entry[1] = val
+                return false
+            }
+        }
+
+        var entry = [key,val]
+        this.entries.push(entry)
+        return true
+    }
+
+    this.iter = function(f) {
+        for entry in this.entries {
+            f(entry[0],entry[1])
+        }
+    }
+    this.map = function(f) {
+        var r = []
+        for entry in this.entries {
+            r.push(f(entries[0],entries[1]))
+        }
+        return r
+    }
+
+    this.get = function(key) {
+        for entry in this.entries {
+            if entry[0] == key {
+                return entry[1]
+            }
+        }
+
+        throw "Key '" + key + "' not found"
+    }
+    this
+}
+
+
+exports.Map = Map

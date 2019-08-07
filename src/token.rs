@@ -37,6 +37,7 @@ pub enum TokenKind {
     Match,
     Fun,
     Try,
+    From,
     Catch,
     Undefined,
     Let,
@@ -67,6 +68,7 @@ pub enum TokenKind {
     // Operators
     Add,
     Sub,
+    Dollar,
     Mul,
     Div,
     Mod,
@@ -126,8 +128,8 @@ impl TokenKind {
 
             TokenKind::LQuote => "<",
             TokenKind::RQuote => ">",
-
-            // Keywords
+            TokenKind::Dollar => "$",
+            // Keywords 
             TokenKind::This => "this",
             TokenKind::New => "new",
             TokenKind::Fun => "function",
@@ -139,6 +141,7 @@ impl TokenKind {
             TokenKind::If => "if",
             TokenKind::Else => "else",
             TokenKind::Loop => "loop",
+            TokenKind::From => "from",
             TokenKind::For => "for",
             TokenKind::In => "in",
             TokenKind::Break => "break",

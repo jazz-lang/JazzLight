@@ -27,8 +27,8 @@ impl<'a> BytecodeReader<'a> {
     pub fn read(&mut self) -> Vec<Opcode> {
         let mut strings = LinkedHashMap::new();
         let mut opcodes = vec![];
-        self.read_u8();
-        while self.bytecode[self.pc] != 0x24 {
+        let count = self.read_u32();
+        for _ in 0..count {
             let idx = self.read_u32();
             let len = self.read_u32() as usize;
             let mut bytes = vec![];
@@ -38,7 +38,6 @@ impl<'a> BytecodeReader<'a> {
             let s = String::from_utf8(bytes).unwrap();
             strings.insert(idx, s);
         }
-        self.read_u8();
         let count = self.read_u32();
         for _ in 0..count {
             let byte = self.read_u8();
@@ -87,12 +86,13 @@ impl<'a> BytecodeReader<'a> {
         }
 
         let mut byte = self.read_u8();
-        while byte != 53 && self.pc < self.bytecode.len() {
+        while byte != 57 && self.pc < self.bytecode.len() {
             match byte {
                 54 => {
                     let integer = self.read_u64() as i64;
                     opcodes.push(Opcode::LoadInt(integer))
                 }
+
                 1 => {
                     opcodes.push(Opcode::LoadNil);
                 }
@@ -197,11 +197,29 @@ impl<'a> BytecodeReader<'a> {
                 30 => {
                     opcodes.push(Opcode::IterNext);
                 }
-                _ => {
-                    // we can transmute there because other opcodes is one byte size
-                    let op: Opcode = unsafe { std::mem::transmute_copy(&byte) };
-                    opcodes.push(op);
-                }
+                31 => opcodes.push(Opcode::Add),
+                32 => opcodes.push(Opcode::Sub),
+                33 => opcodes.push(Opcode::Div),
+                34 => opcodes.push(Opcode::Mul),
+                35 => opcodes.push(Opcode::Rem),
+                36 => opcodes.push(Opcode::Shr),
+                37 => opcodes.push(Opcode::Shl),
+                38 => opcodes.push(Opcode::Gt),
+                39 => opcodes.push(Opcode::Lt),
+                40 => opcodes.push(Opcode::Ge),
+                41 => opcodes.push(Opcode::Le),
+                42 => opcodes.push(Opcode::Eq),
+                43 => opcodes.push(Opcode::Ne),
+                44 => opcodes.push(Opcode::And),
+                45 => opcodes.push(Opcode::Or),
+                46 => opcodes.push(Opcode::BitXor),
+                47 => opcodes.push(Opcode::BitOr),
+                48 => opcodes.push(Opcode::BitAnd),
+                49 => opcodes.push(Opcode::Not),
+                50 => opcodes.push(Opcode::Neg),
+                51 => opcodes.push(Opcode::BlockEnd),
+                52 => opcodes.push(Opcode::BlockStart),
+                x => panic!("{}",x)
             }
             if self.pc == self.bytecode.len() {
                 break;

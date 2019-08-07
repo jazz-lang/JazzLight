@@ -61,6 +61,8 @@ pub enum WhileFlag {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprDecl {
+    Import(String),
+    FromImpot(String,Vec<String>),
     Assign(P<Expr>, P<Expr>),
     Const(Constant),
     Block(Vec<P<Expr>>),

@@ -53,7 +53,8 @@ impl Lexer {
             "try" => TokenKind::Try,
             "catch" => TokenKind::Catch,
             "new" => TokenKind::New,
-            "do" => TokenKind::Do
+            "do" => TokenKind::Do,
+            "from" => TokenKind::From
         );
 
         Lexer {
@@ -255,7 +256,7 @@ impl Lexer {
             '*' => TokenKind::Mul,
             '/' => TokenKind::Div,
             '%' => TokenKind::Mod,
-
+            '$' => TokenKind::Dollar,
             '(' => TokenKind::LParen,
             ')' => TokenKind::RParen,
             '[' => TokenKind::LBracket,

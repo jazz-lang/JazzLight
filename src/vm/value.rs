@@ -228,7 +228,7 @@ impl SetGet for ValueData {
                 let idx = i64::from(key);
                 assert!(idx >= 0);
                 if idx as usize >= array.len() {
-                    panic!("Index out of bounds {:?}", array);
+                    panic!("Index '{}' out of bounds {:?}", idx,array);
                 }
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
@@ -283,6 +283,29 @@ impl SetGet for ValueData {
                         return array[idx as usize].clone();
                     }
                     _ => return new_ref(ValueData::Undefined),
+                }
+            }
+            ValueData::String(s) => {
+                match key {
+                    ValueData::String(key) => {
+                        let key: &str = key;
+                        match key {
+                            "length" => return new_ref(ValueData::Number(s.len() as _)),
+                            "bytes" => return new_ref(ValueData::Array(new_ref(
+                                s.clone().into_bytes().iter().map(|x| new_ref(ValueData::Number(*x as _))).collect()
+                            ))),
+
+                            _ => return new_ref(ValueData::Undefined)
+                        }
+                    }
+                    ValueData::Number(x) => {
+                        let idx = *x as usize;
+                        match s.chars().nth(idx) {
+                            Some(character) => return new_ref(ValueData::String(character.to_string())),
+                            None =>  return new_ref(ValueData::Undefined)
+                        }
+                    }
+                    _ => return new_ref(ValueData::Undefined)
                 }
             }
             _ => new_ref(ValueData::Undefined),
