@@ -129,7 +129,7 @@ impl TokenKind {
             TokenKind::LQuote => "<",
             TokenKind::RQuote => ">",
             TokenKind::Dollar => "$",
-            // Keywords 
+            // Keywords
             TokenKind::This => "this",
             TokenKind::New => "new",
             TokenKind::Fun => "function",

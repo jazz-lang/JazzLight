@@ -67,7 +67,7 @@ fn main() {
         let mut frame = Frame::new(&mut m);
         frame.code = wrc::WRC::new(std::cell::RefCell::new(code));
         jazzlight::vm::runtime::register_builtins(frame.env.clone());
-        
+
         frame.execute();
         return;
     }

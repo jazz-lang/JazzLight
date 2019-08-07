@@ -287,9 +287,12 @@ impl<'a> Frame<'a> {
                     let pos = Position::new(0, 0);
                     let val = catch!(self.pop());
                     if var_declared(&self.env, ValueData::String(str(name).to_string())) {
-                        catch!(
-                            set_variable_in_scope(&self.env, ValueData::String(str(name).to_string()), val, &pos)
-                        );
+                        catch!(set_variable_in_scope(
+                            &self.env,
+                            ValueData::String(str(name).to_string()),
+                            val,
+                            &pos
+                        ));
                     } else {
                         catch!(declare_var(
                             &self.env,
@@ -502,7 +505,7 @@ impl<'a> Frame<'a> {
                             }
                         }
                         _ => {
-                            println!("{} {:?}", maybe_function,args);
+                            println!("{} {:?}", maybe_function, args);
                             throw!("function expected")
                         }
                     }
@@ -576,11 +579,7 @@ impl<'a> Frame<'a> {
                         Le => (lhs <= rhs).into(),
                         Ge => (lhs >= rhs).into(),
                         Eq => (lhs == rhs).into(),
-                        Ne => 
-                        {
-                           
-                            (lhs != rhs).into()
-                        },
+                        Ne => (lhs != rhs).into(),
                         _ => unreachable!(),
                     };
                     self.push(result);

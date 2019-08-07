@@ -284,7 +284,6 @@ impl<'a> Writer<'a> {
                 Opcode::BlockStart => {
                     self.write_u8(52);
                 }
-                
             }
         }
         self.write_u8(57);

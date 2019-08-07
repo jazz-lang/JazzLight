@@ -197,22 +197,29 @@ impl<'a> Compiler<'a> {
                 self.compile(&Expr {
                     id: expr.id,
                     pos: expr.pos,
-                    decl: ExprDecl::Call(crate::P(Expr {
-                        id: expr.id,
-                        pos: expr.pos,
-                        decl: ExprDecl::Const(Constant::Str("require".to_owned()))
-                    }),vec![crate::P(Expr {id: expr.id,pos: expr.pos,decl: ExprDecl::Const(Constant::Str(filename.to_owned()))})])
+                    decl: ExprDecl::Call(
+                        crate::P(Expr {
+                            id: expr.id,
+                            pos: expr.pos,
+                            decl: ExprDecl::Const(Constant::Str("require".to_owned())),
+                        }),
+                        vec![crate::P(Expr {
+                            id: expr.id,
+                            pos: expr.pos,
+                            decl: ExprDecl::Const(Constant::Str(filename.to_owned())),
+                        })],
+                    ),
                 });
                 self.write(Opcode::DeclVar(intern(filename)));
             }
-            ExprDecl::FromImpot(filename,decls) => {
+            ExprDecl::FromImpot(filename, decls) => {
                 let c = self.new_constant(filename);
                 self.write(Opcode::LoadConst(c as _));
                 self.write(Opcode::NewObj);
                 self.write(Opcode::LoadVar(intern("require")));
                 self.write(Opcode::Call(1));
 
-                let name = format!("@import_{}",expr.id);
+                let name = format!("@import_{}", expr.id);
 
                 self.write(Opcode::DeclVar(intern(&name)));
                 for decl in decls.iter() {

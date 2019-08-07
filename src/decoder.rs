@@ -219,7 +219,7 @@ impl<'a> BytecodeReader<'a> {
                 50 => opcodes.push(Opcode::Neg),
                 51 => opcodes.push(Opcode::BlockEnd),
                 52 => opcodes.push(Opcode::BlockStart),
-                x => panic!("{}",x)
+                x => panic!("{}", x),
             }
             if self.pc == self.bytecode.len() {
                 break;

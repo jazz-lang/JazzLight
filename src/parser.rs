@@ -82,17 +82,10 @@ impl<'a> Parser<'a> {
         };
         self.expect_token(TokenKind::Import)?;
         self.expect_token(TokenKind::LBrace)?;
-        let decls = self.parse_comma_list(TokenKind::RBrace,|f| {
-            f.expect_identifier()
-        })?;
+        let decls = self.parse_comma_list(TokenKind::RBrace, |f| f.expect_identifier())?;
 
-        Ok(
-            expr!(
-                ExprDecl::FromImpot(from,decls),pos
-            )
-        )
+        Ok(expr!(ExprDecl::FromImpot(from, decls), pos))
     }
-
 
     fn parse_include(&mut self) -> EResult {
         let tok = self.advance_token()?;
