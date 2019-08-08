@@ -398,6 +398,21 @@ fn val_str(v: &Value) -> String {
     }
 }
 
+pub fn str_trim(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let val = val_str(&args[0]);
+    return Ok(new_ref(ValueData::String(val.trim().to_owned())));
+}
+
+pub fn str_split(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let val = val_str(&args[0]);
+    let val2 = val_str(&args[1]);
+    let s = val.split(val2.chars().nth(0).unwrap_or(' ')).collect::<Vec<_>>();
+    let val = new_ref(s.iter().map(|x| new_ref(ValueData::String(x.to_string()))).collect::<Vec<_>>());
+    return Ok(new_ref(ValueData::Array(val)));
+}
+
+
+
 fn val_array(v: &Value) -> Ref<Vec<Value>> {
     let v: &ValueData = &v.borrow();
     match v {
@@ -475,6 +490,17 @@ pub fn str_from_utf8(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
         Err(e) => return Err(new_error(-1, None, &e.to_string())),
     }
 }
+pub fn str_chars(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    return Ok(
+        new_ref(
+            ValueData::Array(
+                new_ref(
+                    val_str(&args[0]).chars().map(|x| new_ref(ValueData::String(x.to_string()))).collect()
+                )
+            )
+        )
+    )
+}
 
 pub fn register_builtins(env: Ref<Object>) {
     let err = new_object();
@@ -535,4 +561,9 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "Object", new_ref(ValueData::Object(obj)), &pos).unwrap();
 
     declare_var(&env, "char_to_num", new_exfunc(char_to_num), &pos).unwrap();
+    declare_var(&env, "str_split", new_exfunc(str_split),&pos).unwrap();
+    declare_var(&env, "str_trim", new_exfunc(str_trim),&pos).unwrap();
+    declare_var(&env, "str_chars", new_exfunc(str_chars),&pos).unwrap();
+    
 }
+

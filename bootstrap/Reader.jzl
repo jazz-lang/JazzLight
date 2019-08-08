@@ -1,0 +1,116 @@
+function Reader(filename,string) {
+    this.filename = filename
+    this.src = string
+    this.pos = 0
+    this.next_pos = 0
+    this.cur = nil
+    this.line = 0
+    this.col = 0
+    this.tabwidth = 0
+
+    this.advance = function() {
+        if this.cur == "\n" {
+            this.line = this.line + 1
+            this.col = this.col + 1
+        } else if this.cur == "\t" {
+            var tabtdepth = (this.col - 1) / this.tabwidth
+            this.col = 1 + this.tabwidth * (this.tabtdepth + 1)
+        } else {
+            this.col = this.col + 1
+        }
+
+        if this.next_pos < this.src.length {
+            var ch = this.src[this.next_pos]
+            this.pos = this.next_pos
+            this.next_pos = this.next_pos + 1
+
+            this.cur = ch
+        } else {
+            this.cur = nil
+        }
+        this.cur
+    }
+
+    this.next = function() {
+        if this.next_pos < this.src.length {
+            var ch = this.src[this.next_pos]
+            return ch
+        } else {
+            return nil
+        }
+    }
+
+    this
+}
+
+var r = Reader("file.jzl","hello")
+
+function ch_to_digit(ch,radix) {
+    
+    if radix <= 10 {
+        if ch == "0" || ch == "1" || ch == "2"
+        || ch == "3" || ch == "4" || ch == "5"
+        || ch == "6" || ch == "7" || ch == "8"
+        || ch == "9"
+        {
+            return char_to_num(ch) - char_to_num("0")
+        } else {
+            return nil
+        }
+    } else {
+        return nil
+    }
+}
+
+function ch_is_digit(ch,r) {
+    return ch_to_digit(ch,r) != nil 
+}
+
+function Token(lexeme,keyword) {
+    this.lexeme = lexeme
+    if keyword != undefined {
+        this.keyword = keyword
+    }
+    this.args = []
+
+    this
+}
+
+var tokens = [
+    Token("str"),
+    Token("int"),
+    Token("float"),
+    Token("ident"),
+    Token("end"),
+    Token("lquoute"),
+    Token("rquoute"),
+    Token("this",true),
+    Token("match",true),
+    Token("function",true),
+    Token("try",true),
+    Token("from",true),
+    Token("catch",true),
+    Token("undefined",true),
+    Token("let",true),
+    Token("var",true),
+    Token("while",true),
+    Token("if",true),
+    Token("new",true),
+    Token("else",true),
+    Token("for",true),
+    Token("in",true),
+    Token("break",true),
+    Token("continue",true),
+    Token("return",true),
+    Token("true",true),
+    Token("false",true),
+    Token("nil",true),
+    Token("throw",true),
+    Token("yield",true),
+    Token("do",true),
+    Token("foreach",true),
+    Token("import",true),
+    Token("type",false),
+    Token("const",true),
+    Token("underscore"),
+]
