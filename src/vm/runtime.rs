@@ -85,6 +85,8 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                     args,
                     code,
                     addr,
+                    set,
+                    get,
                     //constants,
                     ..
                 } => {
@@ -96,6 +98,8 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                         //constants: constants.clone(),
                         yield_env: new_object(),
                         yield_pos: None,
+                        set: *set,
+                        get: *get,
                     };
 
                     return Ok(new_ref(ValueData::Function(new_ref(func))));
@@ -142,8 +146,6 @@ pub fn require(_frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value
             name
         }
     };
-    use std::fs::File;
-    use std::io::Read;
     let mut file = File::open(&path).unwrap();
     let mut m = Machine::new();
     let mut code = vec![];
@@ -217,12 +219,22 @@ pub fn file(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueD
     let file_object = new_object();
     file_object
         .borrow_mut()
-        .set("name", ValueData::String(file_name.clone()));
+        .set("name", ValueData::String(file_name.clone()))?;
+
+    if !std::path::Path::new(&file_name).exists() {
+        match std::fs::File::create(&file_name) {
+            Ok(_) => (),
+            Err(e) => return Err(new_error(-1, None, &e.to_string())),
+        }
+    }
     let file = File::open(&file_name);
     let mut file = match file {
         Ok(file) => file,
         Err(e) => return Err(new_error(-1, None, &e.to_string())),
     };
+    file_object
+        .borrow_mut()
+        .set("path", ValueData::String(file_name.clone()))?;
 
     let mut bytes = vec![];
     match file.read_to_end(&mut bytes) {
@@ -239,18 +251,151 @@ pub fn file(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueD
     match file.read_to_string(&mut string) {
         Ok(_) => file_object
             .borrow_mut()
-            .set("contents", ValueData::String(string)),
+            .set("contents", ValueData::String(string))?,
         Err(_) => {}
     }
     file_object
         .borrow_mut()
-        .set("bytes", ValueData::Array(new_ref(bytes)));
+        .set("bytes", ValueData::Array(new_ref(bytes)))?;
+
+    fn write(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
+        let this: &ValueData = &this.borrow();
+        match this {
+            ValueData::Object(object) => {
+                let path = val_str(
+                    &object
+                        .borrow()
+                        .get(&ValueData::String("path".to_owned()))
+                        .unwrap_or(Property::new("", nil()))
+                        .value,
+                );
+                let contents = String::from(args[0].borrow().clone());
+                if !std::path::Path::new(&path).exists() {
+                    match std::fs::File::create(&path) {
+                        Ok(_) => (),
+                        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                    }
+                }
+                let file = std::fs::OpenOptions::new().write(true).open(&path);
+                match file {
+                    Ok(mut file) => {
+                        let bytes = contents.into_bytes();
+
+                        match file.write_all(&bytes) {
+                            Ok(_) => return Ok(nil()),
+                            Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                        }
+                    }
+                    Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                }
+            }
+            _ => return Err(new_error(-1, None, "File object expected")),
+        }
+    }
+
+    fn clear(_: &mut Frame<'_>, this: Value, _: &[Value]) -> Result<Value, ValueData> {
+        let this: &ValueData = &this.borrow();
+        match this {
+            ValueData::Object(object) => {
+                let path = val_str(
+                    &object
+                        .borrow()
+                        .get(&ValueData::String("path".to_owned()))
+                        .unwrap_or(Property::new("", nil()))
+                        .value,
+                );
+
+                if !std::path::Path::new(&path).exists() {
+                    return Ok(nil());
+                }
+                let file = std::fs::OpenOptions::new().write(true).open(&path);
+                match file {
+                    Ok(file) => {
+                        match file.set_len(0) {
+                            Ok(_) => (),
+                            Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                        }
+                        object
+                            .borrow_mut()
+                            .set("bytes", new_ref(ValueData::Array(new_ref(vec![]))))
+                            .unwrap();
+                        object
+                            .borrow_mut()
+                            .set("contents", new_ref(ValueData::String("".to_owned())))
+                            .unwrap();
+                        return Ok(nil());
+                    }
+                    Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                }
+            }
+            _ => return Err(new_error(-1, None, "File object expected")),
+        }
+    }
+
+    fn write_bytes(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
+        let this: &ValueData = &this.borrow();
+        match this {
+            ValueData::Object(object) => {
+                let path = val_str(
+                    &object
+                        .borrow()
+                        .get(&ValueData::String("path".to_owned()))
+                        .unwrap_or(Property::new("", nil()))
+                        .value,
+                );
+                let contents = args[0].borrow().clone();
+                let bytes = match contents {
+                    ValueData::String(s) => s.into_bytes(),
+                    ValueData::Array(array) => {
+                        array.borrow().iter().map(|x| val_int(x) as u8).collect()
+                    }
+                    _ => return Err(new_error(-1, None, "File.write: string or array expected")),
+                };
+                if !std::path::Path::new(&path).exists() {
+                    match std::fs::File::create(&path) {
+                        Ok(_) => (),
+                        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                    }
+                }
+                let file = std::fs::OpenOptions::new().write(true).open(&path);
+                match file {
+                    Ok(mut file) => match file.write_all(&bytes) {
+                        Ok(_) => return Ok(nil()),
+                        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                    },
+                    Err(e) => return Err(new_error(-1, None, &e.to_string())),
+                }
+            }
+            _ => return Err(new_error(-1, None, "File object expected")),
+        }
+    }
+
+    file_object
+        .borrow_mut()
+        .set("write_string", new_exfunc(write))
+        .unwrap();
+    file_object
+        .borrow_mut()
+        .set("write_bytes", new_exfunc(write_bytes))
+        .unwrap();
+    file_object
+        .borrow_mut()
+        .set("clear", new_exfunc(clear))
+        .unwrap();
 
     Ok(new_ref(ValueData::Object(file_object)))
 }
 
 fn val_int(v: &Value) -> i64 {
     return i64::from(v.borrow().clone());
+}
+
+fn val_str(v: &Value) -> String {
+    let v: &ValueData = &v.borrow();
+    match v {
+        ValueData::String(s) => return s.clone(),
+        _ => String::new(),
+    }
 }
 
 fn val_array(v: &Value) -> Ref<Vec<Value>> {
@@ -334,7 +479,7 @@ pub fn str_from_utf8(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
 pub fn register_builtins(env: Ref<Object>) {
     let err = new_object();
     let pos = &Position::new(0, 0);
-    err.borrow_mut().set("__name__", "JLRuntimeError");
+    err.borrow_mut().set("__name__", "JLRuntimeError").unwrap();
     let obj = new_ref(ValueData::Object(err));
     //gc_add_root(obj.gc());
     declare_var(&env, "JLRuntimeError", obj, &pos).unwrap();
@@ -368,21 +513,24 @@ pub fn register_builtins(env: Ref<Object>) {
     .unwrap();
     declare_var(&env, "len", new_exfunc(len), &pos).unwrap();
     declare_var(&env, "range", new_exfunc(range), &pos).unwrap();
-    declare_var(&env, "file", new_exfunc(file), &pos).unwrap();
+    declare_var(&env, "File", new_exfunc(file), &pos).unwrap();
     declare_var(&env, "int_from_bytes", new_exfunc(int_from_bytes), &pos).unwrap();
     declare_var(&env, "float_from_bits", new_exfunc(float_from_bits), &pos).unwrap();
 
     let str_obj = new_object();
     str_obj
         .borrow_mut()
-        .set("from_utf8", new_exfunc(str_from_utf8));
+        .set("from_utf8", new_exfunc(str_from_utf8))
+        .unwrap();
 
     declare_var(&env, "String", new_ref(ValueData::Object(str_obj)), &pos).unwrap();
     let obj = new_object();
-    obj.borrow_mut().set(
-        "create",
-        new_exfunc(crate::vm::runtime::object::object_create),
-    );
+    obj.borrow_mut()
+        .set(
+            "create",
+            new_exfunc(crate::vm::runtime::object::object_create),
+        )
+        .unwrap();
 
     declare_var(&env, "Object", new_ref(ValueData::Object(obj)), &pos).unwrap();
 

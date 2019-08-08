@@ -106,7 +106,22 @@ fn main() {
 
     let path = match ops.output {
         Some(path) => path.to_str().unwrap().to_owned(),
-        None => "output".to_owned(),
+        None => {
+            let p = std::path::Path::new(&string);
+            match p.file_name() {
+                Some(file_name) => {
+                    let p = std::path::Path::new(&file_name);
+                    match p.file_stem() {
+                        Some(name) => name.to_str().unwrap().to_owned(),
+                        _ => file_name.to_str().unwrap().to_owned(),
+                    }
+                }
+                None => {
+                    eprintln!("Cannot get file name");
+                    std::process::exit(1);
+                }
+            }
+        }
     };
     if !std::path::Path::new(&path).exists() {
         File::create(&path).unwrap();

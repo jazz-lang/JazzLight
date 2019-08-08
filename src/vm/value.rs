@@ -38,8 +38,6 @@ impl<T: Collectable + 'static> _Ref<T> {
     }
 }
 
-use crate::map::LinkedHashMap;
-
 #[derive(Clone)]
 pub struct ValueIter {
     pub values: Vec<Value>,
@@ -182,14 +180,16 @@ pub enum Function {
         //constants: WRC<RefCell<Vec<ValueData>>>,
         yield_env: Ref<Object>,
         args: Vec<String>,
+        get: bool,
+        set: bool,
     },
 }
 
 pub trait SetGet {
-    fn set(&mut self, _: impl Into<ValueData>, _: impl Into<Value>) {
+    fn set(&mut self, _: impl Into<ValueData>, _: impl Into<Value>) -> Result<(), ValueData> {
         unimplemented!()
     }
-    fn get(&self, _: &ValueData) -> Value {
+    fn get(&self, _: &ValueData) -> Option<Property> {
         unimplemented!()
     }
 }
@@ -206,7 +206,7 @@ impl<T: Into<ValueData> + Clone> From<Vec<T>> for ValueData {
 }
 
 impl SetGet for ValueData {
-    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
+    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) -> Result<(), ValueData> {
         let key = key.into();
         let val = val.into();
         match self {
@@ -214,30 +214,33 @@ impl SetGet for ValueData {
                 let func: &mut Function = &mut func.borrow_mut();
                 match func {
                     Function::Regular { environment, .. } => {
-                        environment.borrow_mut().set(key, val);
+                        environment.borrow_mut().set(key, val)?;
                         //gc::new_ref(*environment,val);
                     }
                     _ => (),
                 }
             }
             ValueData::Object(object) => {
-                object.borrow_mut().set(key, val);
+                object.borrow_mut().set(key, val)?;
             }
             ValueData::Array(array_) => {
                 let mut array = array_.borrow_mut();
                 let idx = i64::from(key);
                 assert!(idx >= 0);
                 if idx as usize >= array.len() {
-                    panic!("Index '{}' out of bounds {:?}", idx, array);
+                    for _ in array.len()..=idx as usize {
+                        array.push(new_ref(ValueData::Undefined));
+                    }
                 }
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
             }
             _ => {}
         }
+        Ok(())
     }
 
-    fn get(&self, key: &ValueData) -> Value {
+    fn get(&self, key: &ValueData) -> Option<Property> {
         match self {
             ValueData::Function(func) => {
                 let func: &Function = &func.borrow();
@@ -250,11 +253,14 @@ impl SetGet for ValueData {
                         let val: String = String::from(key.clone());
                         let val: &str = &val;
                         match val {
-                            "yields" => new_ref(ValueData::Bool(yield_pos.is_some())),
-                            _ => new_ref(ValueData::Undefined),
+                            "yields" => Some(Property::new(
+                                key.clone(),
+                                new_ref(ValueData::Bool(yield_pos.is_some())),
+                            )),
+                            _ => None,
                         }
                     }
-                    _ => return new_ref(ValueData::Undefined),
+                    _ => return None,
                 }
             }
             ValueData::Object(object) => object.borrow().get(key),
@@ -263,16 +269,17 @@ impl SetGet for ValueData {
                 match key {
                     ValueData::String(s) => {
                         let s: &str = s;
-                        match s {
-                            "length" => return new_ref(ValueData::Number(array.len() as f64)),
-                            "push" => return new_exfunc(array_push),
-                            "pop" => return new_exfunc(array_pop),
-                            "sort" => return new_exfunc(array_sort),
-                            "indexOf" => return new_exfunc(array_indexof),
-                            "remove" => return new_exfunc(array_remove),
-                            "reverse" => return new_exfunc(array_reverse),
-                            _ => return new_ref(ValueData::Undefined),
-                        }
+                        let v = match s {
+                            "length" => new_ref(ValueData::Number(array.len() as f64)),
+                            "push" => new_exfunc(array_push),
+                            "pop" => new_exfunc(array_pop),
+                            "sort" => new_exfunc(array_sort),
+                            "indexOf" => new_exfunc(array_indexof),
+                            "remove" => new_exfunc(array_remove),
+                            "reverse" => new_exfunc(array_reverse),
+                            _ => new_ref(ValueData::Undefined),
+                        };
+                        return Some(Property::new(key.clone(), v));
                     }
                     ValueData::Number(idx) => {
                         let idx = *idx as i64;
@@ -280,41 +287,52 @@ impl SetGet for ValueData {
                         if idx as usize >= array.len() {
                             panic!("Index out of bounds {:?}", array);
                         }
-                        return array[idx as usize].clone();
+                        return Some(Property::new(key.clone(), array[idx as usize].clone()));
                     }
-                    _ => return new_ref(ValueData::Undefined),
+                    _ => return None,
                 }
             }
             ValueData::String(s) => match key {
-                ValueData::String(key) => {
-                    let key: &str = key;
-                    match key {
-                        "length" => return new_ref(ValueData::Number(s.len() as _)),
+                ValueData::String(key_) => {
+                    let key_: &str = key_;
+                    match key_ {
+                        "length" => {
+                            return Some(Property::new(
+                                key.clone(),
+                                new_ref(ValueData::Number(s.len() as _)),
+                            ))
+                        }
                         "bytes" => {
-                            return new_ref(ValueData::Array(new_ref(
-                                s.clone()
-                                    .into_bytes()
-                                    .iter()
-                                    .map(|x| new_ref(ValueData::Number(*x as _)))
-                                    .collect(),
-                            )))
+                            return Some(Property::new(
+                                "bytes",
+                                new_ref(ValueData::Array(new_ref(
+                                    s.clone()
+                                        .into_bytes()
+                                        .iter()
+                                        .map(|x| new_ref(ValueData::Number(*x as _)))
+                                        .collect(),
+                                ))),
+                            ))
                         }
 
-                        _ => return new_ref(ValueData::Undefined),
+                        _ => return None,
                     }
                 }
                 ValueData::Number(x) => {
                     let idx = *x as usize;
                     match s.chars().nth(idx) {
                         Some(character) => {
-                            return new_ref(ValueData::String(character.to_string()))
+                            return Some(Property::new(
+                                key.clone(),
+                                new_ref(ValueData::String(character.to_string())),
+                            ))
                         }
-                        None => return new_ref(ValueData::Undefined),
+                        None => return None,
                     }
                 }
-                _ => return new_ref(ValueData::Undefined),
+                _ => return None,
             },
-            _ => new_ref(ValueData::Undefined),
+            _ => return None,
         }
     }
 }
@@ -436,7 +454,7 @@ pub type Value = Ref<ValueData>;
 #[derive(Clone)]
 pub struct Object {
     pub proto: Option<Ref<Object>>,
-    pub table: LinkedHashMap<ValueData, Ref<ValueData>>,
+    pub table: PropertyMap,
 }
 
 pub fn set_obj_proto(obj: Ref<Object>, proto: Ref<Object>) {
@@ -454,7 +472,7 @@ pub fn set_variable_in_scope(
     let scope: &mut Object = &mut scopes.borrow_mut();
     let key = key.into();
     if scope.table.contains_key(&key) {
-        scope.table.insert(key, val);
+        scope.table.insert(key, val)?;
         //gc::new_ref(*scopes,val);
         return Ok(());
     }
@@ -483,7 +501,7 @@ pub fn declare_var(
             &format!("Variable '{}' already declared", key),
         ));
     }
-    scope.table.insert(key, val);
+    scope.table.insert(key, val)?;
     //gc::new_ref(*scope_,val);
     Ok(())
 }
@@ -502,7 +520,7 @@ pub fn get_variable(
     let scopes: &Object = &scope.borrow();
     let key = key.into();
     if scopes.table.contains_key(&key) {
-        return Ok(scopes.table.get(&key).unwrap().clone());
+        return Ok(scopes.table.get(key.clone()).clone());
     }
     if scopes.proto.is_some() {
         return get_variable(scopes.proto.as_ref().unwrap(), key, pos);
@@ -515,15 +533,13 @@ pub fn get_variable(
 }
 
 impl SetGet for Object {
-    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) {
+    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) -> Result<(), ValueData> {
         let key = key.into();
-        self.table.insert(key, val.into());
+        self.table.insert(key, val.into())?;
+        Ok(())
     }
-    fn get(&self, key: &ValueData) -> Value {
-        self.table
-            .get(key)
-            .unwrap_or(&new_ref(ValueData::Undefined))
-            .clone()
+    fn get(&self, key: &ValueData) -> Option<Property> {
+        self.table.get_property(key.clone()).map(|x| x.clone())
     }
 }
 
@@ -565,7 +581,7 @@ pub type Environment = Ref<Object>;
 pub fn new_object() -> Ref<Object> {
     new_ref(Object {
         proto: None,
-        table: LinkedHashMap::new(),
+        table: PropertyMap::new(),
     })
 }
 
@@ -623,16 +639,19 @@ impl<T: Into<ValueData>> From<Option<T>> for ValueData {
 pub fn new_error(line: i32, file: Option<&str>, err: &str) -> ValueData {
     let object = new_object();
     let proto = new_object();
-    proto.borrow_mut().set("__name__", "JLRuntimeError");
+    proto
+        .borrow_mut()
+        .set("__name__", "JLRuntimeError")
+        .unwrap();
     //object.borrow_mut().proto = Some(proto);
     set_obj_proto(object.clone(), proto);
     if line != -1 {
-        object.borrow_mut().set("line", line);
+        object.borrow_mut().set("line", line).unwrap();
     }
     if file.is_some() {
-        object.borrow_mut().set("file", file);
+        object.borrow_mut().set("file", file).unwrap();
     }
-    object.borrow_mut().set("error", err);
+    object.borrow_mut().set("error", err).unwrap();
 
     ValueData::Object(object)
 }
@@ -843,3 +862,129 @@ impl Collectable for Function {
 
 }
 */
+
+#[derive(Clone, PartialEq)]
+pub struct Property {
+    pub key: ValueData,
+    pub value: Value,
+    pub writable: bool,
+}
+
+impl Property {
+    #[inline]
+    pub fn new(k: impl Into<ValueData>, v: Value) -> Property {
+        Property {
+            key: k.into(),
+            value: v,
+            writable: true,
+        }
+    }
+}
+
+impl From<Property> for Value {
+    fn from(p: Property) -> Value {
+        p.value.clone()
+    }
+}
+
+use smallvec::SmallVec;
+
+#[derive(Clone)]
+pub struct PropertyMap {
+    /// properties list,stored in smallvec
+    list: SmallVec<[Property; 10]>,
+}
+
+impl PropertyMap {
+    #[inline]
+    pub fn new() -> PropertyMap {
+        PropertyMap {
+            list: SmallVec::new(),
+        }
+    }
+
+    #[inline]
+    pub fn get(&self, key: impl Into<ValueData>) -> Value {
+        let key = key.into();
+        for prop in self.list.iter() {
+            if prop.key == key {
+                return prop.value.clone();
+            }
+        }
+        return new_ref(ValueData::Undefined);
+    }
+    #[inline]
+    pub fn get_property(&self, key: impl Into<ValueData>) -> Option<&Property> {
+        let key = key.into();
+        for prop in self.list.iter() {
+            if prop.key == key {
+                return Some(prop);
+            }
+        }
+        return None;
+    }
+
+    #[inline]
+    pub fn get_property_mut(&mut self, key: impl Into<ValueData>) -> Option<&mut Property> {
+        let key = key.into();
+        for prop in self.list.iter_mut() {
+            if prop.key == key {
+                return Some(prop);
+            }
+        }
+        return None;
+    }
+
+    pub fn insert(&mut self, key: impl Into<ValueData>, val: Value) -> Result<(), ValueData> {
+        let key = key.into();
+        for prop in self.list.iter_mut() {
+            if prop.key == key {
+                if prop.writable {
+                    prop.value = val;
+                    return Ok(());
+                } else {
+                    return Err(new_error(-1, None, &format!("'{}' is not writable", key)));
+                }
+            }
+        }
+        let property = Property::new(key, val);
+        self.list.push(property);
+        Ok(())
+    }
+
+    pub fn contains_key(&self, key: &ValueData) -> bool {
+        for prop in self.list.iter() {
+            if &prop.key == key {
+                return true;
+            }
+        }
+        false
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.list.len()
+    }
+    #[inline]
+    pub fn iter(&self) -> impl std::iter::Iterator<Item = (&ValueData, &Value)> {
+        self.list.iter().map(|x| (&x.key, &x.value))
+    }
+}
+
+impl PartialEq for PropertyMap {
+    fn eq(&self, other: &Self) -> bool {
+        for ((k1, v1), (k2, v2)) in self.iter().zip(other.iter()) {
+            if k1 == k2 && v2 == v1 {
+                continue;
+            } else {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl PartialOrd for PropertyMap {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.iter().partial_cmp(other.iter())
+    }
+}

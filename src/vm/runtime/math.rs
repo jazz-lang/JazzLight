@@ -85,20 +85,44 @@ pub fn math_sqrt(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, V
 
 pub fn math_object() -> Ref<Object> {
     let object = new_object();
-    object.borrow_mut().set("pow", new_exfunc(math_pow));
-    object.borrow_mut().set("sqrt", new_exfunc(math_sqrt));
-    object.borrow_mut().set("abs", new_exfunc(math_abs));
-    object.borrow_mut().set("floor", new_exfunc(math_floor));
-    object.borrow_mut().set("tanh", new_exfunc(math_tanh));
-    object.borrow_mut().set("random", new_exfunc(math_random));
     object
         .borrow_mut()
-        .set("randomInt", new_exfunc(math_random_int));
+        .set("pow", new_exfunc(math_pow))
+        .unwrap();
     object
         .borrow_mut()
-        .set("E", new_ref(ValueData::Number(std::f64::consts::E)));
+        .set("sqrt", new_exfunc(math_sqrt))
+        .unwrap();
     object
         .borrow_mut()
-        .set("PI", new_ref(ValueData::Number(std::f64::consts::PI)));
+        .set("abs", new_exfunc(math_abs))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("floor", new_exfunc(math_floor))
+        .unwrap();
+    object.borrow_mut()
+        .set("exp",new_exfunc(math_exp))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("tanh", new_exfunc(math_tanh))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("random", new_exfunc(math_random))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("randomInt", new_exfunc(math_random_int))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("E", new_ref(ValueData::Number(std::f64::consts::E)))
+        .unwrap();
+    object
+        .borrow_mut()
+        .set("PI", new_ref(ValueData::Number(std::f64::consts::PI)))
+        .unwrap();
     object
 }

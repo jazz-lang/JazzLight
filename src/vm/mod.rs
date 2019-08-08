@@ -112,7 +112,7 @@ impl<'a> Frame<'a> {
         let old_env = self.env.clone();
         self.env = new_ref(Object {
             proto: Some(old_env),
-            table: LinkedHashMap::new(),
+            table: crate::vm::value::PropertyMap::new(),
         });
         //gc_add_root(self.env.gc());
         //crate::gc:://gc::new_ref(self.env,old_env);
@@ -206,8 +206,8 @@ impl<'a> Frame<'a> {
                         ValueData::Object(object) => {
                             for (key, val) in object.borrow().table.iter() {
                                 let entry = new_object();
-                                entry.borrow_mut().set("key", new_ref(key.clone()));
-                                entry.borrow_mut().set("value", val.clone());
+                                entry.borrow_mut().set("key", new_ref(key.clone())).unwrap();
+                                entry.borrow_mut().set("value", val.clone()).unwrap();
                                 values.push(new_ref(ValueData::Object(entry)));
                             }
                         }
@@ -333,9 +333,9 @@ impl<'a> Frame<'a> {
                     let key = catch!(self.pop());
                     let object = catch!(self.pop());
 
-                    object
+                    catch!(object
                         .borrow_mut()
-                        .set(key.borrow().clone(), value.borrow().clone());
+                        .set(key.borrow().clone(), value.borrow().clone()));
                 }
                 NewObj => {
                     self.push(ValueData::Object(new_object()));
@@ -344,8 +344,9 @@ impl<'a> Frame<'a> {
                     let key = catch!(self.pop());
                     let key: &ValueData = &key.borrow();
                     let object = catch!(self.pop());
-
-                    self.push_ref(object.borrow().get(key));
+                    let property = object.borrow().get(key).unwrap_or(Property::new("",new_ref(ValueData::Undefined)));
+                    let val = property.value.clone();
+                    self.stack.push(val);
                 }
                 Return => {
                     let return_ = match self.stack.pop() {
@@ -448,6 +449,7 @@ impl<'a> Frame<'a> {
                                     code,
                                     args: args_,
                                     yield_env,
+                                    ..
                                 } => {
                                     self.code = code.clone();
                                     self.funs.push(fun_2);

@@ -91,6 +91,7 @@ impl<'a> Writer<'a> {
                             self.write_u8(0x05);
                             self.write_u32(*addr as u32);
                             self.write_u16(args.len() as _);
+                            self.write_u8(0x00);
                             for arg in args.iter() {
                                 let id = self.get_str_id(arg);
                                 self.write_u32(id);

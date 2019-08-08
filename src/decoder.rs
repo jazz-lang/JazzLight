@@ -65,6 +65,9 @@ impl<'a> BytecodeReader<'a> {
                 0x05 => {
                     let addr = self.read_u32();
                     let argc = self.read_u16();
+                    let sg = self.read_u8();
+                    let set = sg & 0x01 != 0;
+                    let get = sg & 0x02 != 0;
                     let mut args = vec![];
                     for _ in 0..argc {
                         let idx = self.read_u32();
@@ -78,6 +81,8 @@ impl<'a> BytecodeReader<'a> {
                         //constants: ref_,
                         code: wrc::WRC::new(std::cell::RefCell::new(vec![])),
                         yield_env: new_object(),
+                        set,
+                        get,
                     }));
                     self.machine.constants.push(fun);
                 }

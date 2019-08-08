@@ -58,7 +58,7 @@ impl State {
     #[inline]
     pub fn set_var(&mut self, var: &str, value: impl Into<ValueData>) {
         let val = value.into();
-        self.env.borrow_mut().set(var, val);
+        self.env.borrow_mut().set(var, val).unwrap();
     }
     /// Get variable from current state:
     /// ```rust
@@ -69,7 +69,12 @@ impl State {
     /// ```
     #[inline]
     pub fn get_var(&mut self, var: &str) -> Value {
-        self.env.borrow().get(&ValueData::String(var.to_owned()))
+        self.env
+            .borrow()
+            .get(&ValueData::String(var.to_owned()))
+            .unwrap_or(Property::new("", new_ref(ValueData::Undefined)))
+            .value
+            .clone()
     }
 
     pub fn register_fn(
@@ -77,10 +82,13 @@ impl State {
         name: &str,
         f: fn(&mut vm::Frame<'_>, Value, &[Value]) -> Result<Value, ValueData>,
     ) {
-        self.env.borrow_mut().set(
-            name,
-            ValueData::Function(new_ref(Function::Native(f as usize))),
-        );
+        self.env
+            .borrow_mut()
+            .set(
+                name,
+                ValueData::Function(new_ref(Function::Native(f as usize))),
+            )
+            .unwrap();
     }
 
     /// Evaluate JazzLight code.

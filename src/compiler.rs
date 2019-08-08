@@ -568,6 +568,8 @@ impl<'a> Compiler<'a> {
                         //constants: ref_,
                         code: gc_code.clone(),
                         yield_env: new_object(),
+                        set: false,
+                        get: false,
                     }));
             }
         }

@@ -70,15 +70,26 @@ pub fn array_reverse(_: &mut Frame<'_>, this: Value, _args: &[Value]) -> Result<
 
 pub fn array_object() -> Ref<Object> {
     let array_proto = new_object();
-    array_proto.borrow_mut().set("push", new_exfunc(array_push));
-    array_proto.borrow_mut().set("pop", new_exfunc(array_pop));
-    array_proto.borrow_mut().set("sort", new_exfunc(array_sort));
     array_proto
         .borrow_mut()
-        .set("indexOf", new_exfunc(array_indexof));
+        .set("push", new_exfunc(array_push))
+        .unwrap();
     array_proto
         .borrow_mut()
-        .set("remove", new_exfunc(array_remove));
+        .set("pop", new_exfunc(array_pop))
+        .unwrap();
+    array_proto
+        .borrow_mut()
+        .set("sort", new_exfunc(array_sort))
+        .unwrap();
+    array_proto
+        .borrow_mut()
+        .set("indexOf", new_exfunc(array_indexof))
+        .unwrap();
+    array_proto
+        .borrow_mut()
+        .set("remove", new_exfunc(array_remove))
+        .unwrap();
     array_proto
 }
 
