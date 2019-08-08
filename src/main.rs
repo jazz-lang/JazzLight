@@ -65,7 +65,7 @@ fn main() {
 
         let code = reader.read();
         let mut frame = Frame::new(&mut m);
-        frame.code = wrc::WRC::new(std::cell::RefCell::new(code));
+        frame.code = jazzlight::vm::value::new_ref(code);
         jazzlight::vm::runtime::register_builtins(frame.env.clone());
 
         frame.execute();

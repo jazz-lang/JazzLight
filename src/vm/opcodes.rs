@@ -1,5 +1,6 @@
 use crate::*;
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+use serde::{Serialize,Deserialize};
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash,Serialize,Deserialize)]
 pub enum Opcode {
     LoadInt(i64),
     LoadNil,

@@ -555,7 +555,7 @@ impl<'a> Compiler<'a> {
             }
         }
         let code = self.finish();
-        let gc_code = wrc::WRC::new(std::cell::RefCell::new(code));
+        let gc_code = crate::vm::value::new_ref(code);
 
         if !self.functions.is_empty() {
             for (_, gid, args) in self.functions.iter().rev() {

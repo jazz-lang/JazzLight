@@ -79,7 +79,7 @@ impl<'a> BytecodeReader<'a> {
                         yield_pos: None,
                         args: args.clone(),
                         //constants: ref_,
-                        code: wrc::WRC::new(std::cell::RefCell::new(vec![])),
+                        code: new_ref(vec![]),
                         yield_env: new_object(),
                         set,
                         get,
@@ -238,7 +238,7 @@ impl<'a> BytecodeReader<'a> {
                     let func: &mut Function = &mut func.borrow_mut();
                     match func {
                         Function::Regular { code, .. } => {
-                            *code = wrc::WRC::new(std::cell::RefCell::new(opcodes.clone()));
+                            *code = new_ref(opcodes.clone());
                         }
                         _ => unreachable!(),
                     }

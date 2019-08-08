@@ -6,9 +6,7 @@ pub mod value;
 //use cgc::generational::*;
 use crate::str;
 use opcodes::Opcode;
-use std::cell::RefCell;
 use value::*;
-use wrc::WRC;
 pub fn nil() -> Value {
     new_ref(ValueData::Nil)
 }
@@ -32,13 +30,13 @@ impl Machine {
 enum ExecData {
     Pc(usize),
     Env(Environment),
-    Code(WRC<RefCell<Vec<Opcode>>>),
+    Code(Ref<Vec<Opcode>>),
     Stack(Vec<Value>),
 }
 
 pub struct Frame<'a> {
     pub m: &'a mut Machine,
-    pub code: WRC<RefCell<Vec<Opcode>>>,
+    pub code: crate::vm::value::Ref<Vec<Opcode>>,
     pub stack: Vec<Value>,
     pub pc: usize,
     pub env: Environment,
@@ -52,7 +50,7 @@ impl<'a> Frame<'a> {
     pub fn new(m: &'a mut Machine) -> Frame<'a> {
         let f = Frame {
             m,
-            code: WRC::new(RefCell::new(vec![])),
+            code: new_ref(vec![]),
             stack: vec![],
             pc: 0,
             env: new_object(),

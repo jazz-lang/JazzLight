@@ -160,7 +160,7 @@ pub fn require(_frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value
 
     let code = reader.read();
     let mut frame1 = Frame::new(&mut m);
-    frame1.code = wrc::WRC::new(std::cell::RefCell::new(code));
+    frame1.code = new_ref(code);
     crate::vm::runtime::register_builtins(frame1.env.clone());
     frame1.execute();
 

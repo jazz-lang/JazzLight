@@ -14,6 +14,22 @@ pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct Ref<T: Sized>(Arc<RefCell<T>>);
 
+use serde::{Deserialize,Serialize,Deserializer,Serializer};
+
+impl<'a,T: 'static + Deserialize<'a>> Deserialize<'a> for Ref<T> {
+    fn deserialize<D: Deserializer<'a>>(deserializer: D) -> Result<Self,D::Error> {
+        let val = T::deserialize(deserializer)?;
+        Ok(new_ref(val))
+    }
+}   
+impl<T: 'static + Serialize> Serialize for Ref<T> {
+    fn serialize<S: Serializer>(&self,serializer: S) -> Result<S::Ok,S::Error> {
+        let val = self.borrow();
+        val.serialize(serializer
+        )
+    }
+}
+
 impl<T: 'static> Ref<T> {
     pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
@@ -38,7 +54,7 @@ impl<T: Collectable + 'static> _Ref<T> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct ValueIter {
     pub values: Vec<Value>,
 }
@@ -54,7 +70,7 @@ impl ValueIter {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum ValueData {
     Nil,
 
@@ -169,12 +185,12 @@ impl From<ValueData> for String {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub enum Function {
     Native(usize),
     Regular {
         environment: Environment,
-        code: wrc::WRC<std::cell::RefCell<Vec<super::opcodes::Opcode>>>, // code of function module,not of function itself
+        code: crate::vm::value::Ref<Vec<super::opcodes::Opcode>>, // code of function module,not of function itself
         addr: usize,
         yield_pos: Option<usize>,
         //constants: WRC<RefCell<Vec<ValueData>>>,
@@ -451,7 +467,7 @@ impl Hash for ValueData {
 
 pub type Value = Ref<ValueData>;
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct Object {
     pub proto: Option<Ref<Object>>,
     pub table: PropertyMap,
@@ -863,7 +879,7 @@ impl Collectable for Function {
 }
 */
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq,Serialize,Deserialize)]
 pub struct Property {
     pub key: ValueData,
     pub value: Value,
@@ -889,7 +905,7 @@ impl From<Property> for Value {
 
 use smallvec::SmallVec;
 
-#[derive(Clone)]
+#[derive(Clone,Serialize,Deserialize)]
 pub struct PropertyMap {
     /// properties list,stored in smallvec
     list: SmallVec<[Property; 10]>,
