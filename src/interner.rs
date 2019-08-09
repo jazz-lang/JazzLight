@@ -1,13 +1,13 @@
 use std::borrow::Borrow;
 
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Deref;
 use std::sync::Arc;
-use serde::{Serialize,Deserialize};
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash,Serialize,Deserialize)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Name(pub usize);
 
 impl fmt::Debug for Name {

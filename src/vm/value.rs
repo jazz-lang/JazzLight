@@ -6,7 +6,7 @@ use std::sync::Arc;
 pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
     Ref(Arc::new(RefCell::new(val)))
 }
-//use std::rc::Rc;
+
 use std::cell::RefCell;
 
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
@@ -14,19 +14,18 @@ pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct Ref<T: Sized>(Arc<RefCell<T>>);
 
-use serde::{Deserialize,Serialize,Deserializer,Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-impl<'a,T: 'static + Deserialize<'a>> Deserialize<'a> for Ref<T> {
-    fn deserialize<D: Deserializer<'a>>(deserializer: D) -> Result<Self,D::Error> {
+impl<'a, T: 'static + Deserialize<'a>> Deserialize<'a> for Ref<T> {
+    fn deserialize<D: Deserializer<'a>>(deserializer: D) -> Result<Self, D::Error> {
         let val = T::deserialize(deserializer)?;
         Ok(new_ref(val))
     }
-}   
+}
 impl<T: 'static + Serialize> Serialize for Ref<T> {
-    fn serialize<S: Serializer>(&self,serializer: S) -> Result<S::Ok,S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let val = self.borrow();
-        val.serialize(serializer
-        )
+        val.serialize(serializer)
     }
 }
 
@@ -54,7 +53,7 @@ impl<T: Collectable + 'static> _Ref<T> {
     }
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ValueIter {
     pub values: Vec<Value>,
 }
@@ -70,7 +69,30 @@ impl ValueIter {
     }
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+use regex::Regex as CRegex;
+
+/// Wrapper aroung `regex::Regex` to allow using it in JazzLight values and serializing/deserializing it.
+#[derive(Clone, Debug)]
+pub struct Regex(pub CRegex);
+
+use std::ops::{Deref, DerefMut};
+
+impl Deref for Regex {
+    type Target = CRegex;
+    #[inline]
+    fn deref(&self) -> &CRegex {
+        &self.0
+    }
+}
+
+impl DerefMut for Regex {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut CRegex {
+        &mut self.0
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ValueData {
     Nil,
 
@@ -82,7 +104,28 @@ pub enum ValueData {
     Array(Ref<Vec<Value>>),
     Function(Ref<Function>),
     Iterator(Ref<ValueIter>),
+    Regex(Ref<Regex>),
 }
+
+impl Serialize for Regex {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.to_string().serialize(s)
+    }
+}
+
+impl<'a> Deserialize<'a> for Regex {
+    fn deserialize<D: Deserializer<'a>>(deserializer: D) -> Result<Regex, D::Error> {
+        let s: String = String::deserialize(deserializer)?;
+        Ok(Regex(CRegex::new(&s).unwrap()))
+    }
+}
+
+impl Hash for Regex {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        self.0.to_string().hash(h);
+    }
+}
+
 /*
 impl Mark for Object {
     fn mark(&self, gc: &mut InGcEnv) {
@@ -181,11 +224,12 @@ impl From<ValueData> for String {
             ValueData::Bool(b) => format!("{}", b),
             ValueData::Function(_) => "<function>".to_owned(),
             ValueData::Iterator(_iter) => format!("<iterator>"),
+            ValueData::Regex(r) => format!("{}", r.borrow().0),
         }
     }
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Function {
     Native(usize),
     Regular {
@@ -348,6 +392,41 @@ impl SetGet for ValueData {
                 }
                 _ => return None,
             },
+            ValueData::Regex(regex) => match key {
+                ValueData::String(s) => {
+                    let s: &str = s;
+                    match s {
+                        "str" => {
+                            return Some(Property::new(
+                                key.clone(),
+                                new_ref(ValueData::String(regex.borrow().to_string())),
+                            ))
+                        }
+                        "is_match" => {
+                            return Some(Property::new(
+                                key.clone(),
+                                new_exfunc(crate::vm::runtime::regex_is_match),
+                            ))
+                        }
+                        "captures" => {
+                            return Some(Property::new(
+                                key.clone(),
+                                new_exfunc(crate::vm::runtime::regex_captures),
+                            ))
+                        }
+                        "find" => {
+                            return Some(Property::new(
+                                key.clone(),
+                                new_exfunc(crate::vm::runtime::regex_find),
+                            ))
+                        }
+
+                        _ => return None,
+                    }
+                }
+
+                _ => return None,
+            },
             _ => return None,
         }
     }
@@ -387,6 +466,7 @@ impl fmt::Display for ValueData {
                 }
                 write!(f, "]")
             }
+            ValueData::Regex(r) => write!(f, "{}", r.borrow().0),
         }
     }
 }
@@ -411,6 +491,7 @@ impl PartialEq for ValueData {
             }
             (Array(x), Array(y)) => *x.borrow() == *y.borrow(),
             (Bool(x), Bool(y)) => x == y,
+            (Regex(r1), Regex(r2)) => r1.borrow().0.to_string() == r2.borrow().0.to_string(),
 
             _ => false,
         }
@@ -467,7 +548,7 @@ impl Hash for ValueData {
 
 pub type Value = Ref<ValueData>;
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Object {
     pub proto: Option<Ref<Object>>,
     pub table: PropertyMap,
@@ -879,7 +960,7 @@ impl Collectable for Function {
 }
 */
 
-#[derive(Clone, PartialEq,Serialize,Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Property {
     pub key: ValueData,
     pub value: Value,
@@ -905,7 +986,7 @@ impl From<Property> for Value {
 
 use smallvec::SmallVec;
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct PropertyMap {
     /// properties list,stored in smallvec
     list: SmallVec<[Property; 10]>,

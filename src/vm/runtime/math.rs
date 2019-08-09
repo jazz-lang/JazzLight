@@ -101,8 +101,9 @@ pub fn math_object() -> Ref<Object> {
         .borrow_mut()
         .set("floor", new_exfunc(math_floor))
         .unwrap();
-    object.borrow_mut()
-        .set("exp",new_exfunc(math_exp))
+    object
+        .borrow_mut()
+        .set("exp", new_exfunc(math_exp))
         .unwrap();
     object
         .borrow_mut()

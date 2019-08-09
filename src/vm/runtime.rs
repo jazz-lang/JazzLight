@@ -69,6 +69,15 @@ pub fn enable_stats(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, V
     Ok(new_ref(ValueData::Nil))
 }
 
+pub fn regex(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    match regex::Regex::new(&val_str(&args[0])) {
+        Ok(regex) => Ok(new_ref(ValueData::Regex(new_ref(crate::vm::value::Regex(
+            regex,
+        ))))),
+        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+    }
+}
+
 pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     if args.is_empty() {
         return Err(new_error(0, None, "function expected"));
@@ -124,6 +133,7 @@ pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Val
         ValueData::Function(_) => "function",
         ValueData::Bool(_) => "bool",
         ValueData::Iterator(_) => "iterator",
+        ValueData::Regex(_) => "regex",
     };
     Ok(new_ref(ValueData::String(name.to_owned())))
 }
@@ -398,20 +408,24 @@ fn val_str(v: &Value) -> String {
     }
 }
 
-pub fn str_trim(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn str_trim(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let val = val_str(&args[0]);
     return Ok(new_ref(ValueData::String(val.trim().to_owned())));
 }
 
-pub fn str_split(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn str_split(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let val = val_str(&args[0]);
     let val2 = val_str(&args[1]);
-    let s = val.split(val2.chars().nth(0).unwrap_or(' ')).collect::<Vec<_>>();
-    let val = new_ref(s.iter().map(|x| new_ref(ValueData::String(x.to_string()))).collect::<Vec<_>>());
+    let s = val
+        .split(val2.chars().nth(0).unwrap_or(' '))
+        .collect::<Vec<_>>();
+    let val = new_ref(
+        s.iter()
+            .map(|x| new_ref(ValueData::String(x.to_string())))
+            .collect::<Vec<_>>(),
+    );
     return Ok(new_ref(ValueData::Array(val)));
 }
-
-
 
 fn val_array(v: &Value) -> Ref<Vec<Value>> {
     let v: &ValueData = &v.borrow();
@@ -490,16 +504,13 @@ pub fn str_from_utf8(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
         Err(e) => return Err(new_error(-1, None, &e.to_string())),
     }
 }
-pub fn str_chars(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
-    return Ok(
-        new_ref(
-            ValueData::Array(
-                new_ref(
-                    val_str(&args[0]).chars().map(|x| new_ref(ValueData::String(x.to_string()))).collect()
-                )
-            )
-        )
-    )
+pub fn str_chars(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    return Ok(new_ref(ValueData::Array(new_ref(
+        val_str(&args[0])
+            .chars()
+            .map(|x| new_ref(ValueData::String(x.to_string())))
+            .collect(),
+    ))));
 }
 
 pub fn register_builtins(env: Ref<Object>) {
@@ -561,9 +572,142 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "Object", new_ref(ValueData::Object(obj)), &pos).unwrap();
 
     declare_var(&env, "char_to_num", new_exfunc(char_to_num), &pos).unwrap();
-    declare_var(&env, "str_split", new_exfunc(str_split),&pos).unwrap();
-    declare_var(&env, "str_trim", new_exfunc(str_trim),&pos).unwrap();
-    declare_var(&env, "str_chars", new_exfunc(str_chars),&pos).unwrap();
-    
+    declare_var(&env, "str_split", new_exfunc(str_split), &pos).unwrap();
+    declare_var(&env, "str_trim", new_exfunc(str_trim), &pos).unwrap();
+    declare_var(&env, "str_chars", new_exfunc(str_chars), &pos).unwrap();
+    declare_var(&env, "json", json().unwrap(), &pos).unwrap();
+    declare_var(&env, "regex", new_exfunc(regex), &pos).unwrap();
+    declare_var(&env, "parseInt", new_exfunc(parse_int), &pos).unwrap();
+    declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
 }
 
+pub fn regex_is_match(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let text = val_str(&args[0]);
+    let val: &ValueData = &this.borrow();
+    match val {
+        ValueData::Regex(regex) => {
+            return Ok(new_ref(ValueData::Bool(regex.borrow().is_match(&text))))
+        }
+        _ => return Ok(nil()),
+    }
+}
+pub fn regex_find(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let text = val_str(&args[0]);
+    let val: &ValueData = &this.borrow();
+    match val {
+        ValueData::Regex(regex) => {
+            let match_: Option<regex::Match> = regex.borrow().find(&text);
+            match match_ {
+                Some(match_) => {
+                    let obj = new_object();
+
+                    obj.borrow_mut()
+                        .set("start", new_ref(ValueData::Number(match_.start() as f64)))
+                        .unwrap();
+                    obj.borrow_mut()
+                        .set("end", new_ref(ValueData::Number(match_.end() as f64)))
+                        .unwrap();
+                    obj.borrow_mut()
+                        .set(
+                            "text",
+                            new_ref(ValueData::String(match_.as_str().to_string())),
+                        )
+                        .unwrap();
+                    return Ok(new_ref(ValueData::Object(obj)));
+                }
+                None => return Ok(nil()),
+            }
+        }
+        _ => return Ok(nil()),
+    }
+}
+
+pub fn parse_int(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let text = val_str(&args[0]);
+    match text.parse::<i64>() {
+        Ok(num) => return Ok(new_ref(ValueData::Number(num as f64))),
+        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+    }
+}
+pub fn parse_float(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let text = val_str(&args[0]);
+    match text.parse::<f64>() {
+        Ok(num) => return Ok(new_ref(ValueData::Number(num))),
+        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+    }
+}
+
+pub fn regex_captures(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let val: &ValueData = &this.borrow();
+    match val {
+        ValueData::Regex(regex) => {
+            let regex: &regex::Regex = &regex.borrow();
+            let text = val_str(&args[0]);
+            let captures = regex.captures(&text);
+            match captures {
+                Some(captures) => {
+                    return Ok(new_ref(ValueData::Array(new_ref(
+                        captures
+                            .iter()
+                            .map(|x| match x {
+                                Some(match_) => {
+                                    let obj = new_object();
+
+                                    obj.borrow_mut()
+                                        .set(
+                                            "start",
+                                            new_ref(ValueData::Number(match_.start() as f64)),
+                                        )
+                                        .unwrap();
+                                    obj.borrow_mut()
+                                        .set("end", new_ref(ValueData::Number(match_.end() as f64)))
+                                        .unwrap();
+                                    obj.borrow_mut()
+                                        .set(
+                                            "text",
+                                            new_ref(ValueData::String(match_.as_str().to_string())),
+                                        )
+                                        .unwrap();
+                                    new_ref(ValueData::Object(obj))
+                                }
+                                None => nil(),
+                            })
+                            .collect(),
+                    ))))
+                }
+                None => return Ok(nil()),
+            }
+        }
+        _ => return Ok(nil()),
+    }
+}
+
+pub fn json() -> Result<Value, ValueData> {
+    fn deserialize(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+        let val = val_str(&args[0]);
+
+        let value: Value = match serde_json::from_str(&val) {
+            Ok(v) => v,
+            Err(e) => return Err(new_error(-1, None, &e.to_string())),
+        };
+
+        return Ok(value);
+    }
+
+    fn serialize(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+        let string = serde_json::to_string(&args[0]);
+        match string {
+            Ok(string) => Ok(new_ref(ValueData::String(string))),
+            Err(e) => Err(new_error(-1, None, &e.to_string())),
+        }
+    }
+
+    let json = new_object();
+    json.borrow_mut()
+        .set("serialize", new_exfunc(serialize))
+        .unwrap();
+    json.borrow_mut()
+        .set("deserialize", new_exfunc(deserialize))
+        .unwrap();
+    return Ok(new_ref(ValueData::Object(json)));
+}

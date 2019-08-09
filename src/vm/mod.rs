@@ -342,7 +342,10 @@ impl<'a> Frame<'a> {
                     let key = catch!(self.pop());
                     let key: &ValueData = &key.borrow();
                     let object = catch!(self.pop());
-                    let property = object.borrow().get(key).unwrap_or(Property::new("",new_ref(ValueData::Undefined)));
+                    let property = object
+                        .borrow()
+                        .get(key)
+                        .unwrap_or(Property::new("", new_ref(ValueData::Undefined)));
                     let val = property.value.clone();
                     self.stack.push(val);
                 }
