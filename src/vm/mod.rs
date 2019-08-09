@@ -489,6 +489,17 @@ impl<'a> Frame<'a> {
                                             ))
                                         }
                                     }
+                                    if var_declared(&environment,"_args") {
+                                        catch!(
+                                            set_variable_in_scope(
+                                                &environment, "_args", new_ref(ValueData::Array(new_ref(args))), &Position::new(0,0))
+                                        )
+                                    } else {
+                                        catch!(
+                                            declare_var(
+                                                &environment, "_args", new_ref(ValueData::Array(new_ref(args))), &Position::new(0,0))
+                                        )
+                                    }
                                     if var_declared(&environment, "this") {
                                         catch!(set_variable_in_scope(
                                             &environment,
