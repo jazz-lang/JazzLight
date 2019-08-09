@@ -56,11 +56,12 @@ fn main() {
         let mut code = vec![];
 
         file.read_to_end(&mut code).unwrap();
-
+        let c = code.len();
         let mut reader = jazzlight::decoder::BytecodeReader {
             machine: &mut m,
-            bytecode: code,
+            bytecode: std::io::Cursor::new(code),
             pc: 0,
+            count: c
         };
 
         let code = reader.read();

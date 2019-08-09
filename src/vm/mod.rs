@@ -14,24 +14,26 @@ use crate::map::LinkedHashMap;
 use crate::token::Position;
 
 pub struct Machine {
-    pub constants: Vec<ValueData>,
+    pub constants: Ref<Vec<ValueData>>,
     pub line_no: LinkedHashMap<(usize, Opcode), Position>,
 }
 
 impl Machine {
     pub fn new() -> Machine {
         Machine {
-            constants: vec![],
+            constants: new_ref(vec![]),
             line_no: LinkedHashMap::new(),
         }
     }
 }
 
+#[derive(Debug)]
 enum ExecData {
     Pc(usize),
     Env(Environment),
     Code(Ref<Vec<Opcode>>),
     Stack(Vec<Value>),
+    C(Ref<Vec<ValueData>>)
 }
 
 pub struct Frame<'a> {
@@ -41,7 +43,7 @@ pub struct Frame<'a> {
     pub pc: usize,
     pub env: Environment,
     pub funs: Vec<Ref<Function>>,
-    exec_stack: Vec<ExecData>,
+    exec_stack: Ref<Vec<ExecData>>,
     exception_stack: Vec<usize>,
     cur_ins: Opcode,
 }
@@ -56,7 +58,7 @@ impl<'a> Frame<'a> {
             env: new_object(),
             funs: vec![],
             cur_ins: Opcode::BlockEnd,
-            exec_stack: vec![],
+            exec_stack: new_ref(vec![]),
             exception_stack: vec![],
         };
         f
@@ -69,41 +71,52 @@ impl<'a> Frame<'a> {
         restore_code: bool,
         restore_stack: bool,
     ) {
-        if restore_pc {
-            if let Some(ExecData::Pc(pc)) = self.exec_stack.pop() {
+        let val = self.exec_stack.borrow_mut().pop();
+        if let Some(ExecData::C(s)) = val {
+            self.m.constants = s
+        } else {
+            panic!()
+        };
+        //if restore_pc {
+            if let Some(ExecData::Pc(pc)) = self.exec_stack.borrow_mut().pop() {
                 self.pc = pc;
+            } else {
+                panic!()
             }
-        }
-        if restore_env {
-            if let Some(ExecData::Env(env)) = self.exec_stack.pop() {
+        //}
+        //if restore_env {
+            let val = self.exec_stack.borrow_mut().pop();
+            if let Some(ExecData::Env(env)) = val {
                 self.env = env;
-            }
-        }
-        if restore_code {
-            if let Some(ExecData::Code(code)) = self.exec_stack.pop() {
+            } else {panic!("{:?}",val)}
+        //}
+        //if restore_code {
+            if let Some(ExecData::Code(code)) = self.exec_stack.borrow_mut().pop() {
                 self.code = code;
-            }
-        }
-        if restore_stack {
-            if let Some(ExecData::Stack(stack)) = self.exec_stack.pop() {
+            } else {panic!()}
+        //}
+        //if restore_stack {
+            if let Some(ExecData::Stack(stack)) = self.exec_stack.borrow_mut().pop() {
                 self.stack = stack;
-            }
-        }
+            } else {panic!()}
+        //}
+        
     }
 
     pub fn save_state(&mut self, save_pc: bool, save_env: bool, save_code: bool, save_stack: bool) {
-        if save_stack {
-            self.exec_stack.push(ExecData::Stack(self.stack.clone()));
-        }
-        if save_code {
-            self.exec_stack.push(ExecData::Code(self.code.clone()));
-        }
-        if save_env {
-            self.exec_stack.push(ExecData::Env(self.env.clone()));
-        }
-        if save_pc {
-            self.exec_stack.push(ExecData::Pc(self.pc));
-        }
+        //if save_stack {
+        self.exec_stack.borrow_mut().push(ExecData::Stack(self.stack.clone()));
+        //}
+        
+        self.exec_stack.borrow_mut().push(ExecData::Code(self.code.clone()));
+        //}
+        //if save_env {
+        self.exec_stack.borrow_mut().push(ExecData::Env(self.env.clone()));
+        //}
+        //if save_pc {
+        self.exec_stack.borrow_mut().push(ExecData::Pc(self.pc));
+        //}
+        self.exec_stack.borrow_mut().push(ExecData::C(self.m.constants.clone()));
     }
 
     pub fn push_env(&mut self) {
@@ -248,7 +261,7 @@ impl<'a> Frame<'a> {
                     }
                 }
                 LoadConst(index) => {
-                    let constant = self.m.constants[index as usize].clone();
+                    let constant = self.m.constants.borrow()[index as usize].clone();
                     self.push(constant);
                 }
                 LoadInt(val) => {
@@ -354,6 +367,9 @@ impl<'a> Frame<'a> {
                         Some(val) => val,
                         None => new_ref(ValueData::Undefined),
                     };
+                    if self.exec_stack.borrow().is_empty() {
+                        return;
+                    } 
                     self.restore_state(true, true, true, true);
                     match self.funs.last() {
                         Some(fun) => {
@@ -450,9 +466,12 @@ impl<'a> Frame<'a> {
                                     code,
                                     args: args_,
                                     yield_env,
+                                    constants,
                                     ..
                                 } => {
-                                    self.code = code.clone();
+                                    
+    
+                                    
                                     self.funs.push(fun_2);
                                     match yield_pos {
                                         Some(ref pos) => {
@@ -467,7 +486,8 @@ impl<'a> Frame<'a> {
                                             self.env = environment.clone();
                                         }
                                     }
-
+                                    self.code = code.clone();
+                                    self.m.constants = constants.clone();
                                     for (i, arg) in args_.iter().enumerate() {
                                         if var_declared(&environment, arg) {
                                             catch!(set_variable_in_scope(
@@ -519,7 +539,7 @@ impl<'a> Frame<'a> {
                             }
                         }
                         _ => {
-                            println!("{} {:?}", maybe_function, args);
+                            
                             throw!("function expected")
                         }
                     }
@@ -555,14 +575,18 @@ impl<'a> Frame<'a> {
 
                             match fun {
                                 Function::Native(_) => {} // TODO: maybe we should throw exception there
-                                Function::Regular { environment, .. } => {
+                                Function::Regular { environment, constants: c,.. } => {
                                     let env = new_object();
+                                    *c = self.m.constants.clone();
                                     set_obj_proto(env.clone(), self.env.clone());
                                     *environment = env;
                                 }
                             }
                         }
-                        _ => throw!("function expected"),
+                        _ => {
+                            
+                            throw!("function expected")
+                        },
                     }
                     self.push(fun.clone());
                 }

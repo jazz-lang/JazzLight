@@ -237,11 +237,12 @@ pub enum Function {
         code: crate::vm::value::Ref<Vec<super::opcodes::Opcode>>, // code of function module,not of function itself
         addr: usize,
         yield_pos: Option<usize>,
-        //constants: WRC<RefCell<Vec<ValueData>>>,
+        constants: Ref<Vec<ValueData>>,
         yield_env: Ref<Object>,
         args: Vec<String>,
         get: bool,
         set: bool,
+        
     },
 }
 
@@ -554,7 +555,7 @@ impl Hash for ValueData {
 
 pub type Value = Ref<ValueData>;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct Object {
     pub proto: Option<Ref<Object>>,
     pub table: PropertyMap,
@@ -966,7 +967,7 @@ impl Collectable for Function {
 }
 */
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize,Debug)]
 pub struct Property {
     pub key: ValueData,
     pub value: Value,
@@ -992,7 +993,7 @@ impl From<Property> for Value {
 
 use smallvec::SmallVec;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct PropertyMap {
     /// properties list,stored in smallvec
     list: SmallVec<[Property; 10]>,

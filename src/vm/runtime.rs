@@ -96,7 +96,7 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                     addr,
                     set,
                     get,
-                    //constants,
+                    constants,
                     ..
                 } => {
                     let func = Function::Regular {
@@ -104,7 +104,7 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                         args: args.clone(),
                         code: code.clone(),
                         addr: *addr,
-                        //constants: constants.clone(),
+                        constants: constants.clone(),
                         yield_env: new_object(),
                         yield_pos: None,
                         set: *set,
@@ -138,7 +138,7 @@ pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Val
     Ok(new_ref(ValueData::String(name.to_owned())))
 }
 
-pub fn require(_frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let name = String::from(args[0].borrow().clone());
     let cur_dir = std::env::current_dir()
         .unwrap()
@@ -161,11 +161,12 @@ pub fn require(_frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value
     let mut code = vec![];
 
     file.read_to_end(&mut code).unwrap();
-
+    let c = code.len();
     let mut reader = crate::decoder::BytecodeReader {
         machine: &mut m,
-        bytecode: code,
+        bytecode: std::io::Cursor::new(code),
         pc: 0,
+        count: c
     };
 
     let code = reader.read();
@@ -173,6 +174,21 @@ pub fn require(_frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value
     frame1.code = new_ref(code);
     crate::vm::runtime::register_builtins(frame1.env.clone());
     frame1.execute();
+    /*let mut ids = std::collections::HashMap::new();
+    for (i,c) in frame1.m.constants.iter().enumerate() {
+        let new_id = frame.m.constants.len();
+        ids.insert(i,new_id);
+        frame.m.constants.borrow_mut().push(c.clone());
+    }
+    for opcode in frame1.code.borrow_mut().iter_mut() {
+        match opcode {
+            Opcode::LoadConst(id) => {
+                let new_id = *ids.get(&(*id as usize)).unwrap();
+                *id = new_id as u32;
+            }
+            _ => ()
+        }
+    }*/
 
     let exports = get_variable(&frame1.env, "exports", &Position::new(0, 0)).unwrap();
     Ok(exports)
@@ -513,6 +529,10 @@ pub fn str_chars(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, V
     ))));
 }
 
+pub fn new_object_f(f: &mut Frame<'_>,t: Value,args: &[Value]) -> Result<Value,ValueData> {
+    crate::vm::runtime::object::object_create(f,t,args)
+}
+
 pub fn register_builtins(env: Ref<Object>) {
     let err = new_object();
     let pos = &Position::new(0, 0);
@@ -579,6 +599,7 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "regex", new_exfunc(regex), &pos).unwrap();
     declare_var(&env, "parseInt", new_exfunc(parse_int), &pos).unwrap();
     declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
+    declare_var(&env, "new_object", new_exfunc(new_object_f), &pos).unwrap();
 }
 
 pub fn regex_is_match(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {

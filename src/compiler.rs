@@ -122,8 +122,8 @@ impl<'a> Compiler<'a> {
         self.write(Opcode::Jump(p - self.pos() as u32));
     }
     pub fn new_constant(&mut self, v: impl Into<ValueData>) -> usize {
-        let loc = self.frame.m.constants.len();
-        self.frame.m.constants.push(v.into());
+        let loc = self.frame.m.constants.borrow().len();
+        self.frame.m.constants.borrow_mut().push(v.into());
         loc
     }
 
@@ -297,8 +297,7 @@ impl<'a> Compiler<'a> {
                     None => self.write(Opcode::LoadNil),
                 }
                 self.write(Opcode::PopEnv);
-                let r = self.ret.clone();
-                self.emit_goto(&r);
+                self.write(Opcode::Return);
             }
             ExprDecl::Throw(expr) => {
                 self.compile(expr);
@@ -341,7 +340,7 @@ impl<'a> Compiler<'a> {
                 };
             }
             ExprDecl::Assign(lhs, rhs) => {
-                self.write(Opcode::Dup);
+                
                 match &lhs.decl {
                     ExprDecl::Field(obj, field) => {
                         self.compile(obj);
@@ -601,13 +600,14 @@ impl<'a> Compiler<'a> {
 
         if !self.functions.is_empty() {
             for (_, gid, args) in self.functions.iter().rev() {
-                self.frame.m.constants[*gid as usize] =
+                let ref_ = self.frame.m.constants.clone();
+                self.frame.m.constants.borrow_mut()[*gid as usize] =
                     ValueData::Function(new_ref(Function::Regular {
                         environment: new_object(),
                         addr: *addresses.get(&gid).unwrap(),
                         yield_pos: None,
                         args: args.clone(),
-                        //constants: ref_,
+                        constants: ref_,
                         code: gc_code.clone(),
                         yield_env: new_object(),
                         set: false,
@@ -644,7 +644,7 @@ impl<'a> Compiler<'a> {
         self.label_here(&ret_lbl);
         self.write(Opcode::Return);
 
-        let gid = self.frame.m.constants.len();
+        let gid = self.frame.m.constants.borrow().len();
 
         self.functions
             .push((self.code.clone(), gid as _, args.clone()));

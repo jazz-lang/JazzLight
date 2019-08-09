@@ -1,13 +1,13 @@
 function List() {
-    this = Object.create(nil)
-    this.l = 0
-    this.h = nil
-    this.q = nil
+    var obj = new_object(nil)
+    obj.l = 0
+    obj.h = nil
+    obj.q = nil
 
-    this.len = function() {
+    obj.len = function() {
         return this.l
     }
-    this.add = function(x) {
+    obj.add = function(x) {
         var a = [x,nil]
         if this.q != nil {
             this.q[1] = a
@@ -17,7 +17,7 @@ function List() {
         this.q = a 
         this.l = this.l + 1 
     }
-    this.push = function(x) {
+    obj.push = function(x) {
         var a = [x,this.h]
         this.h = a 
         if this.q == nil {
@@ -25,7 +25,7 @@ function List() {
         }
         this.l = this.l + 1
     }
-    this.remove = function(x) {
+    obj.remove = function(x) {
         var cur = this.h
         var prev = nil
         while cur != nil {
@@ -46,7 +46,7 @@ function List() {
         return false
     }
 
-    this.find = function(f) {
+    obj.find = function(f) {
         
         var p = this.h
         while p != nil {
@@ -60,7 +60,7 @@ function List() {
         return undefined
     }
 
-    this.pop = function(x) {
+    obj.pop = function(x) {
         if this.h == nil {
             throw "No value to pop"
         }
@@ -73,8 +73,6 @@ function List() {
         return x
     }
 
-
-    return this
+    return obj
 }
-
 exports.List = List

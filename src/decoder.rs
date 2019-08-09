@@ -2,41 +2,46 @@ use crate::map::LinkedHashMap;
 use crate::vm::opcodes::Opcode;
 use crate::vm::value::*;
 use crate::vm::Machine;
-
+use byteorder::*;
+use std::io::Cursor;
 pub struct BytecodeReader<'a> {
     pub machine: &'a mut Machine,
-    pub bytecode: Vec<u8>,
+    pub bytecode: Cursor<Vec<u8>>,
     pub pc: usize,
+    pub count: usize,
 }
 
 impl<'a> BytecodeReader<'a> {
     fn read_u8(&mut self) -> u8 {
         self.pc += 1;
-        self.bytecode[self.pc - 1]
+        self.bytecode.read_u8().unwrap()
     }
     fn read_u16(&mut self) -> u16 {
-        unsafe { std::mem::transmute([self.read_u8(), self.read_u8()]) }
+        self.pc += 2;
+        self.bytecode.read_u16::<LittleEndian>().unwrap()
+        
     }
     fn read_u32(&mut self) -> u32 {
-        unsafe { std::mem::transmute([self.read_u16(), self.read_u16()]) }
+        self.pc += 4;
+        self.bytecode.read_u32::<LittleEndian>().unwrap()
     }
     fn read_u64(&mut self) -> u64 {
-        unsafe { std::mem::transmute([self.read_u32(), self.read_u32()]) }
+        self.pc += 8;
+        self.bytecode.read_u64::<LittleEndian>().unwrap()
     }
 
     pub fn read(&mut self) -> Vec<Opcode> {
-        let mut strings = LinkedHashMap::new();
+        let mut strings = vec![];
         let mut opcodes = vec![];
         let count = self.read_u32();
         for _ in 0..count {
-            let idx = self.read_u32();
             let len = self.read_u32() as usize;
             let mut bytes = vec![];
             for _ in 0..len {
                 bytes.push(self.read_u8());
             }
             let s = String::from_utf8(bytes).unwrap();
-            strings.insert(idx, s);
+            strings.push(s);
         }
         let count = self.read_u32();
         for _ in 0..count {
@@ -46,21 +51,22 @@ impl<'a> BytecodeReader<'a> {
                     let bits = self.read_u64();
                     self.machine
                         .constants
+                        .borrow_mut()
                         .push(ValueData::Number(f64::from_bits(bits)))
                 }
                 0x02 => {
                     let val = self.read_u8();
                     let boolean = if val == 0 { false } else { true };
-                    self.machine.constants.push(ValueData::Bool(boolean));
+                    self.machine.constants.borrow_mut().push(ValueData::Bool(boolean));
                 }
                 0x03 => {
                     let idx = self.read_u32();
-                    let s = strings.get(&idx).unwrap().clone();
-                    self.machine.constants.push(ValueData::String(s));
+                    let s = strings[idx as usize].clone();
+                    self.machine.constants.borrow_mut().push(ValueData::String(s));
                 }
 
                 0x04 => {
-                    self.machine.constants.push(ValueData::Nil);
+                    self.machine.constants.borrow_mut().push(ValueData::Nil);
                 }
                 0x05 => {
                     let addr = self.read_u32();
@@ -71,27 +77,27 @@ impl<'a> BytecodeReader<'a> {
                     let mut args = vec![];
                     for _ in 0..argc {
                         let idx = self.read_u32();
-                        args.push(strings.get(&idx).unwrap().clone());
+                        args.push(strings[idx as usize].clone());
                     }
                     let fun = ValueData::Function(new_ref(Function::Regular {
                         environment: new_object(),
                         addr: addr as usize,
                         yield_pos: None,
                         args: args.clone(),
-                        //constants: ref_,
+                        constants: self.machine.constants.clone(),
                         code: new_ref(vec![]),
                         yield_env: new_object(),
                         set,
                         get,
                     }));
-                    self.machine.constants.push(fun);
+                    self.machine.constants.borrow_mut().push(fun);
                 }
                 x => panic!("Unexpected {:x}({})", x, x),
             }
         }
 
         let mut byte = self.read_u8();
-        while byte != 57 && self.pc < self.bytecode.len() {
+        while byte != 57 && self.pc < self.count {
             match byte {
                 54 => {
                     let integer = self.read_u64() as i64;
@@ -116,7 +122,7 @@ impl<'a> BytecodeReader<'a> {
                 }
                 6 => {
                     let idx = self.read_u32();
-                    let s = crate::intern(strings.get(&idx).unwrap());
+                    let s = crate::intern(&strings[idx as usize]);
                     opcodes.push(Opcode::LoadVar(s));
                 }
                 7 => {
@@ -134,12 +140,12 @@ impl<'a> BytecodeReader<'a> {
                 }
                 11 => {
                     let idx = self.read_u32();
-                    let s = crate::intern(strings.get(&idx).unwrap());
+                    let s = crate::intern(&strings[idx as usize]);
                     opcodes.push(Opcode::DeclVar(s));
                 }
                 12 => {
                     let idx = self.read_u32();
-                    let s = crate::intern(strings.get(&idx).unwrap());
+                    let s = crate::intern(&strings[idx as usize]);
                     opcodes.push(Opcode::StoreVar(s));
                 }
                 13 => {
@@ -226,13 +232,10 @@ impl<'a> BytecodeReader<'a> {
                 52 => opcodes.push(Opcode::BlockStart),
                 x => panic!("{}", x),
             }
-            if self.pc == self.bytecode.len() {
-                break;
-            }
             byte = self.read_u8();
         }
 
-        for c in self.machine.constants.iter() {
+        for c in self.machine.constants.borrow().iter() {
             match c {
                 ValueData::Function(func) => {
                     let func: &mut Function = &mut func.borrow_mut();

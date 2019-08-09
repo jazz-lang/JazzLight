@@ -47,24 +47,25 @@ impl<'a> Writer<'a> {
                 _ => (),
             }
         }
-        for i in 0..self.machine.constants.len() {
-            let c = self.machine.constants[i].clone();
+        let len = self.machine.constants.borrow().len();
+        for i in 0..len {
+            let c = self.machine.constants.borrow()[i].clone();
             if let ValueData::String(s) = &c {
                 self.get_str_id(s);
             }
         }
         self.write_u32(self.names.len() as u32);
-        for (string, idx) in self.names.clone().iter() {
-            self.write_u32(*idx);
+        for (string, _idx) in self.names.clone().iter() {
             self.write_u32(string.len() as _);
             for byte in string.as_bytes() {
                 self.write_u8(*byte);
             }
         }
-        self.write_u32(self.machine.constants.len() as _);
-
-        for i in 0..self.machine.constants.len() {
-            let c = self.machine.constants[i].clone();
+        let len = self.machine.constants.borrow().len();
+        self.write_u32(len as _);
+        
+        for i in 0..len {
+            let c = self.machine.constants.borrow()[i].clone();
 
             match &c {
                 ValueData::Number(x) => {
