@@ -258,6 +258,35 @@ impl<'a> Parser<'a> {
         Ok(expr!(ExprDecl::While(cond, block), pos))
     }
 
+    fn parse_object(&mut self) -> EResult {
+        let pos = self.expect_token(TokenKind::At)?.position;
+
+        self.expect_token(TokenKind::LBrace)?;
+        let fields = self.parse_comma_list(TokenKind::RBrace, |p| {
+            Ok((
+                {
+                    let ident = match &p.token.kind {
+                        TokenKind::Identifier(ident) => ident.clone(),
+                        TokenKind::String(s) => s.clone(),
+                        _ => {
+                            return Err(MsgWithPos::new(
+                                p.lexer.path(),
+                                p.token.position,
+                                Msg::ExpectedIdentifier("".to_string()),
+                            ))
+                        }
+                    };
+                    p.advance_token()?;
+                    p.expect_token(TokenKind::Colon)?;
+                    ident
+                },
+                p.parse_expression()?,
+            ))
+        })?;
+
+        Ok(expr!(ExprDecl::Object(fields), pos))
+    }
+
     fn parse_match(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Match)?.position;
         let value = self.parse_expression()?;
@@ -547,8 +576,8 @@ impl<'a> Parser<'a> {
 
     pub fn parse_factor(&mut self) -> EResult {
         let expr = match self.token.kind {
-            TokenKind::Fun => self.parse_function(),
-
+            TokenKind::Fun | TokenKind::Dollar => self.parse_function(),
+            TokenKind::At => self.parse_object(),
             TokenKind::LParen => self.parse_parentheses(),
             TokenKind::LitChar(_) => self.lit_char(),
             TokenKind::LitInt(_, _, _) => self.lit_int(),

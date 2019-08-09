@@ -91,7 +91,6 @@ pub enum ExprDecl {
     Label(String),
     Switch(P<Expr>, Vec<(P<Expr>, P<Expr>)>, Option<P<Expr>>),
     Unop(String, P<Expr>),
-
     Throw(P<Expr>),
     Yield(P<Expr>),
     Jazz(String),
@@ -182,6 +181,11 @@ impl Expr {
             ExprDecl::Binop(_, e1, e2) => {
                 f(e1);
                 f(e2)
+            }
+            ExprDecl::Object(fields) => {
+                for (_, expr) in fields.iter() {
+                    f(expr);
+                }
             }
             ExprDecl::Return(Some(e)) => f(e),
             ExprDecl::Break(Some(e)) => f(e),

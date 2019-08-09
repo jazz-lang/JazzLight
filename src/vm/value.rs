@@ -374,6 +374,12 @@ impl SetGet for ValueData {
                                 ))),
                             ))
                         }
+                        "slice" => return Some(
+                            Property::new(
+                                "slice",
+                                new_exfunc(crate::vm::runtime::str_slice)
+                            )
+                        ),
 
                         _ => return None,
                     }

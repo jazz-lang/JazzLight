@@ -267,6 +267,9 @@ impl<'a> Compiler<'a> {
                 self.write(Opcode::Load);
             }
             ExprDecl::Block(exprs) => {
+                if exprs.is_empty() {
+                    return;
+                }
                 self.start();
                 self.write(Opcode::PushEnv);
                 for expr in exprs.iter() {
@@ -496,6 +499,45 @@ impl<'a> Compiler<'a> {
                 self.emit_goto(&check);
                 self.end();
                 self.label_here(&end);
+            }
+            ExprDecl::Switch(value, with, default_) => {
+                self.end();
+                let orl = self.new_empty_label();
+                let end = self.new_empty_label();
+
+                for (cond, expr) in with.iter() {
+                    let l1 = self.new_empty_label();
+                    self.compile(value);
+                    self.compile(cond);
+                    self.write(Opcode::Eq);
+                    self.emit_gotof(&l1);
+                    self.compile(&expr);
+                    self.emit_goto(&end);
+                    self.label_here(&l1);
+                }
+                if default_.is_some() {
+                    self.emit_goto(&orl);
+                }
+                self.label_here(&orl);
+                if default_.is_some() {
+                    self.compile(&default_.clone().unwrap());
+                    self.emit_goto(&end);
+                }
+                self.label_here(&end);
+            }
+            ExprDecl::Object(properties) => {
+                self.write(Opcode::PushEnv);
+                self.write(Opcode::NewObj);
+                self.write(Opcode::DeclVar(intern("@obj")));
+                for (name, expr) in properties.iter() {
+                    self.write(Opcode::LoadVar(intern("@obj")));
+                    let c = self.new_constant(name);
+                    self.write(Opcode::LoadConst(c as _));
+                    self.compile(expr);
+                    self.write(Opcode::Store);
+                }
+                self.write(Opcode::LoadVar(intern("@obj")));
+                self.write(Opcode::PopEnv);
             }
             ExprDecl::While(cond, body) => {
                 let check = self.new_empty_label();

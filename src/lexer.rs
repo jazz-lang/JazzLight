@@ -116,16 +116,10 @@ impl Lexer {
                 return self.read_operator();
             } else if ch == Some('$') {
                 self.read_char();
-                let tok = self.read_identifier()?;
-                if let TokenKind::Identifier(ident) = tok.kind {
-                    return Ok(Token::new(TokenKind::Builtin(ident.clone()), pos));
-                } else {
-                    return Err(MsgWithPos::new(
-                        self.path(),
-                        pos,
-                        Msg::ExpectedIdentifier("builtin".into()),
-                    ));
-                }
+                return Ok(Token::new(TokenKind::Dollar, pos));
+            } else if ch == Some('@') {
+                self.read_char();
+                return Ok(Token::new(TokenKind::At, pos));
             } else {
                 let ch = ch.unwrap();
 
@@ -257,6 +251,7 @@ impl Lexer {
             '/' => TokenKind::Div,
             '%' => TokenKind::Mod,
             '$' => TokenKind::Dollar,
+            '@' => TokenKind::At,
             '(' => TokenKind::LParen,
             ')' => TokenKind::RParen,
             '[' => TokenKind::LBracket,

@@ -30,7 +30,7 @@ pub enum TokenKind {
 
     LQuote,
     RQuote,
-
+    At,
     // Keywords
     Include,
     This,
@@ -129,6 +129,7 @@ impl TokenKind {
             TokenKind::LQuote => "<",
             TokenKind::RQuote => ">",
             TokenKind::Dollar => "$",
+            TokenKind::At => "@",
             // Keywords
             TokenKind::This => "this",
             TokenKind::New => "new",

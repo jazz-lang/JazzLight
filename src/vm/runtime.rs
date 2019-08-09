@@ -633,8 +633,17 @@ pub fn parse_float(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
     let text = val_str(&args[0]);
     match text.parse::<f64>() {
         Ok(num) => return Ok(new_ref(ValueData::Number(num))),
-        Err(e) => return Err(new_error(-1, None, &e.to_string())),
+        Err(e) => return Err(new_error(-1, None, &format!("Failed to parse '{}': {}",text,e.to_string()))),
     }
+}
+
+pub fn str_slice(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let s = val_str(&this);
+    let start = val_int(&args[0]);
+    let end = val_int(&args[1]);
+    return Ok(new_ref(
+        ValueData::String(s[start as usize..end as usize].to_string())
+    ));
 }
 
 pub fn regex_captures(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {

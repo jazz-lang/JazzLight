@@ -1,0 +1,120 @@
+function buildRules(ruleMap) {
+    var rules = []
+    for rule in ruleMap {
+        if typeof(rule.key) == "regex" {
+            var rule_ = @{
+                regex: rule.key,
+                action: rule.value
+            }
+            rules.push(rule_)
+        } else if typeof(rule.key) == "string" {
+            try {
+                var regexp = regex(rule.key)
+
+                var rule_ = @{
+                    regex: regexp,
+                    action: rule.value
+                }
+                rules.push(rule_)
+            } catch exc {
+                throw exc
+            }
+        } else {
+            throw "String or regex expected as rule"
+        }
+    }
+    rules
+}
+
+
+
+
+
+function StringStream(text) {
+    this._string = text
+    this.nextString = function() {
+        var tmp = this._string
+        this._string = undefined
+        tmp
+    }
+    this
+}
+
+
+var LexedIgnore = "_____IGNORE_____"
+
+function Lexed(text,ruleMap) {
+
+    this._stream = StringStream(text)
+    this._currString = ""
+    this._state = "initial"
+    
+    this.rules = buildRules(ruleMap)
+    
+    this.getInput = function(needsInput) {
+        if (this._currString != undefined || this._currString != nil)|| this._currString == "" || needsInput {
+            
+            return this._stream.nextString()
+        } else {
+            return ""
+        }
+    }
+    this.state = function(newstate) {
+        if newstate != undefined {
+            return this._state
+        }
+        this._state = newstate
+    }
+    
+    this.lex = function() {
+        var input = this.getInput()
+        if input == undefined && (this._currString == "" || this._currString == undefined || this._currString == nil) {
+            return "eof"
+        }
+        this._currString = this._currString + input
+        var match = undefined
+        var index = 0
+        while match == undefined || match == nil {
+            for i in range(0,this.rules.length) {
+                var rule = this.rules[i]
+                var tempMatch = rule.regex.captures(this._currString)
+                
+                if tempMatch != undefined && tempMatch != nil {
+                    
+                    if match == undefined || match == nil {
+                        match = tempMatch
+                        index = i
+                    } else if tempMatch[0].text.length > match[0].text.length {
+                        match = tempMatch
+                        index = i
+                    }
+                }
+            }
+            if this._currString == "" {
+                return "eof"
+            }
+            
+            if match == undefined || match == nil {
+                
+                var input = this.getInput(true)
+                
+                if input == undefined || input == nil {
+                    return "eof"
+                }
+                this._currString = this._currString + input
+            }
+            this._currString = this._currString.slice(match[0].end,this._currString.length)
+            var rule = this.rules[index]
+            if typeof(rule.action) == "function" {
+                var result = rule.action(match[0].text,this)
+                return result
+            } else {
+                return rule.action
+            }
+        }
+    }
+    this
+}
+
+
+export.Lexed = Lexed
