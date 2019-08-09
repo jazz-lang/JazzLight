@@ -24,6 +24,7 @@ function shuffle(x) {
 }
 
 function NeuralNet(input_size,output_size,hidden) {
+    this = Object.create(nil)
     this.input_layer = createLayer(input_size,0,false)
     this.output_layer = createLayer(output_size,0,true)
     this.hidden_layers = []

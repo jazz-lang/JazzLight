@@ -1,4 +1,5 @@
 function Map() {
+    this = Object.create(nil)
     this.entries = []
 
     this.insert = function(key,val) {

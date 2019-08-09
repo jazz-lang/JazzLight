@@ -1,4 +1,5 @@
 function List() {
+    this = Object.create(nil)
     this.l = 0
     this.h = nil
     this.q = nil
