@@ -557,6 +557,14 @@ fn val_str(v: &Value) -> String {
     }
 }
 
+fn val_arr(v: &Value) -> Ref<Vec<Value>> {
+    let v: &ValueData = &v.borrow();
+    match v {
+        ValueData::Array(s) => return s.clone(),
+        _ => panic!("Array expected"),
+    }
+}
+
 pub fn str_trim(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let val = val_str(&args[0]);
     return Ok(new_ref(ValueData::String(val.trim().to_owned())));
@@ -734,6 +742,12 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
     declare_var(&env, "new_object", new_exfunc(new_object_f), &pos).unwrap();
     declare_var(&env, "apply",new_exfunc(apply),&pos).unwrap();
+    declare_var(&env, "get_env",new_exfunc(get_env), &pos).unwrap();
+}
+
+pub fn get_env(f: &mut Frame<'_>,_: Value,_: &[Value]) -> Result<Value,ValueData> {
+    let env = f.env.clone();
+    Ok(new_ref(ValueData::Object(env)))
 }
 
 pub fn regex_is_match(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
@@ -805,6 +819,18 @@ pub fn str_slice(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value
     return Ok(new_ref(ValueData::String(
         s[start as usize..end as usize].to_string(),
     )));
+}
+
+
+pub fn array_slice(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let array = val_arr(&this);
+    let start = val_int(&args[0]) as usize;
+    let end = val_int(&args[1]) as usize;
+    
+    let slice = (&array.borrow()[start..end]).to_vec();
+    Ok(new_ref(
+        ValueData::Array(new_ref(slice))
+    ))
 }
 
 pub fn regex_captures(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {

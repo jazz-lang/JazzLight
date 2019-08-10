@@ -337,6 +337,7 @@ impl SetGet for ValueData {
                             "indexOf" => new_exfunc(array_indexof),
                             "remove" => new_exfunc(array_remove),
                             "reverse" => new_exfunc(array_reverse),
+                            "slice" => new_exfunc(crate::vm::runtime::array_slice),
                             _ => new_ref(ValueData::Undefined),
                         };
                         return Some(Property::new(key.clone(), v));
