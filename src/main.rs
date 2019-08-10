@@ -61,7 +61,7 @@ fn main() {
             machine: &mut m,
             bytecode: std::io::Cursor::new(code),
             pc: 0,
-            count: c
+            count: c,
         };
 
         let code = reader.read();

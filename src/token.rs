@@ -27,7 +27,8 @@ pub enum TokenKind {
     Identifier(String),
     Builtin(String),
     End,
-
+    EqEqEq,
+    NeEqEq,
     LQuote,
     RQuote,
     At,
@@ -190,6 +191,8 @@ impl TokenKind {
 
             TokenKind::Eq => "=",
             TokenKind::EqEq => "==",
+            TokenKind::EqEqEq => "===",
+            TokenKind::NeEqEq => "!==",
             TokenKind::Ne => "!=",
             TokenKind::Lt => "<",
             TokenKind::Le => "<=",

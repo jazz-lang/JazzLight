@@ -63,7 +63,7 @@ impl<'a> Writer<'a> {
         }
         let len = self.machine.constants.borrow().len();
         self.write_u32(len as _);
-        
+
         for i in 0..len {
             let c = self.machine.constants.borrow()[i].clone();
 
@@ -280,11 +280,20 @@ impl<'a> Writer<'a> {
                 Opcode::Neg => {
                     self.write_u8(50);
                 }
-                Opcode::BlockEnd => {
+                Opcode::RefEq => {
                     self.write_u8(51);
                 }
-                Opcode::BlockStart => {
+                Opcode::RefNeq => {
                     self.write_u8(52);
+                }
+                Opcode::BlockEnd => {
+                    self.write_u8(53);
+                }
+                Opcode::BlockStart => {
+                    self.write_u8(56);
+                }
+                Opcode::Apply => {
+                    self.write_u8(55);
                 }
             }
         }

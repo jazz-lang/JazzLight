@@ -18,7 +18,6 @@ impl<'a> BytecodeReader<'a> {
     fn read_u16(&mut self) -> u16 {
         self.pc += 2;
         self.bytecode.read_u16::<LittleEndian>().unwrap()
-        
     }
     fn read_u32(&mut self) -> u32 {
         self.pc += 4;
@@ -56,12 +55,18 @@ impl<'a> BytecodeReader<'a> {
                 0x02 => {
                     let val = self.read_u8();
                     let boolean = if val == 0 { false } else { true };
-                    self.machine.constants.borrow_mut().push(ValueData::Bool(boolean));
+                    self.machine
+                        .constants
+                        .borrow_mut()
+                        .push(ValueData::Bool(boolean));
                 }
                 0x03 => {
                     let idx = self.read_u32();
                     let s = strings[idx as usize].clone();
-                    self.machine.constants.borrow_mut().push(ValueData::String(s));
+                    self.machine
+                        .constants
+                        .borrow_mut()
+                        .push(ValueData::String(s));
                 }
 
                 0x04 => {
@@ -227,8 +232,13 @@ impl<'a> BytecodeReader<'a> {
                 48 => opcodes.push(Opcode::BitAnd),
                 49 => opcodes.push(Opcode::Not),
                 50 => opcodes.push(Opcode::Neg),
-                51 => opcodes.push(Opcode::BlockEnd),
-                52 => opcodes.push(Opcode::BlockStart),
+                51 => opcodes.push(Opcode::RefEq),
+                52 => opcodes.push(Opcode::RefNeq),
+                53 => opcodes.push(Opcode::BlockStart),
+                56 => opcodes.push(Opcode::BlockEnd),
+                55 => {
+                    opcodes.push(Opcode::Apply);
+                }
                 x => panic!("{}", x),
             }
             byte = self.read_u8();

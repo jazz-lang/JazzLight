@@ -12,7 +12,7 @@ use std::cell::RefCell;
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct Ref<T: Sized>(Arc<RefCell<T>>);
+pub struct Ref<T: Sized>(pub Arc<RefCell<T>>);
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -242,7 +242,6 @@ pub enum Function {
         args: Vec<String>,
         get: bool,
         set: bool,
-        
     },
 }
 
@@ -375,12 +374,12 @@ impl SetGet for ValueData {
                                 ))),
                             ))
                         }
-                        "slice" => return Some(
-                            Property::new(
+                        "slice" => {
+                            return Some(Property::new(
                                 "slice",
-                                new_exfunc(crate::vm::runtime::str_slice)
-                            )
-                        ),
+                                new_exfunc(crate::vm::runtime::str_slice),
+                            ))
+                        }
 
                         _ => return None,
                     }
@@ -555,7 +554,7 @@ impl Hash for ValueData {
 
 pub type Value = Ref<ValueData>;
 
-#[derive(Clone, Serialize, Deserialize,Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Object {
     pub proto: Option<Ref<Object>>,
     pub table: PropertyMap,
@@ -967,7 +966,7 @@ impl Collectable for Function {
 }
 */
 
-#[derive(Clone, PartialEq, Serialize, Deserialize,Debug)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Property {
     pub key: ValueData,
     pub value: Value,
@@ -993,7 +992,7 @@ impl From<Property> for Value {
 
 use smallvec::SmallVec;
 
-#[derive(Clone, Serialize, Deserialize,Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyMap {
     /// properties list,stored in smallvec
     list: SmallVec<[Property; 10]>,

@@ -78,6 +78,113 @@ pub fn regex(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Value
     }
 }
 
+pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let function: Value = args[0].clone();
+    let args: Value = args[1].clone();
+    let args: &ValueData = &args.borrow();
+    let args = match args {
+        ValueData::Array(array) => array.borrow().clone(),
+        _ => return Err(new_error(-1,None,"Array expected in apply")),
+    };
+    let maybe_function = function.borrow();
+    let maybe_function: &ValueData = &maybe_function;
+    match maybe_function {
+        ValueData::Function(fun_) => {
+            let fun_2 = fun_.clone();
+            let fun: &Function = &fun_.borrow();
+            match fun {
+                Function::Native(addr) => {
+                    let fun: fn(&mut Frame<'_>, Value, &[Value]) -> Result<Value, ValueData> =
+                        unsafe { std::mem::transmute(*addr) };
+
+                    let result = fun(frame, nil(), &args)?;
+                    frame.push_ref(result);
+                }
+                Function::Regular {
+                    environment,
+                    addr,
+                    yield_pos,
+                    code,
+                    args: args_,
+                    yield_env,
+                    constants,
+                    ..
+                } => {
+                    frame.funs.push(fun_2);
+                    match yield_pos {
+                        Some(ref pos) => {
+                            frame.save_state(true, true, true, true);
+                            frame.pc = *pos;
+
+                            frame.env = yield_env.clone();
+                        }
+                        None => {
+                            frame.save_state(true, true, true, true);
+                            frame.pc = *addr;
+                            frame.env = environment.clone();
+                        }
+                    }
+                    frame.code = code.clone();
+                    frame.m.constants = constants.clone();
+                    for (i, arg) in args_.iter().enumerate() {
+                        if var_declared(&environment, arg) {
+                            set_variable_in_scope(
+                                &environment,
+                                arg,
+                                args.get(i)
+                                    .unwrap_or(&new_ref(ValueData::Undefined))
+                                    .clone(),
+                                &Position::new(0, 0)
+                            )?;
+                        } else {
+                            declare_var(
+                                &environment,
+                                arg,
+                                args.get(i)
+                                    .unwrap_or(&new_ref(ValueData::Undefined))
+                                    .clone(),
+                                &Position::new(0, 0)
+                            )?
+                        }
+                    }
+                    if var_declared(&environment, "_args") {
+                        set_variable_in_scope(
+                            &environment,
+                            "_args",
+                            new_ref(ValueData::Array(new_ref(args))),
+                            &Position::new(0, 0)
+                        )?
+                    } else {
+                        declare_var(
+                            &environment,
+                            "_args",
+                            new_ref(ValueData::Array(new_ref(args))),
+                            &Position::new(0, 0)
+                        )?
+                    }
+                    if var_declared(&environment, "this") {
+                        set_variable_in_scope(
+                            &environment,
+                            "this",
+                            new_ref(ValueData::Object(new_object())),
+                            &Position::new(0, 0)
+                        )?;
+                    } else {
+                        declare_var(
+                            &environment,
+                            "this",
+                            new_ref(ValueData::Object(new_object())),
+                            &Position::new(0, 0)
+                        )?;
+                    }
+                }
+            }
+        }
+        _ => return Err(new_error(-1, None, "function expected")),
+    }
+    Ok(nil())
+}
+
 pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     if args.is_empty() {
         return Err(new_error(0, None, "function expected"));
@@ -146,10 +253,10 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
             let arg: &ValueData = &arg.borrow();
             match arg {
                 ValueData::Bool(boolean) => *boolean,
-                _ => false
+                _ => false,
             }
-        },
-        _ => false
+        }
+        _ => false,
     };
     let cur_dir = std::env::current_dir()
         .unwrap()
@@ -177,7 +284,7 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
         machine: &mut m,
         bytecode: std::io::Cursor::new(code),
         pc: 0,
-        count: c
+        count: c,
     };
 
     let code = reader.read();
@@ -207,10 +314,14 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
         match exports_ref {
             ValueData::Object(object) => {
                 for entry in object.borrow().table.iter() {
-                    frame.env.borrow_mut().table.insert_anyway(entry.0.clone(),entry.1.clone());
+                    frame
+                        .env
+                        .borrow_mut()
+                        .table
+                        .insert_anyway(entry.0.clone(), entry.1.clone());
                 }
             }
-            _ => return Err(new_error(-1, None, "'exports' variable must be object"))
+            _ => return Err(new_error(-1, None, "'exports' variable must be object")),
         }
     }
     Ok(exports)
@@ -551,8 +662,8 @@ pub fn str_chars(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, V
     ))));
 }
 
-pub fn new_object_f(f: &mut Frame<'_>,t: Value,args: &[Value]) -> Result<Value,ValueData> {
-    crate::vm::runtime::object::object_create(f,t,args)
+pub fn new_object_f(f: &mut Frame<'_>, t: Value, args: &[Value]) -> Result<Value, ValueData> {
+    crate::vm::runtime::object::object_create(f, t, args)
 }
 
 pub fn register_builtins(env: Ref<Object>) {
@@ -622,6 +733,7 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "parseInt", new_exfunc(parse_int), &pos).unwrap();
     declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
     declare_var(&env, "new_object", new_exfunc(new_object_f), &pos).unwrap();
+    declare_var(&env, "apply",new_exfunc(apply),&pos).unwrap();
 }
 
 pub fn regex_is_match(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
@@ -676,17 +788,23 @@ pub fn parse_float(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
     let text = val_str(&args[0]);
     match text.parse::<f64>() {
         Ok(num) => return Ok(new_ref(ValueData::Number(num))),
-        Err(e) => return Err(new_error(-1, None, &format!("Failed to parse '{}': {}",text,e.to_string()))),
+        Err(e) => {
+            return Err(new_error(
+                -1,
+                None,
+                &format!("Failed to parse '{}': {}", text, e.to_string()),
+            ))
+        }
     }
 }
 
-pub fn str_slice(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn str_slice(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
     let s = val_str(&this);
     let start = val_int(&args[0]);
     let end = val_int(&args[1]);
-    return Ok(new_ref(
-        ValueData::String(s[start as usize..end as usize].to_string())
-    ));
+    return Ok(new_ref(ValueData::String(
+        s[start as usize..end as usize].to_string(),
+    )));
 }
 
 pub fn regex_captures(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {

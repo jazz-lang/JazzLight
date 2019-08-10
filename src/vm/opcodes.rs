@@ -30,6 +30,8 @@ pub enum Opcode {
     /// Jump to instruction if value from stack == 0
     JumpIfFalse(u32),
     /// Invoke some function
+    Apply,
+    /// Invoke some function
     Call(u32),
     /// Pop n items from stack
     Pop(u32),
@@ -70,6 +72,8 @@ pub enum Opcode {
     BitAnd,
     Not,
     Neg,
+    RefEq,
+    RefNeq,
     BlockEnd,
     BlockStart,
 }

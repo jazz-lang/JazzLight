@@ -293,7 +293,11 @@ impl Lexer {
             '=' => {
                 if nch == '=' {
                     self.read_char();
-                    TokenKind::EqEq
+                    let nch = self.cur().unwrap_or('x');
+                    match nch {
+                        '=' => TokenKind::EqEqEq,
+                        _ => TokenKind::EqEq,
+                    }
                 } else {
                     TokenKind::Eq
                 }
@@ -316,6 +320,7 @@ impl Lexer {
             '>' => match nch {
                 '=' => {
                     self.read_char();
+
                     TokenKind::Ge
                 }
 
@@ -331,7 +336,11 @@ impl Lexer {
             '!' => {
                 if nch == '=' {
                     self.read_char();
-                    TokenKind::Ne
+                    let nch = self.cur().unwrap_or('x');
+                    match nch {
+                        '=' => TokenKind::NeEqEq,
+                        _ => TokenKind::Ne,
+                    }
                 } else {
                     TokenKind::Not
                 }

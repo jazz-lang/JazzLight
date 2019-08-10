@@ -203,16 +203,18 @@ impl<'a> Compiler<'a> {
                             pos: expr.pos,
                             decl: ExprDecl::Const(Constant::Str("require".to_owned())),
                         }),
-                        vec![crate::P(Expr {
-                            id: expr.id,
-                            pos: expr.pos,
-                            decl: ExprDecl::Const(Constant::Str(filename.to_owned())),
-                        }),
+                        vec![
                             crate::P(Expr {
                                 id: expr.id,
                                 pos: expr.pos,
-                                decl: ExprDecl::Const(Constant::True)
-                            })],
+                                decl: ExprDecl::Const(Constant::Str(filename.to_owned())),
+                            }),
+                            crate::P(Expr {
+                                id: expr.id,
+                                pos: expr.pos,
+                                decl: ExprDecl::Const(Constant::True),
+                            }),
+                        ],
                     ),
                 });
                 self.write(Opcode::DeclVar(intern(filename)));
@@ -341,11 +343,12 @@ impl<'a> Compiler<'a> {
                     "|" => self.write(Opcode::BitOr),
                     "&" => self.write(Opcode::BitAnd),
                     "^" => self.write(Opcode::BitXor),
+                    "===" => self.write(Opcode::RefEq),
+                    "!==" => self.write(Opcode::RefNeq),
                     _ => unreachable!(),
                 };
             }
             ExprDecl::Assign(lhs, rhs) => {
-                
                 match &lhs.decl {
                     ExprDecl::Field(obj, field) => {
                         self.compile(obj);

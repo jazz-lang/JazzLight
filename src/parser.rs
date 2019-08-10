@@ -360,6 +360,8 @@ impl<'a> Parser<'a> {
             TokenKind::Ge => ">=",
             TokenKind::Caret => "^",
             TokenKind::Add => "+",
+            TokenKind::NeEqEq => "!==",
+            TokenKind::EqEqEq => "===",
             TokenKind::Sub => "-",
             TokenKind::Mul => "*",
             TokenKind::Div => "/",
@@ -385,7 +387,10 @@ impl<'a> Parser<'a> {
                 | TokenKind::Lt
                 | TokenKind::Le
                 | TokenKind::Gt
-                | TokenKind::Ge => 4,
+                | TokenKind::Ge
+                | TokenKind::EqEqEq
+                | TokenKind::NeEqEq => 4,
+
                 TokenKind::BitOr | TokenKind::BitAnd | TokenKind::Caret => 6,
                 TokenKind::LtLt
                 | TokenKind::GtGt
