@@ -1,4 +1,3 @@
-use crate::map::LinkedHashMap;
 use crate::vm::opcodes::Opcode;
 use crate::vm::value::*;
 use crate::vm::Machine;

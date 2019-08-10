@@ -105,8 +105,8 @@ pub fn builtin_spawn(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Valu
                         code: code.clone(),
                         addr: *addr,
                         constants: constants.clone(),
-                        yield_env: new_object(),
-                        yield_pos: None,
+                        yield_env: environment.clone(),
+                        yield_pos: Some(*addr),
                         set: *set,
                         get: *get,
                     };
@@ -140,6 +140,17 @@ pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Val
 
 pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let name = String::from(args[0].borrow().clone());
+    let import_all = match args.get(1) {
+        Some(arg) => {
+            let arg: Value = arg.clone();
+            let arg: &ValueData = &arg.borrow();
+            match arg {
+                ValueData::Bool(boolean) => *boolean,
+                _ => false
+            }
+        },
+        _ => false
+    };
     let cur_dir = std::env::current_dir()
         .unwrap()
         .to_str()
@@ -191,6 +202,17 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
     }*/
 
     let exports = get_variable(&frame1.env, "exports", &Position::new(0, 0)).unwrap();
+    if import_all {
+        let exports_ref: &ValueData = &exports.borrow();
+        match exports_ref {
+            ValueData::Object(object) => {
+                for entry in object.borrow().table.iter() {
+                    frame.env.borrow_mut().table.insert_anyway(entry.0.clone(),entry.1.clone());
+                }
+            }
+            _ => return Err(new_error(-1, None, "'exports' variable must be object"))
+        }
+    }
     Ok(exports)
 }
 

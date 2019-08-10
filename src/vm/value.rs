@@ -1038,7 +1038,17 @@ impl PropertyMap {
         }
         return None;
     }
-
+    pub fn insert_anyway(&mut self, key: impl Into<ValueData>, val: Value) {
+        let key = key.into();
+        for prop in self.list.iter_mut() {
+            if prop.key == key {
+                prop.value = val;
+                return;
+            }
+        }
+        let property = Property::new(key, val);
+        self.list.push(property);
+    }
     pub fn insert(&mut self, key: impl Into<ValueData>, val: Value) -> Result<(), ValueData> {
         let key = key.into();
         for prop in self.list.iter_mut() {

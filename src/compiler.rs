@@ -207,7 +207,12 @@ impl<'a> Compiler<'a> {
                             id: expr.id,
                             pos: expr.pos,
                             decl: ExprDecl::Const(Constant::Str(filename.to_owned())),
-                        })],
+                        }),
+                            crate::P(Expr {
+                                id: expr.id,
+                                pos: expr.pos,
+                                decl: ExprDecl::Const(Constant::True)
+                            })],
                     ),
                 });
                 self.write(Opcode::DeclVar(intern(filename)));

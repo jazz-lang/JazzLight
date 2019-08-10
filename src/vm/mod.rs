@@ -66,10 +66,10 @@ impl<'a> Frame<'a> {
 
     pub fn restore_state(
         &mut self,
-        restore_pc: bool,
-        restore_env: bool,
-        restore_code: bool,
-        restore_stack: bool,
+        _restore_pc: bool,
+        _restore_env: bool,
+        _restore_code: bool,
+        _restore_stack: bool,
     ) {
         let val = self.exec_stack.borrow_mut().pop();
         if let Some(ExecData::C(s)) = val {
@@ -103,7 +103,7 @@ impl<'a> Frame<'a> {
         
     }
 
-    pub fn save_state(&mut self, save_pc: bool, save_env: bool, save_code: bool, save_stack: bool) {
+    pub fn save_state(&mut self, _save_pc: bool, _save_env: bool, _save_code: bool, _save_stack: bool) {
         //if save_stack {
         self.exec_stack.borrow_mut().push(ExecData::Stack(self.stack.clone()));
         //}
