@@ -267,14 +267,23 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
     let path = if std::path::Path::new(&cur_path).exists() {
         cur_path
     } else {
-        let home_dir = option_env!("JAZZ_HOME");
+        let home_dir = dirs::home_dir().map(|x| x.to_str().unwrap().to_owned());
+        
         if let Some(home_dir) = home_dir {
-            format!("{}/{}", home_dir, name)
+            if std::path::Path::new(&format!("{}/jazzlight",home_dir)).exists() { 
+                format!("{}/jazzlight/{}", home_dir, name)
+            } else {
+                name
+            }
         } else {
             name
         }
     };
-    let mut file = File::open(&path).unwrap();
+    let file = File::open(&path);
+    let mut file = match file {
+        Ok(file) => file,
+        Err(e) => return Err(new_error(-1, None,&format!("Failed to open '{}',error: {}",path,e) ))
+    };
     let mut m = Machine::new();
     let mut code = vec![];
 
