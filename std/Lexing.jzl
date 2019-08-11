@@ -118,4 +118,4 @@ function Lexed(text,ruleMap) {
 }
 
 
-export.Lexed = Lexed
+exports.Lexed = Lexed
