@@ -1,0 +1,25 @@
+var win = egg.Window("Hello!",800,600)
+
+var buf = array_init(800*600)
+
+function fill_rect(buffer,rect) {
+    for y in range(0,rect.height) {
+        for x in range(0,rect.width) {
+            var pos = ((rect.y + y) * 800) + rect.x + x
+            buffer[pos] = rect.color
+        }
+    }
+}
+
+var rect = @{
+    x: 200,
+    y: 300,
+    width: 160,
+    height: 160,
+    color: 11695220
+}
+
+while win.is_open() {
+    fill_rect(buf,rect)
+    win.update(buf)
+}

@@ -68,7 +68,7 @@ fn main() {
         let mut frame = Frame::new(&mut m);
         frame.code = jazzlight::vm::value::new_ref(code);
         jazzlight::vm::runtime::register_builtins(frame.env.clone());
-
+        jazzlight::additional::ui::minifb_init(frame.env.clone());
         frame.execute();
         return;
     }

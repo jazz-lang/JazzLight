@@ -53,6 +53,18 @@ impl<T: Collectable + 'static> _Ref<T> {
     }
 }
 
+
+#[inline]
+pub fn new_userdata(x: Box<dyn UserObject>) -> Value {
+    new_ref(
+        ValueData::User(
+            new_ref(
+                UserVal(Box::into_raw(x))
+            )
+        )
+    )
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ValueIter {
     pub values: Vec<Value>,
@@ -104,6 +116,7 @@ pub enum ValueData {
     Array(Ref<Vec<Value>>),
     Function(Ref<Function>),
     Iterator(Ref<ValueIter>),
+    User(Ref<UserVal>),
     Regex(Ref<Regex>),
 }
 
@@ -225,6 +238,7 @@ impl From<ValueData> for String {
             ValueData::Function(_) => "<function>".to_owned(),
             ValueData::Iterator(_iter) => format!("<iterator>"),
             ValueData::Regex(r) => format!("{}", r.borrow().0),
+            ValueData::User(_) => format!("<userdata>")
         }
     }
 }
@@ -295,6 +309,7 @@ impl SetGet for ValueData {
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
             }
+            ValueData::User(usr) => return usr.borrow_mut().set(key,val),
             _ => {}
         }
         Ok(())
@@ -323,6 +338,7 @@ impl SetGet for ValueData {
                     _ => return None,
                 }
             }
+            ValueData::User(usr) => usr.borrow().get(key),
             ValueData::Object(object) => object.borrow().get(key),
             ValueData::Array(array) => {
                 let array = array.borrow();
@@ -344,9 +360,9 @@ impl SetGet for ValueData {
                     }
                     ValueData::Number(idx) => {
                         let idx = *idx as i64;
-                        assert!(idx >= 0);
+                        
                         if idx as usize >= array.len() {
-                            panic!("Index out of bounds {:?}", array);
+                            return Some(Property::new(key.clone(),new_ref(ValueData::Undefined)));
                         }
                         return Some(Property::new(key.clone(), array[idx as usize].clone()));
                     }
@@ -474,6 +490,7 @@ impl fmt::Display for ValueData {
                 write!(f, "]")
             }
             ValueData::Regex(r) => write!(f, "{}", r.borrow().0),
+            ValueData::User(_) => write!(f,"<userdata>")
         }
     }
 }
@@ -1100,5 +1117,57 @@ impl PartialEq for PropertyMap {
 impl PartialOrd for PropertyMap {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.iter().partial_cmp(other.iter())
+    }
+}
+
+pub trait UserObject: mopa::Any {
+    fn set_property(&mut self,_: ValueData,_: Value) -> Result<(),ValueData>;
+    fn get_property(&self,_: &ValueData) -> Option<Property>;
+}
+
+impl SetGet for dyn UserObject {
+    fn set(&mut self, key: impl Into<ValueData>, val: impl Into<Value>) -> Result<(), ValueData> {
+        self.set_property(key.into(), val.into())
+    }
+    fn get(&self, key: &ValueData) -> Option<Property> {
+        self.get_property(key)
+    }
+}
+
+mopafy!(UserObject);
+
+#[derive(Clone,Debug,PartialEq,PartialOrd)]
+pub struct UserVal(*mut dyn UserObject);
+
+impl Deref for UserVal {
+    type Target = dyn UserObject;
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        unsafe {
+            &*self.0
+        }
+    }
+}
+
+impl DerefMut for UserVal {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut dyn UserObject {
+        unsafe {
+            &mut *self.0
+        }
+    }
+}
+
+
+
+impl Serialize for UserVal {
+    fn serialize<S: Serializer>(&self,_: S) -> Result<S::Ok,S::Error> {
+        panic!("Can not serialize user value")
+    }
+}
+
+impl<'a> Deserialize<'a> for UserVal {
+    fn deserialize<D: Deserializer<'a>>(_: D) -> Result<Self,D::Error> {
+        panic!("Can not deserialize user value")
     }
 }

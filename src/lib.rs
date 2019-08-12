@@ -6,6 +6,9 @@
 #![feature(decl_macro)]
 #![allow(dead_code)]
 
+#[macro_use]
+extern crate mopa;
+
 pub mod ast;
 #[macro_use]
 pub mod macros;
@@ -14,6 +17,7 @@ pub mod decoder;
 pub mod gc;
 pub mod interner;
 pub mod lexer;
+pub mod additional;
 pub mod map;
 pub mod msg;
 pub mod ngc;

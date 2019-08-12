@@ -241,6 +241,7 @@ pub fn type_of(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, Val
         ValueData::Bool(_) => "bool",
         ValueData::Iterator(_) => "iterator",
         ValueData::Regex(_) => "regex",
+        ValueData::User(_) => "<userdata>",
     };
     Ok(new_ref(ValueData::String(name.to_owned())))
 }
@@ -554,11 +555,11 @@ pub fn file(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueD
     Ok(new_ref(ValueData::Object(file_object)))
 }
 
-fn val_int(v: &Value) -> i64 {
+pub fn val_int(v: &Value) -> i64 {
     return i64::from(v.borrow().clone());
 }
 
-fn val_str(v: &Value) -> String {
+pub fn val_str(v: &Value) -> String {
     let v: &ValueData = &v.borrow();
     match v {
         ValueData::String(s) => return s.clone(),
@@ -566,7 +567,7 @@ fn val_str(v: &Value) -> String {
     }
 }
 
-fn val_arr(v: &Value) -> Ref<Vec<Value>> {
+pub fn val_arr(v: &Value) -> Ref<Vec<Value>> {
     let v: &ValueData = &v.borrow();
     match v {
         ValueData::Array(s) => return s.clone(),
@@ -642,6 +643,13 @@ pub fn int_from_bytes(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Val
 pub fn float_from_bits(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let val = val_int(&args[0]) as u64;
     return Ok(new_ref(ValueData::Number(f64::from_bits(val))));
+}
+
+pub fn array_init(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+    let array = vec![
+        new_ref(ValueData::Number(0.0));val_int(&args[0]) as usize
+    ];
+    Ok(new_ref(ValueData::Array(new_ref(array))))
 }
 
 pub fn char_to_num(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
@@ -751,6 +759,7 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
     declare_var(&env, "new_object", new_exfunc(new_object_f), &pos).unwrap();
     declare_var(&env, "apply",new_exfunc(apply),&pos).unwrap();
+    declare_var(&env,"array_init",new_exfunc(array_init),&pos).unwrap();
     declare_var(&env, "get_env",new_exfunc(get_env), &pos).unwrap();
 }
 

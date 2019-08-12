@@ -640,6 +640,10 @@ impl<'a> Compiler<'a> {
         //crate::ngc::gc_add_root(self.frame.env.gc());
         if declare_builtins {
             crate::vm::runtime::register_builtins(self.frame.env.clone());
+            
+            {
+                crate::additional::ui::minifb_init(self.frame.env.clone());
+            }
         }
     }
 
