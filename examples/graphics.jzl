@@ -1,25 +1,53 @@
-var win = egg.Window("Hello!",800,600)
+var win = egg.Window("Hello!",600,400)
 
-var buf = array_init(800*600)
+var buf = array_init(600*400)
 
 function fill_rect(buffer,rect) {
     for y in range(0,rect.height) {
         for x in range(0,rect.width) {
-            var pos = ((rect.y + y) * 800) + rect.x + x
+            var pos = ((rect.y + y) * 600) + rect.x + x
             buffer[pos] = rect.color
         }
     }
 }
 
 var rect = @{
-    x: 200,
-    y: 300,
-    width: 160,
-    height: 160,
+    x: 100,
+    y: 100,
+    width: 40,
+    height: 40,
     color: 11695220
 }
+print("Press arrow keys to move,'R' key to generate random color for rectangle")
 
-while win.is_open() {
+while win.is_open() && !win.key_down(egg.Key.Escape) {
+    buf.fill(0) // clear screen
+    
+        if win.key_down(egg.Key.Up) {
+            if rect.y < 600 { 
+                rect.y = rect.y - 10
+            }
+        }
+        if win.key_down(egg.Key.Down) {
+            if rect.y > 0 {
+                rect.y = rect.y + 10
+            }
+        }
+        if win.key_down(egg.Key.Right) {
+            if rect.x < 400 {
+                rect.x = rect.x + 10
+            }
+        }
+        if win.key_down(egg.Key.Left) {
+            if rect.x > 0 {
+                rect.x = rect.x - 10
+            }
+        }
+        
+    
+    if win.key_down(egg.Key.R) {
+        rect.color = Math.randomInt(10000,11695220)
+    }
     fill_rect(buf,rect)
     win.update(buf)
 }
