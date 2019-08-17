@@ -458,7 +458,7 @@ impl<'a> Parser<'a> {
                     let tok = self.advance_token()?;
                     let val_or_index = self.parse_expression()?;
                     if self.token.is(TokenKind::Comma) {
-                        panic!("unimplemented {:?}",tok.position);
+                        panic!("unimplemented {:?}", tok.position);
                     /*self.advance_token()?;
                     let mut vals = vec![val_or_index];
 

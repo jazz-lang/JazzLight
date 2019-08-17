@@ -3,7 +3,7 @@ pub mod opcodes;
 pub mod runtime;
 pub mod codegen;
 pub mod value;
-//use cgc::generational::*;
+//////cgc::generational::*;
 use crate::str;
 use opcodes::Opcode;
 use value::*;
@@ -36,6 +36,30 @@ enum ExecData {
     C(Ref<Vec<ValueData>>),
 }
 
+/*impl //cgc::Collectable for ExecData {
+    fn child(&self) -> Vec<//cgc::GCValue<dyn //cgc::Collectable>> {
+        let mut v: Vec<//cgc::GCValue<dyn //cgc::Collectable>> = vec![];
+        match self {
+            ExecData::Env(x) => {
+                v.push(x.gc());
+            }
+            ExecData::Code(c) => {
+                v.push(c.gc());
+            }
+            ExecData::Stack(s) => {
+                for x in s.iter() {
+                    v.push(x.gc());
+                }
+            }
+            ExecData::C(s) => {
+                v.push(s.gc());
+            }
+            _ => ()
+        }
+        v
+    }
+}
+*/
 pub struct Frame<'a> {
     pub m: &'a mut Machine,
     pub code: crate::vm::value::Ref<Vec<Opcode>>,
@@ -390,6 +414,7 @@ impl<'a> Frame<'a> {
                         return;
                     }
                     self.restore_state(true, true, true, true);
+
                     match self.funs.last() {
                         Some(fun) => {
                             let fun: &mut Function = &mut fun.borrow_mut();
@@ -403,6 +428,7 @@ impl<'a> Frame<'a> {
                         None => (), // do nothing
                     }
                     self.funs.pop();
+
                     self.push_ref(return_);
                 }
                 Yield => {
@@ -429,6 +455,7 @@ impl<'a> Frame<'a> {
                         None => throw!("can not find function state"),
                     }
                     self.restore_state(true, true, true, true);
+
                     self.push_ref(return_);
                 }
                 PushCatch(addr) => {

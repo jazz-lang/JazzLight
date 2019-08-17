@@ -59,13 +59,13 @@ pub fn new_exfunc(f: fn(&mut Frame<'_>, Value, &[Value]) -> Result<Value, ValueD
 }
 
 pub fn builtin_gc(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
-    crate::ngc::gc_collect_not_par();
+    //cgc::gc_collect_not_par();
     //crate::gc::gc::sweep();
     Ok(new_ref(ValueData::Nil))
 }
 
 pub fn enable_stats(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
-    crate::ngc::gc_enable_stats();
+    //cgc::gc_enable_stats();
     Ok(new_ref(ValueData::Nil))
 }
 
@@ -84,7 +84,7 @@ pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, Value
     let args: &ValueData = &args.borrow();
     let args = match args {
         ValueData::Array(array) => array.borrow().clone(),
-        _ => return Err(new_error(-1,None,"Array expected in apply")),
+        _ => return Err(new_error(-1, None, "Array expected in apply")),
     };
     let maybe_function = function.borrow();
     let maybe_function: &ValueData = &maybe_function;
@@ -134,7 +134,7 @@ pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, Value
                                 args.get(i)
                                     .unwrap_or(&new_ref(ValueData::Undefined))
                                     .clone(),
-                                &Position::new(0, 0)
+                                &Position::new(0, 0),
                             )?;
                         } else {
                             declare_var(
@@ -143,7 +143,7 @@ pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, Value
                                 args.get(i)
                                     .unwrap_or(&new_ref(ValueData::Undefined))
                                     .clone(),
-                                &Position::new(0, 0)
+                                &Position::new(0, 0),
                             )?
                         }
                     }
@@ -152,14 +152,14 @@ pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, Value
                             &environment,
                             "_args",
                             new_ref(ValueData::Array(new_ref(args))),
-                            &Position::new(0, 0)
+                            &Position::new(0, 0),
                         )?
                     } else {
                         declare_var(
                             &environment,
                             "_args",
                             new_ref(ValueData::Array(new_ref(args))),
-                            &Position::new(0, 0)
+                            &Position::new(0, 0),
                         )?
                     }
                     if var_declared(&environment, "this") {
@@ -167,14 +167,14 @@ pub fn apply(frame: &mut Frame, _: Value, args: &[Value]) -> Result<Value, Value
                             &environment,
                             "this",
                             new_ref(ValueData::Object(new_object())),
-                            &Position::new(0, 0)
+                            &Position::new(0, 0),
                         )?;
                     } else {
                         declare_var(
                             &environment,
                             "this",
                             new_ref(ValueData::Object(new_object())),
-                            &Position::new(0, 0)
+                            &Position::new(0, 0),
                         )?;
                     }
                 }
@@ -269,9 +269,9 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
         cur_path
     } else {
         let home_dir = dirs::home_dir().map(|x| x.to_str().unwrap().to_owned());
-        
+
         if let Some(home_dir) = home_dir {
-            if std::path::Path::new(&format!("{}/jazzlight",home_dir)).exists() { 
+            if std::path::Path::new(&format!("{}/jazzlight", home_dir)).exists() {
                 format!("{}/jazzlight/{}", home_dir, name)
             } else {
                 name
@@ -283,7 +283,13 @@ pub fn require(frame: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value,
     let file = File::open(&path);
     let mut file = match file {
         Ok(file) => file,
-        Err(e) => return Err(new_error(-1, None,&format!("Failed to open '{}',error: {}",path,e) ))
+        Err(e) => {
+            return Err(new_error(
+                -1,
+                None,
+                &format!("Failed to open '{}',error: {}", path, e),
+            ))
+        }
     };
     let mut m = Machine::new();
     let mut code = vec![];
@@ -645,10 +651,8 @@ pub fn float_from_bits(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Va
     return Ok(new_ref(ValueData::Number(f64::from_bits(val))));
 }
 
-pub fn array_init(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
-    let array = vec![
-        new_ref(ValueData::Number(0.0));val_int(&args[0]) as usize
-    ];
+pub fn array_init(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
+    let array = vec![new_ref(ValueData::Number(0.0)); val_int(&args[0]) as usize];
     Ok(new_ref(ValueData::Array(new_ref(array))))
 }
 
@@ -696,7 +700,7 @@ pub fn register_builtins(env: Ref<Object>) {
     let pos = &Position::new(0, 0);
     err.borrow_mut().set("__name__", "JLRuntimeError").unwrap();
     let obj = new_ref(ValueData::Object(err));
-    //gc_add_root(obj.gc());
+    ////cgc::gc_add_root(obj.gc());
     declare_var(&env, "JLRuntimeError", obj, &pos).unwrap();
     declare_var(&env, "instanceof", new_exfunc(builtin_instanceof), &pos).unwrap();
     declare_var(
@@ -758,12 +762,12 @@ pub fn register_builtins(env: Ref<Object>) {
     declare_var(&env, "parseInt", new_exfunc(parse_int), &pos).unwrap();
     declare_var(&env, "parseFloat", new_exfunc(parse_float), &pos).unwrap();
     declare_var(&env, "new_object", new_exfunc(new_object_f), &pos).unwrap();
-    declare_var(&env, "apply",new_exfunc(apply),&pos).unwrap();
-    declare_var(&env,"array_init",new_exfunc(array_init),&pos).unwrap();
-    declare_var(&env, "get_env",new_exfunc(get_env), &pos).unwrap();
+    declare_var(&env, "apply", new_exfunc(apply), &pos).unwrap();
+    declare_var(&env, "array_init", new_exfunc(array_init), &pos).unwrap();
+    declare_var(&env, "get_env", new_exfunc(get_env), &pos).unwrap();
 }
 
-pub fn get_env(f: &mut Frame<'_>,_: Value,_: &[Value]) -> Result<Value,ValueData> {
+pub fn get_env(f: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, ValueData> {
     let env = f.env.clone();
     Ok(new_ref(ValueData::Object(env)))
 }
@@ -839,16 +843,13 @@ pub fn str_slice(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value
     )));
 }
 
-
-pub fn array_slice(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn array_slice(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
     let array = val_arr(&this);
     let start = val_int(&args[0]) as usize;
     let end = val_int(&args[1]) as usize;
-    
+
     let slice = (&array.borrow()[start..end]).to_vec();
-    Ok(new_ref(
-        ValueData::Array(new_ref(slice))
-    ))
+    Ok(new_ref(ValueData::Array(new_ref(slice))))
 }
 
 pub fn regex_captures(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {

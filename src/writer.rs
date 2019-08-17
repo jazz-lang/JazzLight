@@ -295,9 +295,13 @@ impl<'a> Writer<'a> {
                 Opcode::Apply => {
                     self.write_u8(55);
                 }
+                Opcode::New(count) => {
+                    self.write_u16(57);
+                    self.write_u16(count);
+                }
             }
         }
-        self.write_u8(57);
+        self.write_u8(58);
         //self.write_u8(0);
     }
 }

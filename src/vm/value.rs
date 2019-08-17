@@ -1,6 +1,5 @@
 use super::runtime::array::*;
 use super::runtime::new_exfunc;
-use cgc::generational::*;
 use std::cell::{Ref as CRef, RefMut};
 use std::sync::Arc;
 pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
@@ -9,8 +8,8 @@ pub fn new_ref<T: 'static>(val: T) -> Ref<T> {
 
 use std::cell::RefCell;
 
-#[derive(Clone, PartialEq, PartialOrd, Debug)]
-pub struct _Ref<T: Collectable + Sized>(GCValue<T>);
+/*#[derive(Clone, PartialEq, PartialOrd, Debug)]
+pub struct _Ref<T: Collectable + Sized>(pub(crate) GCValue<T>);*/
 #[derive(Clone, PartialEq, PartialOrd, Debug)]
 pub struct Ref<T: Sized>(pub Arc<RefCell<T>>);
 
@@ -40,6 +39,7 @@ impl<T: 'static> Ref<T> {
 
 //unsafe impl<T: Send + Collectable> Send for Ref<T> {}
 //unsafe impl<T: Sync + Collectable> Sync for Ref<T> {}
+/*
 impl<T: Collectable + 'static> _Ref<T> {
     pub fn borrow(&self) -> CRef<'_, T> {
         self.0.borrow()
@@ -52,17 +52,11 @@ impl<T: Collectable + 'static> _Ref<T> {
         self.0
     }
 }
-
+*/
 
 #[inline]
 pub fn new_userdata(x: Box<dyn UserObject>) -> Value {
-    new_ref(
-        ValueData::User(
-            new_ref(
-                UserVal(Box::into_raw(x))
-            )
-        )
-    )
+    new_ref(ValueData::User(new_ref(UserVal(Box::into_raw(x)))))
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -119,7 +113,19 @@ pub enum ValueData {
     User(Ref<UserVal>),
     Regex(Ref<Regex>),
 }
+/*
+impl Collectable for ValueIter {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut v: Vec<GCValue<dyn Collectable>> = vec![];
+        for val in self.values.iter() {
+            v.push(val.gc());
+        }
+        v
+    }
+}
 
+impl Collectable for Regex {}
+*/
 impl Serialize for Regex {
     fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         self.0.to_string().serialize(s)
@@ -238,7 +244,7 @@ impl From<ValueData> for String {
             ValueData::Function(_) => "<function>".to_owned(),
             ValueData::Iterator(_iter) => format!("<iterator>"),
             ValueData::Regex(r) => format!("{}", r.borrow().0),
-            ValueData::User(_) => format!("<userdata>")
+            ValueData::User(_) => format!("<userdata>"),
         }
     }
 }
@@ -309,7 +315,7 @@ impl SetGet for ValueData {
                 array[idx as usize] = val;
                 //gc::new_ref(*array_,val);
             }
-            ValueData::User(usr) => return usr.borrow_mut().set(key,val),
+            ValueData::User(usr) => return usr.borrow_mut().set(key, val),
             _ => {}
         }
         Ok(())
@@ -361,9 +367,9 @@ impl SetGet for ValueData {
                     }
                     ValueData::Number(idx) => {
                         let idx = *idx as i64;
-                        
+
                         if idx as usize >= array.len() {
-                            return Some(Property::new(key.clone(),new_ref(ValueData::Undefined)));
+                            return Some(Property::new(key.clone(), new_ref(ValueData::Undefined)));
                         }
                         return Some(Property::new(key.clone(), array[idx as usize].clone()));
                     }
@@ -491,7 +497,7 @@ impl fmt::Display for ValueData {
                 write!(f, "]")
             }
             ValueData::Regex(r) => write!(f, "{}", r.borrow().0),
-            ValueData::User(_) => write!(f,"<userdata>")
+            ValueData::User(_) => write!(f, "<userdata>"),
         }
     }
 }
@@ -1122,8 +1128,8 @@ impl PartialOrd for PropertyMap {
 }
 
 pub trait UserObject: mopa::Any {
-    fn set_property(&mut self,_: ValueData,_: Value) -> Result<(),ValueData>;
-    fn get_property(&self,_: &ValueData) -> Option<Property>;
+    fn set_property(&mut self, _: ValueData, _: Value) -> Result<(), ValueData>;
+    fn get_property(&self, _: &ValueData) -> Option<Property>;
 }
 
 impl SetGet for dyn UserObject {
@@ -1137,38 +1143,121 @@ impl SetGet for dyn UserObject {
 
 mopafy!(UserObject);
 
-#[derive(Clone,Debug,PartialEq,PartialOrd)]
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct UserVal(*mut dyn UserObject);
+/*
+impl Collectable for UserVal {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        self.deref().child()
+    }
+}
 
+*/
 impl Deref for UserVal {
     type Target = dyn UserObject;
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            &*self.0
-        }
+        unsafe { &*self.0 }
     }
 }
 
 impl DerefMut for UserVal {
     #[inline]
     fn deref_mut(&mut self) -> &mut dyn UserObject {
-        unsafe {
-            &mut *self.0
-        }
+        unsafe { &mut *self.0 }
     }
 }
 
-
-
 impl Serialize for UserVal {
-    fn serialize<S: Serializer>(&self,_: S) -> Result<S::Ok,S::Error> {
+    fn serialize<S: Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
         panic!("Can not serialize user value")
     }
 }
 
 impl<'a> Deserialize<'a> for UserVal {
-    fn deserialize<D: Deserializer<'a>>(_: D) -> Result<Self,D::Error> {
+    fn deserialize<D: Deserializer<'a>>(_: D) -> Result<Self, D::Error> {
         panic!("Can not deserialize user value")
     }
 }
+
+/*
+
+////cgc::*;
+impl Collectable for ValueData {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut v: Vec<GCValue<dyn Collectable>> = vec![];
+        match self {
+            ValueData::Array(array) => v.push(array.gc()),
+            ValueData::Function(f) => v.push(f.gc()),
+            ValueData::Iterator(i) => v.push(i.gc()),
+            ValueData::Regex(r) => {
+                gc_add_root(r.gc());
+                v.push(r.gc());
+            }
+            _ => ()
+        }
+        v
+    }
+}
+
+impl Collectable for Property {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut v = vec![];
+        v.extend(self.key.child().iter());
+        v.push(self.value.gc());
+        v
+    }
+}
+
+impl Collectable for PropertyMap {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+       let mut v = vec![];
+       for (key,val) in self.iter() {
+           v.extend(key.child().iter());
+           v.push(val.gc());
+       }
+       v
+
+    }
+}
+
+impl Collectable for Object {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut v = vec![];
+        match &self.proto {
+            Some(proto) => v.push(proto.gc()),
+            None => ()
+        };
+
+        v.extend(self.table.child().iter());
+        v
+    }
+}
+
+impl Collectable for Function {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        let mut v: Vec<GCValue<dyn Collectable>> = vec![];
+        match self {
+            Function::Regular {
+                environment,
+                yield_env,
+                code,
+                constants,
+                ..
+            } => {
+                v.push(environment.gc());
+                v.push(yield_env.gc());
+                v.push(code.gc());
+                v.push(constants.gc());
+            }
+            _ => ()
+        }
+        v
+    }
+}
+
+impl<T: Collectable + 'static> Collectable for Ref<T> {
+    fn child(&self) -> Vec<GCValue<dyn Collectable>> {
+        vec![self.gc()]
+    }
+}*/

@@ -239,6 +239,10 @@ impl<'a> BytecodeReader<'a> {
                 55 => {
                     opcodes.push(Opcode::Apply);
                 }
+                57 => {
+                    let c = self.read_u16();
+                    opcodes.push(Opcode::New(c));
+                }
                 x => panic!("{}", x),
             }
             byte = self.read_u8();

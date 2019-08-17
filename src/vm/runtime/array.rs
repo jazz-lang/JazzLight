@@ -45,8 +45,7 @@ pub fn array_indexof(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<V
     }
 }
 
-
-pub fn array_fill(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn array_fill(_: &mut Frame<'_>, this: Value, args: &[Value]) -> Result<Value, ValueData> {
     let array: &ValueData = &this.borrow();
     match array {
         ValueData::Array(array) => {
@@ -54,7 +53,7 @@ pub fn array_fill(_: &mut Frame<'_>,this: Value,args: &[Value]) -> Result<Value,
             array.borrow_mut().iter_mut().for_each(|x| {
                 *x = val.clone();
             });
-            return Ok(nil())
+            return Ok(nil());
         }
         _ => return Err(new_error(-1, None, "Array.push: array expected")),
     }

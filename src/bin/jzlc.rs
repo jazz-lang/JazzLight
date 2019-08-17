@@ -21,14 +21,10 @@ pub struct Options {
     #[structopt(long = "optimize")]
     /// Try to optimize bytecode
     optimize: bool,
-    #[structopt(long = "run", help = "run bytecode file")]
-    run: bool,
-    #[structopt(short = "c", long = "compile", help = "emit bytecode file")]
-    compile: bool,
     #[structopt(short = "o", parse(from_os_str))]
     output: Option<PathBuf>,
 }
-use cgc::generational::*;
+////cgc::generational::*;
 use jazzlight::vm::runtime::register_builtins;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -49,29 +45,6 @@ fn main() {
     */
 
     let ops: Options = Options::from_args();
-    if ops.run {
-        let string = ops.file.unwrap().to_str().unwrap().to_owned();
-        let mut file = File::open(&string).unwrap();
-        let mut m = Machine::new();
-        let mut code = vec![];
-
-        file.read_to_end(&mut code).unwrap();
-        let c = code.len();
-        let mut reader = jazzlight::decoder::BytecodeReader {
-            machine: &mut m,
-            bytecode: std::io::Cursor::new(code),
-            pc: 0,
-            count: c,
-        };
-
-        let code = reader.read();
-        let mut frame = Frame::new(&mut m);
-        frame.code = jazzlight::vm::value::new_ref(code);
-        jazzlight::vm::runtime::register_builtins(frame.env.clone());
-        jazzlight::additional::ui::minifb_init(frame.env.clone());
-        frame.execute();
-        return;
-    }
     if ops.file.is_none() {
         repl();
     }
@@ -140,23 +113,20 @@ fn repl() {
     use rustyline::{error::ReadlineError, Editor};
     let mut rl = Editor::<()>::new();
     //let mut code = String::new();
-    let mut m = Machine::new();
-    let mut f = Frame::new(&mut m);
-    register_builtins(f.env.clone());
-    let mut compiler = Compiler::new(&mut f);
-    let mut last_loc = 0;
+    let mut buf = String::new();
     loop {
         let readline = rl.readline(">> ");
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.clone());
+                buf.push_str(&line);
+                buf.push('\n');
                 let s: &str = &line;
                 if s == "exit" {
-                    gc_collect_not_par();
                     std::process::exit(0);
                 }
 
-                let reader = Reader::from_string(s);
+                let reader = Reader::from_string(&buf);
                 let mut ast = vec![];
                 let mut p = Parser::new(reader, &mut ast);
                 match p.parse() {
@@ -166,16 +136,12 @@ fn repl() {
                         std::process::exit(1);
                     }
                 }
+                let mut m = Machine::new();
+                let mut f = Frame::new(&mut m);
+                register_builtins(f.env.clone());
+                let mut compiler = Compiler::new(&mut f);
                 compiler.compile_ast(&ast, false);
-                if last_loc != 0 {
-                    compiler
-                        .frame
-                        .code
-                        .borrow_mut()
-                        .insert(0, jazzlight::vm::opcodes::Opcode::Jump(last_loc + 1));
-                }
                 compiler.frame.execute();
-                last_loc = compiler.frame.code.borrow().len() as u32;
             }
 
             Err(ReadlineError::Interrupted) => {

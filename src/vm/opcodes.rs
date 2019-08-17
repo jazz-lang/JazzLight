@@ -76,4 +76,7 @@ pub enum Opcode {
     RefNeq,
     BlockEnd,
     BlockStart,
+    New(u16),
 }
+
+//impl //cgc::Collectable for Opcode {}

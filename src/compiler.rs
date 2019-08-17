@@ -28,6 +28,7 @@ pub struct Compiler<'a> {
     pub breaks: Vec<String>,
     pub continues: Vec<String>,
     ret: String,
+    pub starts_at: usize,
 }
 
 use crate::ast::*;
@@ -47,6 +48,7 @@ impl<'a> Compiler<'a> {
             labels: LinkedHashMap::new(),
             breaks: vec![],
             continues: vec![],
+            starts_at: 0,
         }
     }
 
@@ -586,10 +588,12 @@ impl<'a> Compiler<'a> {
         self.label_here(&ret);
         self.write(Opcode::Return);
         let mut addresses = LinkedHashMap::new();
+
         if !self.functions.is_empty() {
             let ctxops = self.code.clone();
             let ops = vec![];
             self.code = ops;
+            let mut i = 0;
             self.write(Opcode::Jump(0));
             for (fops, gid, _) in self.functions.iter().cloned().rev() {
                 addresses.insert(gid, self.code.len());
@@ -597,12 +601,14 @@ impl<'a> Compiler<'a> {
                     self.code.push(op.clone());
                 }
                 self.code[0] = UOP::Op(Opcode::Jump(self.code.len() as _));
+                i = i + 1;
             }
-
+            self.starts_at = i;
             for op in ctxops.iter() {
                 self.code.push(op.clone());
             }
         }
+
         let code = self.finish();
         let gc_code = crate::vm::value::new_ref(code);
 
@@ -640,11 +646,12 @@ impl<'a> Compiler<'a> {
         //crate::ngc::gc_add_root(self.frame.env.gc());
         if declare_builtins {
             crate::vm::runtime::register_builtins(self.frame.env.clone());
-            
+
             {
                 crate::additional::ui::minifb_init(self.frame.env.clone());
             }
         }
+        //cgc::gc_add_root(self.frame.env.gc());
     }
 
     pub fn compile_function(&mut self, body: &Expr, args: &Vec<String>, name: Option<&str>) {

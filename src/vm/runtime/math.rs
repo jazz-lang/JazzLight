@@ -28,20 +28,16 @@ pub fn math_random(_: &mut Frame<'_>, _: Value, _: &[Value]) -> Result<Value, Va
     Ok(new_ref(ValueData::Number(num)))
 }
 
-pub fn math_irem(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn math_irem(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let x = crate::vm::runtime::val_int(&args[0]);
     let y = crate::vm::runtime::val_int(&args[1]);
-    Ok(new_ref(
-        ValueData::Number((x % y) as f64)
-    ))
+    Ok(new_ref(ValueData::Number((x % y) as f64)))
 }
 
-pub fn math_idiv(_: &mut Frame<'_>,_: Value,args: &[Value]) -> Result<Value,ValueData> {
+pub fn math_idiv(_: &mut Frame<'_>, _: Value, args: &[Value]) -> Result<Value, ValueData> {
     let x = crate::vm::runtime::val_int(&args[0]);
     let y = crate::vm::runtime::val_int(&args[1]);
-    Ok(new_ref(
-        ValueData::Number((x / y) as f64)
-    ))
+    Ok(new_ref(ValueData::Number((x / y) as f64)))
 }
 
 pub fn math_random_int(
@@ -143,11 +139,11 @@ pub fn math_object() -> Ref<Object> {
         .unwrap();
     object
         .borrow_mut()
-        .set("irem",new_exfunc(math_irem))
+        .set("irem", new_exfunc(math_irem))
         .unwrap();
     object
         .borrow_mut()
-        .set("idiv",new_exfunc(math_idiv))
+        .set("idiv", new_exfunc(math_idiv))
         .unwrap();
     object
 }
