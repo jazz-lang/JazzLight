@@ -1,20 +1,25 @@
 use std::fmt;
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Position {
+    pub file: crate::P<String>,
     pub line: u32,
     pub column: u32,
 }
 
 impl Position {
-    pub fn new(x: u32, y: u32) -> Self {
-        Self { line: x, column: y }
+    pub fn new(file: crate::P<String>, x: u32, y: u32) -> Self {
+        Self {
+            file,
+            line: x,
+            column: y,
+        }
     }
 }
 
 impl fmt::Display for Position {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "({}:{})", self.line, self.column)
+        write!(f, "{}:{}:{}", self.file, self.line, self.column)
     }
 }
 
@@ -27,25 +32,19 @@ pub enum TokenKind {
     Identifier(String),
     Builtin(String),
     End,
-    EqEqEq,
-    NeEqEq,
+
     LQuote,
     RQuote,
-    At,
+
     // Keywords
     Include,
     This,
     Match,
     Fun,
-    Try,
-    From,
-    Catch,
-    Undefined,
     Let,
     Var,
     While,
     If,
-    New,
     Else,
     Loop,
     For,
@@ -57,19 +56,20 @@ pub enum TokenKind {
     False,
     Nil,
     Throw,
+    Try,
+    Catch,
     Yield,
     Do,
     ForEach,
     Import,
     Type,
     Const,
-
+    Goto,
     Underscore,
 
     // Operators
     Add,
     Sub,
-    Dollar,
     Mul,
     Div,
     Mod,
@@ -129,21 +129,19 @@ impl TokenKind {
 
             TokenKind::LQuote => "<",
             TokenKind::RQuote => ">",
-            TokenKind::Dollar => "$",
-            TokenKind::At => "@",
+
             // Keywords
-            TokenKind::This => "this",
-            TokenKind::New => "new",
+            TokenKind::Try => "try",
+            TokenKind::Catch => "catch",
+            TokenKind::This => "self",
             TokenKind::Fun => "function",
             TokenKind::Let => "let",
             TokenKind::Var => "var",
-            TokenKind::Try => "try",
-            TokenKind::Catch => "catch",
+            TokenKind::Goto => "goto",
             TokenKind::While => "while",
             TokenKind::If => "if",
             TokenKind::Else => "else",
             TokenKind::Loop => "loop",
-            TokenKind::From => "from",
             TokenKind::For => "for",
             TokenKind::In => "in",
             TokenKind::Break => "break",
@@ -152,7 +150,6 @@ impl TokenKind {
             TokenKind::True => "true",
             TokenKind::False => "false",
             TokenKind::Nil => "nil",
-            TokenKind::Undefined => "undefined",
             TokenKind::Throw => "throw",
             TokenKind::Match => "match",
             TokenKind::Do => "do",
@@ -191,8 +188,6 @@ impl TokenKind {
 
             TokenKind::Eq => "=",
             TokenKind::EqEq => "==",
-            TokenKind::EqEqEq => "===",
-            TokenKind::NeEqEq => "!==",
             TokenKind::Ne => "!=",
             TokenKind::Lt => "<",
             TokenKind::Le => "<=",

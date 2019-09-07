@@ -30,7 +30,6 @@ impl Lexer {
             "while" => TokenKind::While,
             "for" => TokenKind::For,
             "foreach" => TokenKind::ForEach,
-            "undefined" => TokenKind::Undefined,
             "if" => TokenKind::If,
             "else" => TokenKind::Else,
             "in" => TokenKind::In,
@@ -42,19 +41,17 @@ impl Lexer {
             "return" => TokenKind::Return,
             "true" => TokenKind::True,
             "false" => TokenKind::False,
-            "nil" => TokenKind::Nil,
+            "null" => TokenKind::Nil,
             "type" => TokenKind::Type,
             "throw" => TokenKind::Throw,
             "do" => TokenKind::Do,
             "import" => TokenKind::Import,
             "internal" => TokenKind::Internal,
-            "include" => TokenKind::Include,
-            "for" => TokenKind::For,
             "try" => TokenKind::Try,
             "catch" => TokenKind::Catch,
-            "new" => TokenKind::New,
-            "do" => TokenKind::Do,
-            "from" => TokenKind::From
+            "include" => TokenKind::Include,
+            "for" => TokenKind::For,
+            "goto" => TokenKind::Goto
         );
 
         Lexer {
@@ -116,10 +113,16 @@ impl Lexer {
                 return self.read_operator();
             } else if ch == Some('$') {
                 self.read_char();
-                return Ok(Token::new(TokenKind::Dollar, pos));
-            } else if ch == Some('@') {
-                self.read_char();
-                return Ok(Token::new(TokenKind::At, pos));
+                let tok = self.read_identifier()?;
+                if let TokenKind::Identifier(ident) = tok.kind {
+                    return Ok(Token::new(TokenKind::Builtin(ident.clone()), pos));
+                } else {
+                    return Err(MsgWithPos::new(
+                        self.path(),
+                        pos,
+                        Msg::ExpectedIdentifier("builtin".into()),
+                    ));
+                }
             } else {
                 let ch = ch.unwrap();
 
@@ -149,7 +152,7 @@ impl Lexer {
 
         if let Some(tok_type) = lookup {
             ttype = tok_type;
-        } else if value == "_" {
+        } else if value == "_".to_string() {
             ttype = TokenKind::Underscore;
         } else {
             ttype = TokenKind::Identifier(value);
@@ -162,13 +165,13 @@ impl Lexer {
         let pos = self.reader.pos();
 
         self.read_char();
-        let ch = self.read_escaped_char(pos, Msg::UnclosedChar)?;
+        let ch = self.read_escaped_char(pos.clone(), Msg::UnclosedChar)?;
 
         if is_char_quote(self.cur()) {
             self.read_char();
 
             let ttype = TokenKind::LitChar(ch);
-            Ok(Token::new(ttype, pos))
+            Ok(Token::new(ttype, pos.clone()))
         } else {
             Err(MsgWithPos::new(self.filename(), pos, Msg::UnclosedChar))
         }
@@ -215,7 +218,7 @@ impl Lexer {
         self.read_char();
 
         while !self.cur().is_none() && !is_quote(self.cur()) {
-            let ch = self.read_escaped_char(pos, Msg::UnclosedString)?;
+            let ch = self.read_escaped_char(pos.clone(), Msg::UnclosedString)?;
             value.push(ch);
         }
 
@@ -250,8 +253,7 @@ impl Lexer {
             '*' => TokenKind::Mul,
             '/' => TokenKind::Div,
             '%' => TokenKind::Mod,
-            '$' => TokenKind::Dollar,
-            '@' => TokenKind::At,
+
             '(' => TokenKind::LParen,
             ')' => TokenKind::RParen,
             '[' => TokenKind::LBracket,
@@ -293,11 +295,7 @@ impl Lexer {
             '=' => {
                 if nch == '=' {
                     self.read_char();
-                    let nch = self.cur().unwrap_or('x');
-                    match nch {
-                        '=' => TokenKind::EqEqEq,
-                        _ => TokenKind::EqEq,
-                    }
+                    TokenKind::EqEq
                 } else {
                     TokenKind::Eq
                 }
@@ -320,7 +318,6 @@ impl Lexer {
             '>' => match nch {
                 '=' => {
                     self.read_char();
-
                     TokenKind::Ge
                 }
 
@@ -336,11 +333,7 @@ impl Lexer {
             '!' => {
                 if nch == '=' {
                     self.read_char();
-                    let nch = self.cur().unwrap_or('x');
-                    match nch {
-                        '=' => TokenKind::NeEqEq,
-                        _ => TokenKind::Ne,
-                    }
+                    TokenKind::Ne
                 } else {
                     TokenKind::Not
                 }

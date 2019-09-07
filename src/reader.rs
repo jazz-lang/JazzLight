@@ -6,7 +6,7 @@ use std::{
 use crate::token::Position;
 
 pub struct Reader {
-    filename: String,
+    filename: crate::P<String>,
     pub src: String,
 
     pos: usize,
@@ -89,6 +89,7 @@ impl Reader {
 
     pub fn pos(&self) -> Position {
         Position {
+            file: self.filename.clone(),
             line: self.line as u32,
             column: self.col as u32,
         }
@@ -106,7 +107,7 @@ impl Reader {
 
 fn common_init(name: String, src: String) -> Reader {
     let mut reader = Reader {
-        filename: name,
+        filename: crate::P(name),
         src: src,
         pos: 0,
         next_pos: 0,

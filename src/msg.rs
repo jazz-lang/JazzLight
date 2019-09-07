@@ -139,7 +139,7 @@ impl Msg {
                 let args = args.join(", ");
                 format!("no ctor with definition `{}({})`.", name, args)
             }
-            MethodExists(ref cls, ref name, pos) => format!(
+            MethodExists(ref cls, ref name, ref pos) => format!(
                 "method with name `{}` already exists in class `{}` at line {}.",
                 name, cls, pos
             ),
