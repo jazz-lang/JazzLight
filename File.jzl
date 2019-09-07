@@ -1,0 +1,16 @@
+var f = $array(null)
+
+var f2 = function(i) {
+    if i % 1000000 == 0 {
+        $print(i,"\n")
+    }
+    f[0](i + 1)
+}
+
+f[0] = function(i) {
+    f2(i)
+}
+
+f = f[0]
+
+f(0)

@@ -1,47 +1,45 @@
 use crate::*;
+use byteorder::{LittleEndian, WriteBytesExt};
 use value::*;
-use byteorder::{LittleEndian,WriteBytesExt};
 
-use hashlink::{LinkedHashSet, LinkedHashMap};
-use crate::value::{ValTag, Function};
-use crate::reader::{TAG_STRING, TAG_FLOAT, TAG_FUN};
 use crate::opcode::Op;
+use crate::reader::{TAG_FLOAT, TAG_FUN, TAG_STRING};
+use crate::value::{Function, ValTag};
+use hashlink::LinkedHashMap;
 
 pub struct BytecodeWriter {
-    pub bytecode: Vec<u8>
+    pub bytecode: Vec<u8>,
 }
 
 impl BytecodeWriter {
-    pub fn write_u8(&mut self,x: u8) {
+    pub fn write_u8(&mut self, x: u8) {
         self.bytecode.push(x);
     }
-    pub fn write_u16(&mut self,x: u16) {
+    pub fn write_u16(&mut self, x: u16) {
         self.bytecode.write_u16::<LittleEndian>(x).unwrap();
     }
-    pub fn write_u32(&mut self,x: u32) {
+    pub fn write_u32(&mut self, x: u32) {
         self.bytecode.write_u32::<LittleEndian>(x).unwrap();
     }
-    pub fn write_u64(&mut self,x: u64) {
+    pub fn write_u64(&mut self, x: u64) {
         self.bytecode.write_u64::<LittleEndian>(x).unwrap();
     }
 
-    pub fn write_module(&mut self,m: Ref<Module>) {
+    pub fn write_module(&mut self, m: Ref<Module>) {
         let mut strings = LinkedHashMap::new();
         let mut i = 0;
         for value in m.borrow().globals.iter() {
             if let Value::String(s) = value {
-                strings.insert(s.borrow().clone(),i);
+                strings.insert(s.borrow().clone(), i);
                 i += 1;
             }
         }
         let mut globals = vec![];
         for value in m.borrow().globals.iter() {
             match value.tag() {
-                ValTag::Func
-                | ValTag::Str
-                | ValTag::Float => globals.push(value.clone()),
+                ValTag::Func | ValTag::Str | ValTag::Float => globals.push(value.clone()),
 
-                _ => () // TODO: Add more values to globals
+                _ => (), // TODO: Add more values to globals
             }
         }
 
@@ -49,7 +47,7 @@ impl BytecodeWriter {
         self.write_u32(globals.len() as _);
         self.write_u32(m.borrow().code.len() as _);
         self.write_u8(0);
-        for (string,_) in strings.iter() {
+        for (string, _) in strings.iter() {
             self.write_u32(string.len() as _);
             for byte in string.as_bytes() {
                 self.write_u8(*byte);
@@ -74,7 +72,7 @@ impl BytecodeWriter {
                     self.write_u32(f.address as u32);
                     self.write_u16(f.argc as _);
                 }
-                _ => ()
+                _ => (),
             }
         }
 
@@ -186,8 +184,5 @@ impl BytecodeWriter {
                 Op::Last => self.write_u8(50),
             }
         }
-
-
-
     }
 }

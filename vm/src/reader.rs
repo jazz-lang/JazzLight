@@ -1,8 +1,8 @@
+use crate::value::{Function, Object};
 use crate::*;
 use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::Cursor;
 use value::*;
-use crate::value::{Object, Function};
 
 pub struct BytecodeReader<'a> {
     pub bytes: Cursor<&'a [u8]>,
@@ -52,7 +52,7 @@ impl<'a> BytecodeReader<'a> {
         let m = Ref(Module {
             exports: Value::Object(Ref(Object {
                 prototype: None,
-                table: Default::default()
+                table: Default::default(),
             })),
             trace_info: HashMap::new(),
             code: vec![],
@@ -98,7 +98,7 @@ impl<'a> BytecodeReader<'a> {
                         native: false,
                         env: Value::Array(Ref(vec![])),
                         argc: argc as _,
-                        module: Some(Arc::downgrade(&m)),
+                        module: Some(m.clone()),
                     };
                     m.borrow_mut().globals.push(Value::Function(Ref(fun)));
                 }

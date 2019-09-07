@@ -137,8 +137,6 @@ impl fmt::Display for Value {
                 let mut fmt = String::new();
                 fmt.push('[');
                 for (idx, value) in array.borrow().iter().enumerate() {
-
-
                     fmt.push_str(&value.to_string());
 
                     if idx < array.borrow().len() - 1 {
@@ -267,6 +265,6 @@ pub struct Function {
     pub native: bool,
     pub address: usize,
     pub env: Value,
-    pub module: Option<WeakRef<Module>>,
+    pub module: Option<Ref<Module>>,
     pub argc: i32,
 }

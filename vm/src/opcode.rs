@@ -1,6 +1,4 @@
-use crate::*;
-
-#[derive(Clone,Debug)]
+#[derive(Clone, Debug)]
 pub enum Op {
     LoadNull,
     LoadTrue,

@@ -60,7 +60,7 @@ pub struct Context {
     pub cur_pos: Option<Position>,
     pub labels: LinkedHashMap<String, Option<usize>>,
     pub used_upvars: LinkedHashMap<String, i32>,
-    pub trace_info: HashMap<u32,(usize,String)>
+    pub trace_info: HashMap<u32, (usize, String)>,
 }
 impl Context {
     pub fn finish(&mut self) -> Vec<Op> {
@@ -77,7 +77,7 @@ impl Context {
             .iter()
             .map(|i| match *i {
                 UOP::Op(ref op) => op.clone(),
-                UOP::PAddr(ref lbl) => p::CatchPush(self.labels.get(lbl).unwrap().unwrap() as _),
+                UOP::PAddr(ref lbl) => Op::CatchPush(self.labels.get(lbl).unwrap().unwrap() as _),
                 UOP::Goto(ref lbl) => Op::Jump(self.labels.get(lbl).unwrap().unwrap() as u32),
                 UOP::GotoF(ref lbl) => Op::JumpIfNot(self.labels.get(lbl).unwrap().unwrap() as u32),
                 UOP::GotoT(ref lbl) => Op::JumpIf(self.labels.get(lbl).unwrap().unwrap() as u32),
@@ -243,14 +243,14 @@ impl Context {
             Access::Field(e, f) => {
                 let gid = self.global(&Global::Str(f));
                 self.write(Op::LoadGlobal(gid as _));
-                self.compile(&e);
+                self.compile(&e, false);
                 self.write(Op::Load)
             }
-            Access::Index(i) => unimplemented!(),
+            Access::Index(_) => unimplemented!(),
             Access::This => self.write(Op::LoadThis),
             Access::Array(ea, ei) => {
-                self.compile(&ei);
-                self.compile(&ea);
+                self.compile(&ei, false);
+                self.compile(&ea, false);
                 self.write(Op::Load);
             }
         }
@@ -260,7 +260,7 @@ impl Context {
         match acc {
             Access::Env(n) => self.write(Op::StoreEnv(n as _)),
             Access::Stack(l) => self.write(Op::StoreLocal(l as _)),
-            Access::Global(g) =>
+            Access::Global(_) =>
             /*self.write(Op::StoreGlobal(g as u32)),*/
             {
                 unimplemented!()
@@ -268,24 +268,24 @@ impl Context {
             Access::Field(e, f) => {
                 let gid = self.global(&Global::Str(f.to_owned()));
                 self.write(Op::LoadGlobal(gid as _));
-                self.compile(&e);
+                self.compile(&e, false);
                 self.write(Op::Store);
             }
             Access::Index(_) => unimplemented!(),
             Access::This => self.write(Op::StoreThis),
             Access::Array(ea, ei) => {
-                self.compile(&ei);
-                self.compile(&ea);
+                self.compile(&ei, false);
+                self.compile(&ea, false);
                 self.write(Op::Store);
             }
         }
     }
-    pub fn compile(&mut self, e: &P<Expr>) {
+    pub fn compile(&mut self, e: &P<Expr>, tail: bool) {
         match &e.decl {
             ExprDecl::Break(e) => {
                 if e.is_some() {
                     let e = e.clone().unwrap();
-                    self.compile(&e);
+                    self.compile(&e, false);
                 } else {
                     self.write(Op::LoadNull);
                 }
@@ -308,7 +308,7 @@ impl Context {
                     let locals = self.locals.clone();
                     //let stack = self.stack;
                     for el in v.iter() {
-                        self.compile(el);
+                        self.compile(el, tail);
                     }
 
                     /*if stack < self.stack {
@@ -317,46 +317,46 @@ impl Context {
                     self.locals = locals;
                 }
             }
-            ExprDecl::Paren(e) => self.compile(e),
+            ExprDecl::Paren(e) => self.compile(e, tail),
             ExprDecl::Field(e, f) => {
                 /*let mut h = 0xcbf29ce484222325;
                 hash_bytes(&mut h, f.as_bytes());
                 self.write(Op::LoadField(h));*/
                 let gid = self.global(&Global::Str(f.to_owned()));
                 self.write(Op::LoadGlobal(gid as _));
-                self.compile(e);
+                self.compile(e, false);
                 self.write(Op::Load);
             }
             ExprDecl::Array(ea, ei) => {
-                self.compile(ei);
-                self.compile(ea);
+                self.compile(ei, false);
+                self.compile(ea, false);
                 self.write(Op::Load);
             }
             ExprDecl::Var(_, name, init) => {
+                let id = self.locals.len() as u16;
+                self.locals.insert(name.to_owned(), id as i32);
                 match init {
-                    Some(e) => self.compile(e),
+                    Some(e) => self.compile(e, false),
                     None => self.write(Op::LoadNull),
                 }
-                let id = self.locals.len() as u16;
-                self.write(Op::StoreLocal(id));
 
-                self.locals.insert(name.to_owned(), id as i32);
+                self.write(Op::StoreLocal(id));
             }
 
             ExprDecl::Assign(e1, e2) => {
                 let a = self.compile_access(e1);
-                self.compile(e2);
+                self.compile(e2, false);
                 self.access_set(a);
             }
             ExprDecl::Binop(op, e1, e2) => {
-                self.compile_binop(op, e1, e2);
+                self.compile_binop(op, e1, e2, tail);
             }
             ExprDecl::Function(params, e) => {
                 self.compile_function(params, e, None);
             }
             ExprDecl::Return(e) => {
                 match e {
-                    Some(e) => self.compile(e),
+                    Some(e) => self.compile(e, false),
                     None => self.write(Op::LoadNull),
                 }
 
@@ -370,9 +370,9 @@ impl Context {
                 self.breaks.push(end.clone());
                 self.continues.push(start.clone());
                 self.label_here(&start);
-                self.compile(cond);
+                self.compile(cond, false);
                 self.emit_gotof(&end);
-                self.compile(body);
+                self.compile(body, false);
                 self.emit_goto(&start);
                 self.label_here(&end);
                 self.breaks.pop();
@@ -384,11 +384,11 @@ impl Context {
 
                 for (cond, expr) in with.iter() {
                     let l1 = self.new_empty_label();
-                    self.compile(value);
-                    self.compile(cond);
+                    self.compile(value, false);
+                    self.compile(cond, false);
                     self.write(Op::Eq);
                     self.emit_gotof(&l1);
-                    self.compile(&expr);
+                    self.compile(&expr, tail);
                     self.emit_goto(&end);
                     self.label_here(&l1);
                 }
@@ -397,7 +397,7 @@ impl Context {
                 }
                 self.label_here(&orl);
                 if default_.is_some() {
-                    self.compile(&default_.clone().unwrap());
+                    self.compile(&default_.clone().unwrap(), false);
                     self.emit_goto(&end);
                 }
                 self.label_here(&end);
@@ -407,13 +407,13 @@ impl Context {
                 //let stack = self.stack;
 
                 let lbl_false = self.new_empty_label();
-                self.compile(&e);
+                self.compile(&e, false);
                 self.emit_gotof(&lbl_false);
-                self.compile(e1);
+                self.compile(e1, tail);
                 self.label_here(&lbl_false);
                 if e2.is_some() {
                     let e2 = e2.clone().unwrap();
-                    self.compile(&e2);
+                    self.compile(&e2, tail);
                 }
             }
             ExprDecl::Call(e, el) => {
@@ -422,12 +422,12 @@ impl Context {
                         let builtin: &str = name;
                         match builtin {
                             "new" => {
-                                self.compile(&el[0]);
+                                self.compile(&el[0], false);
                                 self.write(Op::New);
                                 return;
                             }
                             "hash" => {
-                                self.compile(&el[0]);
+                                self.compile(&el[0], false);
                                 self.write(Op::Hash);
                                 return;
                             }
@@ -441,12 +441,12 @@ impl Context {
                     }
                     ExprDecl::Field(e, f) => {
                         for e in el.iter().rev() {
-                            self.compile(e);
+                            self.compile(e, false);
                         }
-                        self.compile(e);
+                        self.compile(e, false);
                         let gid = self.global(&Global::Str(f.to_owned()));
                         self.write(Op::LoadGlobal(gid as _));
-                        self.compile(e);
+                        self.compile(e, false);
                         self.write(Op::Load);
                         self.write(Op::ObjCall(el.len() as u16));
                         return;
@@ -454,10 +454,14 @@ impl Context {
                     _ => (),
                 }
                 for x in el.iter().rev() {
-                    self.compile(x);
+                    self.compile(x, false);
                 }
-                self.compile(e);
-                self.write(Op::Call(el.len() as _));
+                self.compile(e, false);
+                if !tail {
+                    self.write(Op::Call(el.len() as _));
+                } else {
+                    self.write(Op::TailCall(el.len() as _));
+                }
             }
             ExprDecl::Label(label) => {
                 self.labels.insert(label.to_owned(), Some(self.pos()));
@@ -465,12 +469,8 @@ impl Context {
             ExprDecl::Goto(label) => {
                 self.emit_goto(label);
             }
-            /*ExprDecl::Yield(e) => {
-                self.compile(e);
-                self.write(Op::Yield);
-            }*/
             ExprDecl::Unop(op, e) => {
-                self.compile(e);
+                self.compile(e, tail);
                 let op: &str = op;
                 match op {
                     "-" => self.write(Op::Neg),
@@ -479,80 +479,79 @@ impl Context {
                 }
             }
             ExprDecl::Throw(expr) => {
-                self.compile(expr);
+                self.compile(expr, false);
                 self.write(Op::Throw);
             }
             ExprDecl::Try(expr, name, catch) => {
                 let catch_lbl = self.new_empty_label();
                 let end_lbl = self.new_empty_label();
                 self.emit_paddr(&catch_lbl);
-                self.compile(expr);
+                self.compile(expr, false);
                 self.emit_goto(&end_lbl);
                 self.label_here(&catch_lbl);
                 let locals = self.locals.clone();
                 let id = self.locals.len() as _;
-                self.locals.insert(name.to_owned(),id);
+                self.locals.insert(name.to_owned(), id);
                 self.write(Op::StoreLocal(id as _));
-                self.compile(catch);
+                self.compile(catch, tail);
                 self.locals = locals;
                 self.label_here(&end_lbl);
-
             }
             v => panic!("{:?}", v),
         }
     }
 
-    pub fn compile_binop(&mut self, op: &str, e1: &P<Expr>, e2: &P<Expr>) {
+    pub fn compile_binop(&mut self, op: &str, e1: &P<Expr>, e2: &P<Expr>, tail: bool) {
         match op {
             "==" => match &e2.decl {
                 ExprDecl::Const(Constant::Null) => {
-                    self.compile(e1);
+                    self.compile(e1, false);
                     self.write(Op::IsNull);
                 }
                 _ => {
-                    self.compile(e2);
-                    self.compile(e1);
+                    self.compile(e2, false);
+                    self.compile(e1, false);
                     self.write(Op::Eq);
                 }
             },
             "!=" => match &e2.decl {
                 ExprDecl::Const(Constant::Null) => {
-                    self.compile(e1);
+                    self.compile(e1, false);
                     self.write(Op::IsNotNull);
                 }
                 _ => {
-                    self.compile(e2);
-                    self.compile(e1);
+                    self.compile(e2, false);
+                    self.compile(e1, false);
                     self.write(Op::Neq);
                 }
             },
             "&&" => {
                 let if_false = self.new_empty_label();
-                self.compile(e1);
+                self.compile(e1, false);
                 self.emit_gotof(&if_false);
-                self.compile(e2);
+                self.compile(e2, tail);
                 self.label_here(&if_false);
             }
             "||" => {
                 let if_true = self.new_empty_label();
-                self.compile(e1);
+                self.compile(e1, false);
                 self.emit_gotot(&if_true);
-                self.compile(e2);
+                self.compile(e2, tail);
 
                 self.label_here(&if_true);
             }
             _ => {
-                self.compile(e2);
+                self.compile(e2, false);
 
-                self.compile(e1);
+                self.compile(e1, false);
                 self.write_op(op);
             }
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _: Option<&str>) {
         let mut ctx = Context {
-            g: self.g.clone(), // we don't clone this globals, basically just copy ptr,
+            g: self.g.clone(),
             ops: Vec::new(),
             pos: Vec::new(),
             limit: self.stack,
@@ -565,7 +564,7 @@ impl Context {
             breaks: vec![],
             labels: self.labels.clone(),
             used_upvars: LinkedHashMap::new(),
-            trace_info: HashMap::new()
+            trace_info: HashMap::new(),
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -578,7 +577,7 @@ impl Context {
         .borrow_mut()
         .globals
         .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);*/
-        ctx.compile(e);
+        ctx.compile(e, true);
 
         ctx.write(Op::Ret);
         //ctx.check_stack(s, "");
@@ -595,13 +594,6 @@ impl Context {
             self.labels.insert(k.clone(), v.clone());
         }
         if ctx.nenv > 0 {
-            /*let mut a = vec!["".to_string(); ctx.nenv as usize];
-            for (v, i) in ctx.env.iter() {
-                a[*i as usize] = v.clone();
-            }
-            for x in a.iter() {
-                self.compile_const(&Constant::Ident(x.to_owned()), e.pos);
-            }*/
             for (var, _) in ctx.used_upvars.iter().rev() {
                 self.compile_const(&Constant::Ident(var.to_owned()));
             }
@@ -634,7 +626,7 @@ impl Context {
             cur_pos: None,
             labels: Default::default(),
             used_upvars: Default::default(),
-            trace_info: HashMap::new()
+            trace_info: HashMap::new(),
         }
     }
 }
@@ -652,7 +644,7 @@ pub fn compile(ast: Vec<P<Expr>>) -> Context {
         decl: ExprDecl::Block(ast.clone()),
     });
 
-    ctx.compile(&ast);
+    ctx.compile(&ast, false);
 
     if ctx.g.borrow().functions.len() != 0 || ctx.g.borrow().objects.len() != 0 {
         let ctxops = ctx.ops.clone();
@@ -705,7 +697,7 @@ pub fn module_from_context(ctx: &mut Context) -> Ref<Module> {
                     address: *off as _,
                     argc: *nargs,
                     env: Value::Array(Ref(vec![])),
-                    module: Some(Arc::downgrade(&m)),
+                    module: Some(m.clone()),
                 });
 
                 m.borrow_mut().globals[i] = Value::Function(func);

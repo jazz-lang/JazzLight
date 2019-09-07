@@ -123,6 +123,10 @@ impl Vm {
             self.pc += 1;
             match op {
                 Op::LoadBuiltin(name) => {
+                    if name == "exports" {
+                        self.stack.push(m.borrow().exports.clone());
+                        continue;
+                    }
                     use crate::builtins::get_builtin;
                     let value = get_builtin(&name);
                     if let Some(value) = value {
@@ -226,8 +230,14 @@ impl Vm {
                         Value::Function(function) => {
                             let function = function.borrow();
                             if function.argc != -1 {
-                                if args.len() < function.argc as usize || args.len() > function.argc as usize {
-                                    throw!(Value::String(Ref(format!("Expected {} arguments,found {}",function.argc,args.len()))));
+                                if args.len() < function.argc as usize
+                                    || args.len() > function.argc as usize
+                                {
+                                    throw!(Value::String(Ref(format!(
+                                        "Expected {} arguments,found {}",
+                                        function.argc,
+                                        args.len()
+                                    ))));
                                 }
                             }
                             if !function.native {
@@ -237,7 +247,7 @@ impl Vm {
                                 self.save_state(Some(m.clone()));
                                 self.env = function.env.clone();
                                 self.locals = Ref(HashMap::new());
-                                m = function.module.as_ref().unwrap().upgrade().unwrap();
+                                m = function.module.as_ref().unwrap().clone();
                                 let mut locals = self.locals.borrow_mut();
 
                                 for (i, arg) in args.iter().enumerate() {
@@ -257,7 +267,10 @@ impl Vm {
                                 }*/
                             }
                         }
-                        _ => throw!(Value::String(Ref("Function expected".to_owned()))),
+                        _ => throw!(Value::String(Ref(format!(
+                            "Call at {:x}: Function expected",
+                            self.pc - 1
+                        )))),
                     }
                 }
                 Op::ObjCall(argc) => {
@@ -278,12 +291,21 @@ impl Vm {
                             self.save_state(Some(m.clone()));
                             self.env = function.env.clone();
                             if function.argc != -1 {
-                                if args.len() < function.argc as usize || args.len() > function.argc as usize {
-                                    throw!(Value::String(Ref(format!("Expected {} arguments,found {}",function.argc,args.len()))));
+                                if args.len() < function.argc as usize
+                                    || args.len() > function.argc as usize
+                                {
+                                    throw!(Value::String(Ref(format!(
+                                        "Expected {} arguments,found {}",
+                                        function.argc,
+                                        args.len()
+                                    ))));
                                 }
                             }
                             if !function.native {
                                 self.locals = Ref(HashMap::new());
+                                if let Some(module) = &function.module {
+                                    m = module.clone();
+                                }
                                 let mut locals = self.locals.borrow_mut();
                                 for (i, arg) in args.iter().enumerate() {
                                     locals.insert(i as u16, arg.clone());
@@ -305,7 +327,7 @@ impl Vm {
                                 }*/
                             }
                         }
-                        _ => throw!(Value::String(Ref("Function expected".to_owned()))),
+                        _ => throw!(Value::String(Ref("ObjCall: Function expected".to_owned()))),
                     }
                 }
                 Op::Nop => {}
@@ -743,7 +765,7 @@ pub fn val_callex(f: Value, this: Value, args: &[Value]) -> Result<Value, Value>
                 for (i, arg) in args.iter().enumerate() {
                     vm.locals.borrow_mut().insert(i as u16, arg.clone());
                 }
-                let value = vm.interp(function.module.as_ref().unwrap().upgrade().unwrap());
+                let value = vm.interp(function.module.as_ref().unwrap().clone());
                 vm.env = env;
                 vm.locals = locals;
                 vm.pc = pc;
