@@ -61,8 +61,10 @@ pub struct Context {
     pub labels: LinkedHashMap<String, Option<usize>>,
     pub used_upvars: LinkedHashMap<String, i32>,
     pub trace_info: HashMap<u32, (usize, String)>,
+    pub ret_lbl: String,
 }
 impl Context {
+    pub fn new_named_label(&mut self) {}
     pub fn finish(&mut self) -> Vec<Op> {
         for (idx, op) in self.ops.iter().enumerate() {
             match op {
@@ -336,7 +338,12 @@ impl Context {
                 let id = self.locals.len() as u16;
                 self.locals.insert(name.to_owned(), id as i32);
                 match init {
-                    Some(e) => self.compile(e, false),
+                    Some(e) => match &e.decl {
+                        ExprDecl::Function(args, body) => {
+                            self.compile_function(args, body, Some(name))
+                        }
+                        _ => self.compile(e, false),
+                    },
                     None => self.write(Op::LoadNull),
                 }
 
@@ -360,7 +367,7 @@ impl Context {
                     None => self.write(Op::LoadNull),
                 }
 
-                //let stack = self.stack;
+                //let _ = self.ret_lbl.clone();
                 self.write(Op::Ret);
                 //self.stack = stack;
             }
@@ -549,7 +556,7 @@ impl Context {
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
         let mut ctx = Context {
             g: self.g.clone(),
             ops: Vec::new(),
@@ -565,6 +572,7 @@ impl Context {
             labels: self.labels.clone(),
             used_upvars: LinkedHashMap::new(),
             trace_info: HashMap::new(),
+            ret_lbl: String::new(),
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -572,13 +580,17 @@ impl Context {
         }
 
         let gid = ctx.g.borrow().table.len();
-        ctx.g.borrow_mut().table.push(Global::Var("tmp".to_owned()));
-        /*ctx.g
-        .borrow_mut()
-        .globals
-        .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);*/
+        /*if vname.is_some() {
+            ctx.g
+                .borrow_mut()
+                .globals
+                .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
+        }*/
+        ctx.g.borrow_mut().table.push(Global::Func(gid as i32, -1));
+        ctx.ret_lbl = ctx.new_empty_label();
         ctx.compile(e, true);
-
+        let ret_lbl = ctx.ret_lbl.clone();
+        ctx.label_here(&ret_lbl);
         ctx.write(Op::Ret);
         //ctx.check_stack(s, "");
 
@@ -588,7 +600,6 @@ impl Context {
             gid as i32,
             params.len() as i32,
         ));
-        ctx.g.borrow_mut().table[gid as usize] = Global::Func(gid as i32, -1);
 
         for (k, v) in ctx.labels.iter() {
             self.labels.insert(k.clone(), v.clone());
@@ -627,6 +638,7 @@ impl Context {
             labels: Default::default(),
             used_upvars: Default::default(),
             trace_info: HashMap::new(),
+            ret_lbl: String::new(),
         }
     }
 }
@@ -644,7 +656,11 @@ pub fn compile(ast: Vec<P<Expr>>) -> Context {
         decl: ExprDecl::Block(ast.clone()),
     });
 
+    ctx.ret_lbl = ctx.new_empty_label();
     ctx.compile(&ast, false);
+    let ret_lbl = ctx.ret_lbl.clone();
+    ctx.label_here(&ret_lbl);
+    ctx.write(Op::Ret);
 
     if ctx.g.borrow().functions.len() != 0 || ctx.g.borrow().objects.len() != 0 {
         let ctxops = ctx.ops.clone();

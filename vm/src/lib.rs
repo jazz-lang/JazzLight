@@ -1,9 +1,12 @@
 #![feature(coerce_unsized)]
 #![feature(unsize)]
+#[macro_use]
+pub mod interp;
 pub mod atomic_ref;
 pub mod builtins;
 pub mod gc;
-pub mod interp;
+
+pub mod jit;
 pub mod opcode;
 pub mod reader;
 pub mod value;
@@ -13,15 +16,17 @@ use mimalloc::MiMalloc;
 #[global_allocator]
 pub static GLOBAL: MiMalloc = MiMalloc;
 
-pub use atomic_ref::AtomicRefCell as RefCell;
-pub use std::sync::{Arc, Weak};
+pub use std::cell::RefCell;
+pub use std::rc::{Rc, Weak};
 
-pub type Ref<T> = Arc<RefCell<T>>;
+pub type Ref<T> = std::rc::Rc<RefCell<T>>;
 pub type WeakRef<T> = Weak<RefCell<T>>;
+
+pub use std::result::Result;
 
 #[allow(non_snake_case)]
 pub fn Ref<T>(x: T) -> Ref<T> {
-    Arc::new(RefCell::new(x))
+    Rc::new(RefCell::new(x))
 }
 
 use std::collections::HashMap;

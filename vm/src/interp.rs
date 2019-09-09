@@ -1,5 +1,4 @@
 use crate::*;
-use parking_lot::Mutex;
 use value::*;
 
 #[derive(Clone)]
@@ -26,8 +25,15 @@ pub struct Vm {
     pub this: Value,
 }
 
-lazy_static::lazy_static! {
-    pub static ref VM: Mutex<Vm> = Mutex::new(Vm::new());
+thread_local! {
+    pub static VM: *mut Vm = Box::into_raw(Box::new(Vm::new()));
+}
+
+#[macro_export]
+macro_rules! get_vm {
+    () => {
+        unsafe { VM.with(|vm_ptr| &mut **vm_ptr) }
+    };
 }
 
 impl Vm {
@@ -734,7 +740,7 @@ impl Vm {
 }
 
 pub fn val_callex(f: Value, this: Value, args: &[Value]) -> Result<Value, Value> {
-    let mut vm: parking_lot::MutexGuard<Vm> = VM.lock();
+    let mut vm = get_vm!();
     match f {
         Value::Function(f) => {
             let function = f.borrow();

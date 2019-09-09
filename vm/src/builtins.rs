@@ -18,6 +18,23 @@ pub fn builtin_print(args: &[Value]) -> Result<Value, Value> {
     Ok(Value::Null)
 }
 
+pub fn builtin_apply(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::Function(_) => {
+            let array = match &args[2] {
+                Value::Array(array) => array.borrow(),
+                _ => {
+                    return Err(Value::String(Ref(
+                        "apply: Array of arguments expected".to_owned()
+                    )))
+                }
+            };
+            return val_callex(args[0].clone(), args[1].clone(), &*array);
+        }
+        _ => Err(Value::String(Ref("apply: Function expected".to_owned()))),
+    }
+}
+
 pub fn builtin_array(args: &[Value]) -> Result<Value, Value> {
     Ok(Value::Array(Ref(args.to_vec())))
 }
@@ -28,20 +45,65 @@ pub fn builtin_amake(args: &[Value]) -> Result<Value, Value> {
 }
 
 pub fn builtin_asize(args: &[Value]) -> Result<Value, Value> {
-    let array = args[0].clone();
-    match array {
+    match &args[0] {
         Value::Array(array) => return Ok(Value::Int(array.borrow().len() as _)),
         _ => return Err(Value::String(Ref("Array expected".to_owned()))),
     }
 }
 
 pub fn builtin_apush(args: &[Value]) -> Result<Value, Value> {
-    let array = args[0].clone();
-    match array {
+    match &args[0] {
         Value::Array(array) => array.borrow_mut().push(args[1].clone()),
         _ => return Err(Value::String(Ref("Array expected".to_owned()))),
     }
     Ok(Value::Null)
+}
+pub fn builtin_apop(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::Array(array) => return Ok(array.borrow_mut().pop().unwrap_or(Value::Null)),
+        _ => return Err(Value::String(Ref("Array expected".to_owned()))),
+    }
+}
+
+pub fn builtin_acopy(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::Array(array) => Ok(Value::Array(Ref(array
+            .borrow()
+            .iter()
+            .map(|x| x.clone())
+            .collect::<Vec<_>>()))),
+        _ => return Err(Value::String(Ref("acopy: Array expected".to_owned()))),
+    }
+}
+
+pub fn builtin_scopy(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::String(s) => Ok(Value::String(Ref(s.borrow().to_owned()))),
+        _ => return Err(Value::String(Ref("scopy: String expected".to_owned()))),
+    }
+}
+
+pub fn builtin_sget(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::String(s) => Ok(s
+            .borrow()
+            .chars()
+            .nth(args[1].to_int().unwrap() as usize)
+            .map(|x| Value::String(Ref(x.to_string())))
+            .unwrap_or(Value::Null)),
+        _ => return Err(Value::String(Ref("sget: String expected".to_owned()))),
+    }
+}
+
+pub fn builtin_sfind(args: &[Value]) -> Result<Value, Value> {
+    let pat = format!("{}", args[1]);
+    match &args[0] {
+        Value::String(s) => match s.borrow().find(&pat) {
+            Some(result) => return Ok(Value::Int(result as _)),
+            None => return Ok(Value::Null),
+        },
+        _ => return Err(Value::String(Ref("sfind: String expected".to_owned()))),
+    }
 }
 
 pub fn builtin_string(args: &[Value]) -> Result<Value, Value> {
@@ -105,6 +167,49 @@ pub fn builtin_load(args: &[Value]) -> Result<Value, Value> {
     }
 }
 
+pub fn builtin_load_function(args: &[Value]) -> Result<Value, Value> {
+    use libloading::{Library, Symbol};
+    let lib = format!("{}", args[0]);
+    let name = format!("{}", args[1]);
+    let argc = args[2].to_int().unwrap();
+
+    let lib = Library::new(&lib);
+    match lib {
+        Ok(lib) => {
+            let lib: Library = lib;
+            unsafe {
+                let entry_point: Result<Symbol<fn()>, _> =
+                    lib.get(format!("__jazzlight_entry_point\0").as_bytes());
+                match entry_point {
+                    Ok(sym) => {
+                        sym();
+                    }
+                    Err(e) => {
+                        return Err(Value::String(Ref(format!(
+                            "Failed to get entry point: {}",
+                            e
+                        ))))
+                    }
+                }
+                let symbol: Result<Symbol<fn(&[Value]) -> Result<Value, Value>>, _> =
+                    lib.get(format!("{}\0", name).as_bytes());
+                match symbol {
+                    Ok(sym) => {
+                        return Ok(new_native_fn(*sym, argc as _));
+                    }
+                    Err(e) => {
+                        return Err(Value::String(Ref(format!(
+                            "Symbol '{}' not found: {}",
+                            name, e
+                        ))))
+                    }
+                }
+            }
+        }
+        Err(e) => return Err(Value::String(Ref(e.to_string()))),
+    }
+}
+
 fn new_native_fn(x: fn(&[Value]) -> Result<Value, Value>, argc: i32) -> Value {
     Value::Function(Ref(Function {
         native: true,
@@ -123,9 +228,20 @@ pub fn builtins_init() -> HashMap<String, Value> {
     map.insert("amake".to_owned(), new_native_fn(builtin_amake, 1));
     map.insert("asize".to_owned(), new_native_fn(builtin_asize, 1));
     map.insert("apush".to_owned(), new_native_fn(builtin_apush, 1));
+    map.insert("apop".to_owned(), new_native_fn(builtin_apop, 0));
+    map.insert("acopy".to_owned(), new_native_fn(builtin_acopy, 1));
     map.insert("nargs".to_owned(), new_native_fn(builtin_nargs, 1));
     map.insert("typeof".to_owned(), new_native_fn(builtin_typeof, 1));
     map.insert("string".to_owned(), new_native_fn(builtin_string, 1));
     map.insert("load".to_owned(), new_native_fn(builtin_load, 1));
+    map.insert(
+        "load_function".to_owned(),
+        new_native_fn(builtin_load_function, 3),
+    );
+
+    map.insert("scopy".to_owned(), new_native_fn(builtin_scopy, 1));
+    map.insert("sfind".to_owned(), new_native_fn(builtin_sfind, 2));
+    map.insert("sget".to_owned(), new_native_fn(builtin_sget, 2));
+    map.insert("apply".to_owned(), new_native_fn(builtin_apply, 3));
     return map;
 }

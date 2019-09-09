@@ -1,13 +1,11 @@
+#[macro_use]
 extern crate jazzlight;
 
 use jazzlight::interp::*;
-use jazzlight::*;
-
 
 use jazzlight::reader::BytecodeReader;
-use std::io::Cursor;
 use jazzlight::value::Value;
-
+use std::io::Cursor;
 
 fn main() {
     let file = std::env::args().nth(1);
@@ -21,18 +19,18 @@ fn main() {
     match contents {
         Ok(contents) => {
             let mut reader = BytecodeReader {
-                bytes: Cursor::new(&contents)
+                bytes: Cursor::new(&contents),
             };
             let m = reader.read_module();
-            let mut vm = VM.lock();
+            let vm = get_vm!();
             vm.save_state_exit();
             match vm.interp(m) {
                 Value::Int(x) => std::process::exit(x as _),
-                _ => ()
+                _ => (),
             }
         }
         Err(e) => {
-            eprintln!("{}",e);
+            eprintln!("{}", e);
             std::process::exit(1);
         }
     }

@@ -367,12 +367,7 @@ impl MsgWithPos {
         if self.path.is_empty() {
             format!("error at {}: {}", self.pos, self.msg.message())
         } else {
-            format!(
-                "error in {} at {}: {}",
-                self.path,
-                self.pos,
-                self.msg.message()
-            )
+            format!("error in {}: {}", self.pos, self.msg.message())
         }
     }
 
