@@ -1,0 +1,27 @@
+var iteri = function(a,f) {
+    if $typeof(a) != "array" {
+        throw "iteri: array expected"
+    }
+    var i = 0
+    while i < $asize(a) {
+        f(i,a[i])
+        i = i + 1
+    }
+
+    return null
+}
+
+var iter = function(a,f) {
+    if $typeof(a) != "array" {
+        throw "iter: array expected"
+    }
+    var i = 0
+    while i < $asize(a) {
+        f(a[i])
+        i = i + 1
+    }
+    return null
+}
+
+$exports.iter = iter
+$exports.iteri = iteri
