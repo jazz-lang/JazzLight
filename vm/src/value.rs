@@ -12,6 +12,8 @@ pub enum Value {
     Array(Ref<Vec<Value>>),
     Object(Ref<Object>),
     Function(Ref<Function>),
+    Char(char),
+    User(Ref<dyn UserKind>),
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Hash)]
@@ -24,6 +26,8 @@ pub enum ValTag {
     Array,
     Object,
     Func,
+    Char,
+    User(&'static str),
 }
 
 impl Value {
@@ -88,6 +92,8 @@ impl Value {
             Value::String(_) => ValTag::Str,
             Value::Function(_) => ValTag::Func,
             Value::Bool(_) => ValTag::Bool,
+            Value::Char(_) => ValTag::Char,
+            Value::User(x) => ValTag::User(x.borrow().get_kind()),
         }
     }
 }
@@ -122,6 +128,10 @@ impl Hash for Value {
                 6.hash(state);
                 x.hash(state);
             }
+            Value::Char(x) => {
+                7.hash(state);
+                x.hash(state);
+            }
             _ => (),
         }
     }
@@ -147,6 +157,7 @@ impl fmt::Display for Value {
                 fmt.push(']');
                 write!(f, "{}", fmt)
             }
+            Value::Char(x) => write!(f, "{}", x),
             Value::Object(object) => {
                 let mut fmt = String::new();
                 fmt.push_str("{\n");
@@ -169,6 +180,7 @@ impl fmt::Display for Value {
                     write!(f, "<function at {:x}>", func.borrow().address)
                 }
             }
+            Value::User(x) => write!(f, "{}", x.borrow()),
             Value::Null => write!(f, "null"),
             Value::String(s) => write!(f, "{}", *s.borrow()),
             Value::Bool(x) => write!(f, "{}", x),
@@ -191,6 +203,11 @@ impl PartialEq for Value {
             Value::Float(x) => match other {
                 Value::Int(y) => *x == *y as f64,
                 Value::Float(y) => x == y,
+                _ => false,
+            },
+            Value::Char(x) => match other {
+                Value::Int(y) => *x as u32 == *y as u32,
+                Value::Char(y) => *x == *y,
                 _ => false,
             },
             Value::String(s) => match other {
@@ -268,3 +285,46 @@ pub struct Function {
     pub module: Option<Ref<Module>>,
     pub argc: i32,
 }
+
+pub trait UserKind: mopa::Any + fmt::Debug + fmt::Display + Trace {
+    fn get_kind(&self) -> &'static str;
+}
+/*
+use crate::gc::Trace;
+
+impl Trace for Function {
+    fn trace(&self) {
+        match &self.module {
+            Some(m) => m.trace(),
+            _ => (),
+        }
+        self.env.trace();
+    }
+}
+
+impl Trace for Value {
+    fn trace(&self) {
+        match self {
+            Value::String(s) => s.trace(),
+            Value::Array(a) => a.trace(),
+            Value::Object(o) => o.trace(),
+            Value::Function(f) => f.trace(),
+            Value::User(_) => (),
+            _ => (),
+        }
+    }
+}
+
+impl Trace for Object {
+    fn trace(&self) {
+        match &self.prototype {
+            Some(proto) => proto.trace(),
+            _ => (),
+        }
+        for (key, val) in self.table.iter() {
+            key.trace();
+            val.trace();
+        }
+    }
+}
+*/

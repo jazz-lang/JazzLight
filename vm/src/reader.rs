@@ -93,13 +93,15 @@ impl<'a> BytecodeReader<'a> {
                 TAG_FUN => {
                     let at = self.read_u32();
                     let argc = self.read_u16();
+                    let env = Ref(vec![]);
                     let fun = Function {
                         address: at as _,
                         native: false,
-                        env: Value::Array(Ref(vec![])),
+                        env: Value::Array(env),
                         argc: argc as _,
                         module: Some(m.clone()),
                     };
+                    //gc_add_root(env);
                     m.borrow_mut().globals.push(Value::Function(Ref(fun)));
                 }
                 TAG_DBGINFO => {

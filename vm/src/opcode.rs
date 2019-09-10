@@ -54,3 +54,7 @@ pub enum Op {
 
     Last,
 }
+
+use crate::gc::*;
+
+impl Trace for Op {}

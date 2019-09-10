@@ -83,6 +83,37 @@ pub fn builtin_scopy(args: &[Value]) -> Result<Value, Value> {
     }
 }
 
+pub fn builtin_schars(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::String(s) => Ok(Value::Array(Ref(s
+            .borrow()
+            .chars()
+            .map(|x| Value::Char(x))
+            .collect()))),
+        _ => return Err(Value::String(Ref("schars: String expected".to_owned()))),
+    }
+}
+
+pub fn builtin_str_from_chars(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::Array(array) => {
+            let mut chars = vec![];
+
+            for ch in array.borrow().iter() {
+                match ch {
+                    Value::Char(x) => chars.push(*x),
+                    _ => return Ok(Value::Null),
+                }
+            }
+            use std::iter::FromIterator;
+            let s = String::from_iter(chars.iter());
+            return Ok(Value::String(Ref(s)));
+        }
+        Value::String(_) => return Ok(builtin_scopy(&[args[0].clone()])?),
+        _ => return Ok(Value::Null),
+    }
+}
+
 pub fn builtin_sget(args: &[Value]) -> Result<Value, Value> {
     match &args[0] {
         Value::String(s) => Ok(s
@@ -120,7 +151,9 @@ pub fn builtin_typeof(args: &[Value]) -> Result<Value, Value> {
         ValTag::Str => "string",
         ValTag::Bool => "bool",
         ValTag::Object => "object",
+        ValTag::Char => "char",
         ValTag::Func => "function",
+        ValTag::User(x) => x,
     }
     .to_owned())))
 }
@@ -139,8 +172,16 @@ pub fn builtin_load(args: &[Value]) -> Result<Value, Value> {
         Some(lpath) if std::path::Path::new(&format!("{}/{}", lpath, path)).exists() => {
             format!("{}/{}", lpath, path)
         }
+        Some(lpath) if std::path::Path::new(&format!("{}/{}.j", lpath, path)).exists() => {
+            format!("{}/{}.j", lpath, path)
+        }
         Some(_) => path,
         None => path,
+    };
+    let path = if std::path::Path::new(&format!("{}.j", path)).exists() {
+        format!("{}.j", path)
+    } else {
+        path
     };
     let contents = std::fs::read(&path);
     match contents {
@@ -227,7 +268,7 @@ pub fn builtins_init() -> HashMap<String, Value> {
     map.insert("array".to_owned(), new_native_fn(builtin_array, -1));
     map.insert("amake".to_owned(), new_native_fn(builtin_amake, 1));
     map.insert("asize".to_owned(), new_native_fn(builtin_asize, 1));
-    map.insert("apush".to_owned(), new_native_fn(builtin_apush, 1));
+    map.insert("apush".to_owned(), new_native_fn(builtin_apush, 2));
     map.insert("apop".to_owned(), new_native_fn(builtin_apop, 0));
     map.insert("acopy".to_owned(), new_native_fn(builtin_acopy, 1));
     map.insert("nargs".to_owned(), new_native_fn(builtin_nargs, 1));
@@ -242,6 +283,11 @@ pub fn builtins_init() -> HashMap<String, Value> {
     map.insert("scopy".to_owned(), new_native_fn(builtin_scopy, 1));
     map.insert("sfind".to_owned(), new_native_fn(builtin_sfind, 2));
     map.insert("sget".to_owned(), new_native_fn(builtin_sget, 2));
+    map.insert("schars".to_owned(), new_native_fn(builtin_schars, 1));
+    map.insert(
+        "str_from_chars".to_owned(),
+        new_native_fn(builtin_str_from_chars, 1),
+    );
     map.insert("apply".to_owned(), new_native_fn(builtin_apply, 3));
     return map;
 }

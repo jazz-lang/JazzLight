@@ -556,7 +556,7 @@ impl Context {
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _: Option<&str>) {
         let mut ctx = Context {
             g: self.g.clone(),
             ops: Vec::new(),

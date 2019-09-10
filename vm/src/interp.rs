@@ -17,7 +17,7 @@ use std::collections::HashMap;
 
 pub struct Vm {
     pub pc: usize,
-    pub stack: Vec<Value>,
+    pub stack: Ref<Vec<Value>>,
     pub exception_stack: Vec<(usize, Infos)>,
     pub info_stack: Vec<Infos>,
     pub env: Value,
@@ -38,15 +38,17 @@ macro_rules! get_vm {
 
 impl Vm {
     pub fn new() -> Vm {
-        Vm {
+        let vm = Vm {
             pc: 0,
-            stack: vec![],
+            stack: Ref(vec![]),
             exception_stack: vec![],
             info_stack: vec![],
             env: Value::Null,
             locals: Ref(HashMap::new()),
             this: Value::Null,
-        }
+        };
+
+        vm
     }
     pub fn save_state_exit(&mut self) {
         self.info_stack.push(Infos::Exit);
@@ -79,6 +81,9 @@ impl Vm {
                 false
             }
         }
+    }
+    pub fn stack(&self) -> std::cell::RefMut<'_, Vec<Value>> {
+        self.stack.borrow_mut()
     }
 
     pub fn interp(&mut self, mut m: Ref<Module>) -> Value {
@@ -113,7 +118,7 @@ impl Vm {
                                 self.env = env;
                                 self.this = this;
                                 self.locals = locals;
-                                self.stack.push(e);
+                                self.stack().push(e);
                                 continue;
                             } else {
                                 unreachable!()
@@ -130,28 +135,28 @@ impl Vm {
             match op {
                 Op::LoadBuiltin(name) => {
                     if name == "exports" {
-                        self.stack.push(m.borrow().exports.clone());
+                        self.stack().push(m.borrow().exports.clone());
                         continue;
                     }
                     use crate::builtins::get_builtin;
                     let value = get_builtin(&name);
                     if let Some(value) = value {
-                        self.stack.push(value);
+                        self.stack().push(value);
                     } else {
                         throw!(Value::String(Ref(format!("Builtin '{}' not found", name))));
                     }
                 }
-                Op::LoadNull => self.stack.push(Value::Null),
-                Op::LoadInt(x) => self.stack.push(Value::Int(x)),
-                Op::LoadTrue => self.stack.push(Value::Bool(true)),
-                Op::LoadFalse => self.stack.push(Value::Bool(false)),
+                Op::LoadNull => self.stack().push(Value::Null),
+                Op::LoadInt(x) => self.stack().push(Value::Int(x)),
+                Op::LoadTrue => self.stack().push(Value::Bool(true)),
+                Op::LoadFalse => self.stack().push(Value::Bool(false)),
                 Op::LoadGlobal(idx) => {
                     let idx = idx as usize;
-                    self.stack
+                    self.stack()
                         .push(m.borrow().globals.get(idx).cloned().unwrap_or(Value::Null));
                 }
                 Op::LoadLocal(idx) => {
-                    self.stack.push(
+                    self.stack().push(
                         self.locals
                             .borrow()
                             .get(&idx)
@@ -166,16 +171,16 @@ impl Vm {
                             if idx >= array.borrow().len() {
                                 panic!("JZVM RUNTIME ERROR: Reading outside env");
                             }
-                            self.stack.push(array.borrow()[idx].clone());
+                            self.stack().push(array.borrow()[idx].clone());
                         }
                         _ => unreachable!(),
                     }
                 }
                 Op::LoadThis => {
-                    self.stack.push(self.this.clone());
+                    self.stack().push(self.this.clone());
                 }
                 Op::StoreThis => {
-                    let value = self.stack.pop();
+                    let value = self.stack().pop();
                     match value {
                         Some(val) => self.this = val,
                         _ => throw!(Value::String(Ref("StoreThis: Stack empty".to_owned()))),
@@ -183,7 +188,7 @@ impl Vm {
                 }
                 Op::StoreEnv(idx) => {
                     let idx = idx as usize;
-                    let value = self.stack.pop();
+                    let value = self.stack().pop();
                     match value {
                         Some(value) => match &self.env {
                             Value::Array(array) => {
@@ -195,7 +200,7 @@ impl Vm {
                     }
                 }
                 Op::StoreLocal(idx) => {
-                    let value = self.stack.pop();
+                    let value = self.stack().pop();
                     match value {
                         Some(value) => {
                             self.locals.borrow_mut().insert(idx, value);
@@ -204,12 +209,12 @@ impl Vm {
                     }
                 }
                 Op::Ret => {
-                    let value = self.stack.pop().unwrap_or(Value::Null);
+                    let value = self.stack().pop().unwrap_or(Value::Null);
                     let exit = self.pop_state(Some(&mut m));
                     if exit {
                         return value;
                     } else {
-                        self.stack.push(value);
+                        self.stack().push(value);
                     }
                 }
                 Op::CatchPush(addr) => {
@@ -223,14 +228,17 @@ impl Vm {
                     self.exception_stack.push((addr as usize, info));
                 }
                 Op::Throw => {
-                    let value = self.stack.pop().unwrap();
+                    let value = self.stack().pop().unwrap();
                     catch!(Err(value));
                 }
                 Op::TailCall(argc) | Op::Call(argc) => {
-                    let function = self.stack.pop().unwrap();
+                    if self.info_stack.len() > 100 || gc_allocated_count() > 128 {
+                        gc_force_collect(false);
+                    }
+                    let function = self.stack().pop().unwrap();
                     let args = (0..argc)
                         .into_iter()
-                        .map(|_| self.stack.pop().unwrap_or(Value::Null))
+                        .map(|_| self.stack().pop().unwrap_or(Value::Null))
                         .collect::<Vec<Value>>();
                     match function {
                         Value::Function(function) => {
@@ -266,9 +274,9 @@ impl Vm {
                                     unsafe { std::mem::transmute(function.address) };
 
                                 let result = catch!(fun(&args));
-                                self.stack.push(result);
+                                self.stack().push(result);
                                 /*match fun(&args) {
-                                    Ok(val) => self.stack.push(val),
+                                    Ok(val) => self.stack().push(val),
                                     Err(e) => throw!(Err(e)),
                                 }*/
                             }
@@ -280,15 +288,18 @@ impl Vm {
                     }
                 }
                 Op::ObjCall(argc) => {
-                    let function = self.stack.pop().unwrap();
-                    let this = self.stack.pop().unwrap();
+                    if self.info_stack.len() > 100 || gc_allocated_count() > 128 {
+                        gc_force_collect(false);
+                    }
+                    let function = self.stack().pop().unwrap();
+                    let this = self.stack().pop().unwrap();
                     /*let args = (0..argc)
                     .into_iter()
-                    .map(|_| self.stack.pop().unwrap_or(Value::Null))
+                    .map(|_| self.stack().pop().unwrap_or(Value::Null))
                     .collect::<Vec<Value>>();*/
                     let mut args = vec![];
                     for _ in 0..argc {
-                        args.push(self.stack.pop().unwrap_or(Value::Null));
+                        args.push(self.stack().pop().unwrap_or(Value::Null));
                     }
 
                     match function {
@@ -326,9 +337,9 @@ impl Vm {
                                     new_args.push(i.clone());
                                 }
                                 let result = catch!(fun(&new_args));
-                                self.stack.push(result);
+                                self.stack().push(result);
                                 /*match fun(&args) {
-                                    Ok(val) => self.stack.push(val),
+                                    Ok(val) => self.stack().push(val),
                                     Err(e) => throw!(Err(e)),
                                 }*/
                             }
@@ -338,53 +349,54 @@ impl Vm {
                 }
                 Op::Nop => {}
                 Op::MakeEnv(count) => {
-                    let function = self.stack.pop().unwrap();
+                    let function = self.stack().pop().unwrap();
                     assert_eq!(function.tag(), ValTag::Func);
                     let values = (0..count)
                         .into_iter()
-                        .map(|_| self.stack.pop().unwrap_or(Value::Null))
+                        .map(|_| self.stack().pop().unwrap_or(Value::Null))
                         .collect::<Vec<Value>>();
                     match &function {
-                        Value::Function(func) => {
-                            func.borrow_mut().env = Value::Array(Ref(values));
-                        }
+                        Value::Function(func) => match &func.borrow().env {
+                            Value::Array(array) => array.borrow_mut().extend(values),
+                            _ => unreachable!(),
+                        },
                         _ => unreachable!(),
                     }
-                    self.stack.push(function);
+                    self.stack().push(function);
                 }
 
                 Op::Load => {
-                    let object = self.stack.pop().unwrap();
-                    let key = self.stack.pop().unwrap();
+                    let object = self.stack().pop().unwrap();
+                    let key = self.stack().pop().unwrap();
                     match object {
                         Value::Array(array) => match key {
-                            Value::Int(x) => self.stack.push(
+                            Value::Int(x) => self.stack().push(
                                 array
                                     .borrow()
                                     .get(x as usize)
                                     .cloned()
                                     .unwrap_or(Value::Null),
                             ),
-                            Value::Float(x) => self.stack.push(
+                            Value::Float(x) => self.stack().push(
                                 array
                                     .borrow()
                                     .get(x as usize)
                                     .cloned()
                                     .unwrap_or(Value::Null),
                             ),
-                            _ => self.stack.push(Value::Null),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Object(object) => {
-                            self.stack
+                            self.stack()
                                 .push(object.borrow().get(key).unwrap_or(Value::Null));
                         }
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Store => {
-                    let object = self.stack.pop().unwrap();
-                    let key = self.stack.pop().unwrap();
-                    let value = self.stack.pop().unwrap();
+                    let object = self.stack().pop().unwrap();
+                    let key = self.stack().pop().unwrap();
+                    let value = self.stack().pop().unwrap();
                     match object {
                         Value::Array(array) => match key {
                             Value::Int(x) => {
@@ -414,310 +426,348 @@ impl Vm {
                 Op::MakeArray(count) => {
                     let values = (0..count)
                         .into_iter()
-                        .map(|_| self.stack.pop().unwrap())
+                        .map(|_| self.stack().pop().unwrap())
                         .collect::<Vec<Value>>();
 
-                    self.stack.push(Value::Array(Ref(values)));
+                    self.stack().push(Value::Array(Ref(values)));
                 }
                 Op::Add => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::String(x) => {
-                            self.stack
+                            self.stack()
                                 .push(Value::String(Ref(format!("{}{}", *x.borrow(), rhs))))
                         }
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Int(x + y)),
-                            Value::Float(y) => self.stack.push(Value::Float(x as f64 + y)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Int(x + y)),
+                            Value::Float(y) => self.stack().push(Value::Float(x as f64 + y)),
+                            _ => self.stack().push(Value::Null),
+                        },
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Char(unsafe {
+                                std::char::from_u32_unchecked(x as u32 + y as u32)
+                            })),
+                            Value::Int(y) => self.stack().push(Value::Char(unsafe {
+                                std::char::from_u32_unchecked(x as u32 + y as u32)
+                            })),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Float(x + y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Float(x + y as f64)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Float(x + y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Float(x + y as f64)),
+                            _ => self.stack().push(Value::Null),
                         },
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Sub => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Int(x - y)),
-                            Value::Float(y) => self.stack.push(Value::Float(x as f64 - y)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Int(x - y)),
+                            Value::Float(y) => self.stack().push(Value::Float(x as f64 - y)),
+                            _ => self.stack().push(Value::Null),
+                        },
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Char(unsafe {
+                                std::char::from_u32_unchecked(x as u32 - y as u32)
+                            })),
+                            Value::Int(y) => self.stack().push(Value::Char(unsafe {
+                                std::char::from_u32_unchecked(x as u32 - y as u32)
+                            })),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Float(x - y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Float(x - y as f64)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Float(x - y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Float(x - y as f64)),
+                            _ => self.stack().push(Value::Null),
                         },
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Div => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Int(x / y)),
-                            Value::Float(y) => self.stack.push(Value::Float(x as f64 / y)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Int(x / y)),
+                            Value::Float(y) => self.stack().push(Value::Float(x as f64 / y)),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Float(x / y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Float(x / y as f64)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Float(x / y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Float(x / y as f64)),
+                            _ => self.stack().push(Value::Null),
                         },
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Mul => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Int(x * y)),
-                            Value::Float(y) => self.stack.push(Value::Float(x as f64 * y)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Int(x * y)),
+                            Value::Float(y) => self.stack().push(Value::Float(x as f64 * y)),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Float(x * y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Float(x * y as f64)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Float(x * y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Float(x * y as f64)),
+                            _ => self.stack().push(Value::Null),
                         },
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Mod => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Int(x % y)),
-                            Value::Float(y) => self.stack.push(Value::Float(x as f64 % y)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Int(x % y)),
+                            Value::Float(y) => self.stack().push(Value::Float(x as f64 % y)),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Float(x % y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Float(x % y as f64)),
-                            _ => self.stack.push(Value::Null),
+                            Value::Int(y) => self.stack().push(Value::Float(x % y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Float(x % y as f64)),
+                            _ => self.stack().push(Value::Null),
                         },
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Shr => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match (lhs, rhs) {
-                        (Value::Int(x), Value::Int(y)) => self.stack.push(Value::Int(x >> y)),
-                        _ => self.stack.push(Value::Null),
+                        (Value::Int(x), Value::Int(y)) => self.stack().push(Value::Int(x >> y)),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::Shl => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match (lhs, rhs) {
-                        (Value::Int(x), Value::Int(y)) => self.stack.push(Value::Int(x << y)),
+                        (Value::Int(x), Value::Int(y)) => self.stack().push(Value::Int(x << y)),
                         (Value::Array(array), any_value) => {
-                            self.stack.push(any_value.clone());
+                            self.stack().push(any_value.clone());
                             array.borrow_mut().push(any_value);
                         }
-                        _ => self.stack.push(Value::Null),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
 
                 Op::Gt => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Bool(x > y)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x as u32 > y as u32)),
+                            _ => self.stack().push(Value::Null),
+                        },
                         Value::String(x) => match rhs {
                             Value::String(y) => self
-                                .stack
+                                .stack()
                                 .push(Value::Bool(x.borrow().len() > y.borrow().len())),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x > y)),
-                            Value::Float(y) => self.stack.push(Value::Bool((x as f64) > y)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x > y)),
+                            Value::Float(y) => self.stack().push(Value::Bool((x as f64) > y)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x > y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Bool(x > y as f64)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x > y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Bool(x > y as f64)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Array(x) => match rhs {
                             Value::Array(y) => self
-                                .stack
+                                .stack()
                                 .push(Value::Bool(x.borrow().len() > y.borrow().len())),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
-                        _ => self.stack.push(Value::Bool(false)),
+                        _ => self.stack().push(Value::Bool(false)),
                     }
                 }
                 Op::Gte => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Bool(x >= y)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x as u32 >= y as u32)),
+                            _ => self.stack().push(Value::Null),
+                        },
                         Value::String(x) => match rhs {
                             Value::String(y) => {
-                                self.stack.push(Value::Bool(*x.borrow() >= *y.borrow()))
+                                self.stack().push(Value::Bool(*x.borrow() >= *y.borrow()))
                             }
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x >= y)),
-                            Value::Float(y) => self.stack.push(Value::Bool((x as f64) >= y)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x >= y)),
+                            Value::Float(y) => self.stack().push(Value::Bool((x as f64) >= y)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x >= y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Bool(x >= y as f64)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x >= y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Bool(x >= y as f64)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Array(x) => match rhs {
-                            Value::Array(y) => self.stack.push(Value::Bool(
+                            Value::Array(y) => self.stack().push(Value::Bool(
                                 (x.borrow().len() > y.borrow().len()) || *x.borrow() == *y.borrow(),
                             )),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
-                        _ => self.stack.push(Value::Bool(false)),
+                        _ => self.stack().push(Value::Bool(false)),
                     }
                 }
                 Op::Lte => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::String(x) => match rhs {
                             Value::String(y) => {
-                                self.stack.push(Value::Bool(*x.borrow() >= *y.borrow()))
+                                self.stack().push(Value::Bool(*x.borrow() >= *y.borrow()))
                             }
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
+                        },
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Bool(x <= y)),
+                            Value::Int(y) => self.stack().push(Value::Bool((x as u32) <= y as u32)),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x >= y)),
-                            Value::Float(y) => self.stack.push(Value::Bool((x as f64) >= y)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x >= y)),
+                            Value::Float(y) => self.stack().push(Value::Bool((x as f64) >= y)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x >= y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Bool(x >= y as f64)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x >= y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Bool(x >= y as f64)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Array(x) => match rhs {
-                            Value::Array(y) => self.stack.push(Value::Bool(
+                            Value::Array(y) => self.stack().push(Value::Bool(
                                 (x.borrow().len() < y.borrow().len()) || *x.borrow() == *y.borrow(),
                             )),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
-                        _ => self.stack.push(Value::Bool(false)),
+                        _ => self.stack().push(Value::Bool(false)),
                     }
                 }
                 Op::Lt => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
                     match lhs {
                         Value::String(x) => match rhs {
                             Value::String(y) => self
-                                .stack
+                                .stack()
                                 .push(Value::Bool(x.borrow().len() < y.borrow().len())),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
+                        },
+                        Value::Char(x) => match rhs {
+                            Value::Char(y) => self.stack().push(Value::Bool(x < y)),
+                            Value::Int(y) => self.stack().push(Value::Bool((x as u32) < y as u32)),
+                            _ => self.stack().push(Value::Null),
                         },
                         Value::Int(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x < y)),
-                            Value::Float(y) => self.stack.push(Value::Bool((x as f64) < y)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x < y)),
+                            Value::Float(y) => self.stack().push(Value::Bool((x as f64) < y)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Float(x) => match rhs {
-                            Value::Int(y) => self.stack.push(Value::Bool(x < y as f64)),
-                            Value::Float(y) => self.stack.push(Value::Bool(x < y as f64)),
-                            _ => self.stack.push(Value::Bool(false)),
+                            Value::Int(y) => self.stack().push(Value::Bool(x < y as f64)),
+                            Value::Float(y) => self.stack().push(Value::Bool(x < y as f64)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
                         Value::Array(x) => match rhs {
                             Value::Array(y) => self
-                                .stack
+                                .stack()
                                 .push(Value::Bool(x.borrow().len() < y.borrow().len())),
-                            _ => self.stack.push(Value::Bool(false)),
+                            _ => self.stack().push(Value::Bool(false)),
                         },
-                        _ => self.stack.push(Value::Bool(false)),
+                        _ => self.stack().push(Value::Bool(false)),
                     }
                 }
                 Op::Eq => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
-                    self.stack.push(Value::Bool(lhs == rhs));
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
+                    self.stack().push(Value::Bool(lhs == rhs));
                 }
                 Op::Neq => {
-                    let lhs = self.stack.pop().unwrap();
-                    let rhs = self.stack.pop().unwrap();
-                    self.stack.push(Value::Bool(lhs != rhs));
+                    let lhs = self.stack().pop().unwrap();
+                    let rhs = self.stack().pop().unwrap();
+                    self.stack().push(Value::Bool(lhs != rhs));
                 }
                 Op::IsNull => {
-                    let val = self.stack.pop().unwrap();
-                    self.stack.push(Value::Bool(val.tag() == ValTag::Null));
+                    let val = self.stack().pop().unwrap();
+                    self.stack().push(Value::Bool(val.tag() == ValTag::Null));
                 }
                 Op::IsNotNull => {
-                    let val = self.stack.pop().unwrap();
-                    self.stack.push(Value::Bool(val.tag() != ValTag::Null));
+                    let val = self.stack().pop().unwrap();
+                    self.stack().push(Value::Bool(val.tag() != ValTag::Null));
                 }
                 Op::Jump(to) => {
                     self.pc = to as _;
                 }
                 Op::JumpIf(to) => {
-                    let value = self.stack.pop().unwrap().to_bool();
+                    let value = self.stack().pop().unwrap().to_bool();
                     if value {
                         self.pc = to as _;
                     }
                 }
                 Op::JumpIfNot(to) => {
-                    let value = self.stack.pop().unwrap().to_bool();
+                    let value = self.stack().pop().unwrap().to_bool();
                     if !value {
                         self.pc = to as _;
                     }
                 }
                 Op::Not => {
-                    let val = self.stack.pop().unwrap();
+                    let val = self.stack().pop().unwrap();
                     match val {
-                        Value::Int(x) => self.stack.push(Value::Int(!x)),
-                        _ => self.stack.push(Value::Bool(!val.to_bool())),
+                        Value::Int(x) => self.stack().push(Value::Int(!x)),
+                        _ => self.stack().push(Value::Bool(!val.to_bool())),
                     }
                 }
                 Op::Neg => {
-                    let val = self.stack.pop().unwrap();
+                    let val = self.stack().pop().unwrap();
                     match val {
-                        Value::Int(x) => self.stack.push(Value::Int(-x)),
-                        Value::Float(x) => self.stack.push(Value::Float(-x)),
-                        _ => self.stack.push(Value::Null),
+                        Value::Int(x) => self.stack().push(Value::Int(-x)),
+                        Value::Float(x) => self.stack().push(Value::Float(-x)),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::And => {
-                    let (x, y) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                    let (x, y) = (self.stack().pop().unwrap(), self.stack().pop().unwrap());
                     match (x.clone(), y.clone()) {
-                        (Value::Int(x), Value::Int(y)) => self.stack.push(Value::Int(x & y)),
-                        (Value::Bool(x), Value::Bool(y)) => self.stack.push(Value::Bool(x & y)),
-                        _ => self.stack.push(Value::Bool(x.to_bool() & y.to_bool())),
+                        (Value::Int(x), Value::Int(y)) => self.stack().push(Value::Int(x & y)),
+                        (Value::Bool(x), Value::Bool(y)) => self.stack().push(Value::Bool(x & y)),
+                        _ => self.stack().push(Value::Bool(x.to_bool() & y.to_bool())),
                     }
                 }
                 Op::Or => {
-                    let (x, y) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                    let (x, y) = (self.stack().pop().unwrap(), self.stack().pop().unwrap());
                     match (x.clone(), y.clone()) {
-                        (Value::Int(x), Value::Int(y)) => self.stack.push(Value::Int(x & y)),
-                        (Value::Bool(x), Value::Bool(y)) => self.stack.push(Value::Bool(x & y)),
-                        _ => self.stack.push(Value::Bool(x.to_bool() & y.to_bool())),
+                        (Value::Int(x), Value::Int(y)) => self.stack().push(Value::Int(x | y)),
+                        (Value::Bool(x), Value::Bool(y)) => self.stack().push(Value::Bool(x | y)),
+                        _ => self.stack().push(Value::Bool(x.to_bool() & y.to_bool())),
                     }
                 }
                 Op::Xor => {
-                    let (x, y) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+                    let (x, y) = (self.stack().pop().unwrap(), self.stack().pop().unwrap());
                     match (x.clone(), y.clone()) {
-                        (Value::Int(x), Value::Int(y)) => self.stack.push(Value::Int(x ^ y)),
-                        _ => self.stack.push(Value::Null),
+                        (Value::Int(x), Value::Int(y)) => self.stack().push(Value::Int(x ^ y)),
+                        _ => self.stack().push(Value::Null),
                     }
                 }
                 Op::New => {
-                    let proto = self.stack.pop().unwrap();
+                    let proto = self.stack().pop().unwrap();
                     let proto = match proto {
                         Value::Null => None,
                         Value::Object(obj) => Some(obj),
@@ -729,13 +779,13 @@ impl Vm {
                         prototype: proto,
                         table: hashlink::LinkedHashMap::new(),
                     };
-                    self.stack.push(Value::Object(Ref(object)));
+                    self.stack().push(Value::Object(Ref(object)));
                 }
                 Op::Last => break 'inner,
                 _ => unimplemented!(),
             }
         }
-        self.stack.pop().unwrap_or(Value::Null)
+        self.stack().pop().unwrap_or(Value::Null)
     }
 }
 

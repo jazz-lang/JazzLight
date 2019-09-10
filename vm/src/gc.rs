@@ -1,10 +1,11 @@
-use crate::atomic_ref::{AtomicRef as Ref, AtomicRefCell as RefCell, AtomicRefMut as RefMut};
+use std::cell::*;
 
 use std::marker::Unsize;
 use std::ops::CoerceUnsized;
 
 pub trait Trace {
     fn trace(&self) {}
+    fn finalize(&mut self) {}
     //fn finalizer(&mut self) {}
 }
 
@@ -17,9 +18,6 @@ struct InGC<T: Trace + ?Sized> {
 pub struct GC<T: Trace + ?Sized> {
     ptr: *mut InGC<T>,
 }
-
-unsafe impl<T: Trace> Send for GC<T> {}
-unsafe impl<T: Trace> Sync for GC<T> {}
 
 impl<T: Trace + ?Sized> Copy for GC<T> {}
 impl<T: Trace + ?Sized> Clone for GC<T> {
@@ -117,9 +115,6 @@ impl GarbageCollector {
 
     pub fn alloc<T: Trace + Sized + 'static>(&mut self, val: T) -> GC<T> {
         let layout = std::alloc::Layout::new::<InGC<T>>();
-        if self.allocated.len() > 128 * 5 {
-            self.collect(false);
-        }
         let mem = unsafe { std::alloc::alloc(layout) } as *mut InGC<T>;
         self.ratio += layout.size();
         unsafe {
@@ -250,6 +245,16 @@ collectable_for_simple_types! {
     bool,String
 }
 
+use std::collections::HashMap;
+impl<K: Trace, V: Trace> Trace for HashMap<K, V> {
+    fn trace(&self) {
+        for (x, y) in self.iter() {
+            x.trace();
+            y.trace();
+        }
+    }
+}
+
 impl<T: Trace> Trace for Vec<T> {
     fn trace(&self) {
         self.iter().for_each(|x| x.trace());
@@ -260,6 +265,10 @@ impl<T: Trace> Trace for GC<T> {
     fn trace(&self) {
         self.mark();
     }
+}
+
+impl Trace for std::fs::File {
+    fn finalize(&mut self) {}
 }
 
 use std::fmt;
@@ -308,94 +317,41 @@ use parking_lot::RwLock;
     pub static ref COLLECTOR: RwLock<GarbageCollector> = RwLock::new(GarbageCollector::new());
 }*/
 
-static mut COLLECTOR: Option<RwLock<GarbageCollector>> = None;
-
-pub fn gc_init() {
-    unsafe {
-        COLLECTOR = Some(RwLock::new(GarbageCollector::new()));
-    }
+thread_local! {
+    static COLLECTOR: RefCell<GarbageCollector> = RefCell::new(GarbageCollector::new());
 }
 
 /// Clear roots,should be invoked at end of program when you need cleanup memory.
 pub fn gc_clear_roots() {
-    unsafe {
-        let mut gc_write = COLLECTOR.as_ref().unwrap().write();
-        gc_write.roots.clear();
-    }
+    COLLECTOR.with(|gc| gc.borrow_mut().roots.clear());
 }
 /// Force collection.
 pub fn gc_force_collect(verbose: bool) {
     unsafe {
-        let mut gc_write = COLLECTOR.as_ref().unwrap().write();
-        gc_write.collecting = true;
-        gc_write.collect(verbose);
-        gc_write.should_collect = false;
-        gc_write.collecting = false;
-    }
-}
-
-/// Enable incremental collection. This function will spawn threads where GC will try to collect small pieces of memory.
-
-pub fn gc_enable_incremental(threads: usize, verbose: bool) {
-    for _ in 0..threads {
-        std::thread::spawn(move || loop {
-            unsafe {
-                let gc_ref = COLLECTOR.as_ref().unwrap().read(); // We don't want to lock other threads,just get shared ref.
-                if gc_ref.allocated.len() >= 128 && !gc_ref.collecting {
-                    drop(gc_ref); // drop shared reference because now we need write lock.
-                    let mut gc_write = COLLECTOR.as_ref().unwrap().write();
-                    if gc_write.allocated.len() > 128 {
-                        gc_write.collecting = true; // set this to true so now every other thread knows that we collecting garbage
-                        gc_write.collect(verbose.clone());
-                        gc_write.should_collect = false;
-                    } else {
-                        gc_write.should_collect = false;
-                    }
-                    gc_write.collecting = false;
-                    drop(gc_write);
-                }
-            }
-        });
-    }
-}
-
-pub fn gc_collect_garbage(verbose: bool) {
-    let gc_ref = unsafe { COLLECTOR.as_ref().unwrap().read() };
-    let should_collect = gc_ref.should_collect;
-    if should_collect && !gc_ref.collecting {
-        unsafe {
-            let mut gc_write = COLLECTOR.as_ref().unwrap().write();
-            gc_write.collecting = true;
-            gc_write.collect(verbose);
-            gc_write.should_collect = false;
-            gc_write.collecting = false;
-        }
+        COLLECTOR.with(|gc| {
+            gc.borrow_mut().collect(verbose);
+        })
     }
 }
 
 pub fn gc_alloc<T: Trace + 'static>(x: T) -> GC<T> {
-    unsafe { COLLECTOR.as_ref().unwrap().write().alloc(x) }
+    COLLECTOR.with(|gc| gc.borrow_mut().alloc(x))
 }
 pub fn gc_collect() {
     gc_force_collect(false);
 }
 
 pub fn gc_add_root(x: GC<dyn Trace>) {
-    unsafe { COLLECTOR.as_ref().unwrap().write().add_root(x) };
+    COLLECTOR.with(|gc| gc.borrow_mut().add_root(x));
 }
 
 pub fn gc_remove_root(x: GC<dyn Trace>) {
-    unsafe { COLLECTOR.as_ref().unwrap().write().remove_root(x) };
+    COLLECTOR.with(|gc| gc.borrow_mut().remove_root(x));
 }
 
 pub fn gc_total_allocated() -> usize {
-    let gc = unsafe { COLLECTOR.as_ref().unwrap().read() };
-    let mut sum = 0;
-    for x in gc.allocated.iter() {
-        sum += unsafe { std::alloc::Layout::for_value(&*x.ptr).size() }
-    }
-    sum
+    0
 }
 pub fn gc_allocated_count() -> usize {
-    unsafe { COLLECTOR.as_ref().unwrap().read().allocated.len() }
+    COLLECTOR.with(|gc| gc.borrow().allocated.len())
 }

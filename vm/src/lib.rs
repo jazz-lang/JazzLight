@@ -19,10 +19,12 @@ pub static GLOBAL: MiMalloc = MiMalloc;
 pub use std::cell::RefCell;
 pub use std::rc::{Rc, Weak};
 
-pub type Ref<T> = std::rc::Rc<RefCell<T>>;
+pub type Ref<T> = Rc<RefCell<T>>;
 pub type WeakRef<T> = Weak<RefCell<T>>;
 
 pub use std::result::Result;
+
+use gc::*;
 
 #[allow(non_snake_case)]
 pub fn Ref<T>(x: T) -> Ref<T> {
@@ -38,6 +40,15 @@ pub struct Module {
     pub globals: Vec<Value>,
     pub trace_info: HashMap<u32, (usize, String)>,
 }
+
+use gc::Trace;
+/*
+impl Trace for Module {
+    fn trace(&self) {
+        self.exports.trace();
+        self.globals.trace();
+    }
+}*/
 
 use parking_lot::RwLock;
 lazy_static::lazy_static! {
