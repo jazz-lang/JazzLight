@@ -232,9 +232,6 @@ impl Vm {
                     catch!(Err(value));
                 }
                 Op::TailCall(argc) | Op::Call(argc) => {
-                    if self.info_stack.len() > 100 || gc_allocated_count() > 128 {
-                        gc_force_collect(false);
-                    }
                     let function = self.stack().pop().unwrap();
                     let args = (0..argc)
                         .into_iter()
@@ -288,9 +285,6 @@ impl Vm {
                     }
                 }
                 Op::ObjCall(argc) => {
-                    if self.info_stack.len() > 100 || gc_allocated_count() > 128 {
-                        gc_force_collect(false);
-                    }
                     let function = self.stack().pop().unwrap();
                     let this = self.stack().pop().unwrap();
                     /*let args = (0..argc)

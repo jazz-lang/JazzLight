@@ -24,8 +24,6 @@ pub type WeakRef<T> = Weak<RefCell<T>>;
 
 pub use std::result::Result;
 
-use gc::*;
-
 #[allow(non_snake_case)]
 pub fn Ref<T>(x: T) -> Ref<T> {
     Rc::new(RefCell::new(x))
@@ -41,7 +39,6 @@ pub struct Module {
     pub trace_info: HashMap<u32, (usize, String)>,
 }
 
-use gc::Trace;
 /*
 impl Trace for Module {
     fn trace(&self) {

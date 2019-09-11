@@ -1,357 +1,324 @@
-use std::cell::*;
+use std::cell::Cell;
+use std::fmt;
+use std::mem;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
+
+pub trait Trace {
+    /// Trace all contained `Handle`s to other GC objects by calling
+    /// `tracer.trace_handle`.
+    fn trace(&self, _: &mut Tracer) {}
+}
+
+pub struct Tracer {
+    traced: bool,
+    worklist: Vec<Handle<dyn Trace + 'static>>,
+}
 
 use std::marker::Unsize;
 use std::ops::CoerceUnsized;
-
-pub trait Trace {
-    fn trace(&self) {}
-    fn finalize(&mut self) {}
-    //fn finalizer(&mut self) {}
+pub struct Handle<T: Trace + ?Sized> {
+    inner: Weak<GcData<T>>,
 }
 
-impl<T: Trace + ?Sized + Unsize<U>, U: Trace + ?Sized> CoerceUnsized<GC<U>> for GC<T> {}
-struct InGC<T: Trace + ?Sized> {
-    mark: bool,
-    ptr: RefCell<T>,
+impl<T: Trace + ?Sized + Unsize<U> + CoerceUnsized<U>, U: Trace + ?Sized> CoerceUnsized<GcData<U>>
+    for GcData<T>
+{
+}
+impl<T: Trace + ?Sized + Unsize<U> + CoerceUnsized<U>, U: Trace + ?Sized> CoerceUnsized<Handle<U>>
+    for Handle<T>
+{
 }
 
-pub struct GC<T: Trace + ?Sized> {
-    ptr: *mut InGC<T>,
+impl<T: Trace + ?Sized + Unsize<U> + CoerceUnsized<U>, U: Trace + ?Sized> CoerceUnsized<Rooted<U>>
+    for Rooted<T>
+{
 }
 
-impl<T: Trace + ?Sized> Copy for GC<T> {}
-impl<T: Trace + ?Sized> Clone for GC<T> {
-    #[inline(always)]
+/// GC metadata maintained for every object on the heap.
+struct Metadata {
+    /// The "color" bit, indicating whether we've already traced this object
+    /// during this collection, used to prevent unnecessary work.
+    traced: Cell<bool>,
+}
+struct GcData<T: Trace + ?Sized> {
+    metadata: Metadata,
+    object: T,
+}
+
+impl Tracer {
+    /// Enqueue the object behind `handle` for marking and tracing.
+    pub fn trace_handle(&mut self, handle: Handle<dyn Trace>) {
+        let traced = handle.with(|gc| gc.traced() == self.traced);
+
+        if !traced {
+            self.worklist.push(handle.clone());
+        }
+    }
+
+    /// Starting with the root set in `self.worklist`, marks all transitively
+    /// reachable objects by setting their `traced` metadata field to
+    /// `self.traced`.
+    fn mark_all(&mut self) {
+        let mut worklist = mem::replace(&mut self.worklist, Vec::new());
+
+        while !worklist.is_empty() {
+            for handle in worklist.drain(..) {
+                handle.with(|gc| {
+                    if gc.traced() != self.traced {
+                        // Hasn't been traced yet
+                        gc.metadata.traced.set(self.traced);
+                        gc.object.trace(self);
+                    }
+                });
+            }
+
+            mem::swap(&mut self.worklist, &mut worklist);
+        }
+    }
+}
+
+impl<T: Trace + ?Sized> Handle<T> {
+    fn from_weak(weak: Weak<GcData<T>>) -> Self {
+        Self { inner: weak }
+    }
+
+    fn with<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(Rc<GcData<T>>) -> R,
+    {
+        f(self.inner.upgrade().expect("use after free"))
+    }
+}
+
+impl<T: Trace + ?Sized> GcData<T> {
+    /// Gets the value of the `traced` metadata field.
+    ///
+    /// The meaning of this value changes every collection and depends on GC
+    /// state.
+    fn traced(&self) -> bool {
+        self.metadata.traced.get()
+    }
+}
+
+impl Trace for Handle<dyn Trace> {
+    fn trace(&self, tracer: &mut Tracer) {
+        tracer.trace_handle(self.clone());
+    }
+}
+
+impl<T: Trace + ?Sized> Clone for Handle<T> {
     fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Trace + ?Sized> GC<T> {
-    /// Get shared reference to object
-    ///
-    /// Function will panic if object already mutable borrowed
-    pub fn borrow(&self) -> Ref<'_, T> {
-        unsafe { (*self.ptr).ptr.borrow() }
-    }
-
-    /// Get mutable reference to object
-    ///
-    /// Function will panic if object already mutable borrowed
-    pub fn borrow_mut(&self) -> RefMut<'_, T> {
-        unsafe { (*self.ptr).ptr.borrow_mut() }
-    }
-
-    pub fn marked(&self) -> bool {
-        unsafe { (*self.ptr).mark }
-    }
-
-    pub fn mark(&self) {
-        unsafe {
-            let ptr = &mut *self.ptr;
-            ptr.mark = true;
-            ptr.ptr.borrow().trace();
+        Handle {
+            inner: self.inner.clone(),
         }
     }
-
-    pub fn ref_eq(&self, other: &GC<T>) -> bool {
-        self.ptr as *const u8 == other.ptr as *const u8
-    }
 }
 
-pub struct GarbageCollector {
-    allocated: Vec<GC<dyn Trace>>,
-    roots: Vec<GC<dyn Trace>>,
-    should_collect: bool,
-    collecting: bool,
-    ratio: usize,
-}
-
-pub(crate) struct FormattedSize {
-    size: usize,
-}
-
-impl fmt::Display for FormattedSize {
+impl<T: Trace> fmt::Pointer for Handle<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ksize = (self.size as f64) / 1024f64;
-
-        if ksize < 1f64 {
-            return write!(f, "{}B", self.size);
-        }
-
-        let msize = ksize / 1024f64;
-
-        if msize < 1f64 {
-            return write!(f, "{:.1}K", ksize);
-        }
-
-        let gsize = msize / 1024f64;
-
-        if gsize < 1f64 {
-            write!(f, "{:.1}M", msize)
-        } else {
-            write!(f, "{:.1}G", gsize)
-        }
+        self.with(|rc| write!(f, "{:p}", rc))
     }
 }
 
-pub(crate) fn formatted_size(size: usize) -> FormattedSize {
-    FormattedSize { size }
+pub struct Rooted<T: Trace + ?Sized> {
+    inner: Rc<GcData<T>>,
 }
 
-impl GarbageCollector {
-    pub fn new() -> GarbageCollector {
-        GarbageCollector {
-            allocated: vec![],
-            roots: vec![],
-            should_collect: false,
-            collecting: false,
-            ratio: 0,
-        }
-    }
-    pub fn allocated(&self) -> usize {
-        self.allocated.len()
-    }
-
-    pub fn alloc<T: Trace + Sized + 'static>(&mut self, val: T) -> GC<T> {
-        let layout = std::alloc::Layout::new::<InGC<T>>();
-        let mem = unsafe { std::alloc::alloc(layout) } as *mut InGC<T>;
-        self.ratio += layout.size();
-        unsafe {
-            mem.write(InGC {
-                ptr: RefCell::new(val),
-                mark: false,
-            });
-        }
-
-        let gc = GC { ptr: mem };
-        self.allocated.push(gc);
-        gc
-    }
-
-    pub fn add_root(&mut self, object: GC<dyn Trace>) {
-        if self.roots.iter().find(|x| x.ref_eq(&object)).is_some() {
-            return;
-        }
-        self.roots.push(object);
-    }
-
-    pub fn remove_root(&mut self, object: GC<dyn Trace>) {
-        for i in 0..self.roots.len() {
-            if self.roots[i].ref_eq(&object) {
-                self.roots.remove(i);
-                return;
-            }
-        }
-    }
-
-    pub fn collect(&mut self, verbose: bool) {
-        let mut size_before = None;
-        if verbose
-            || std::env::var("GC_PRINT_STATS")
-                .map(|x| x == "1" || x == "true")
-                .unwrap_or(false)
-        {
-            let mut sum = 0;
-            for alloc in self.allocated.iter() {
-                sum += unsafe { std::alloc::Layout::for_value(&*alloc.ptr).size() };
-            }
-            size_before = Some(sum);
-        }
-        let start = time::PreciseTime::now();
-        self.mark();
-        self.sweep();
-        let end = time::PreciseTime::now();
-        if verbose
-            || std::env::var("GC_PRINT_STATS")
-                .map(|x| x == "1" || x == "true")
-                .unwrap_or(false)
-        {
-            let finish = start.to(end);
-            let mut sum = 0;
-            for alloc in self.allocated.iter() {
-                sum += unsafe { std::alloc::Layout::for_value(&*alloc.ptr).size() };
-            }
-            let garbage = size_before.unwrap().wrapping_sub(sum);
-            let ratio = if size_before.unwrap() == 0 {
-                0f64
-            } else {
-                (garbage as f64 / size_before.unwrap() as f64) * 100f64
-            };
-            println!(
-                "GC: Collection finished in {} ms({}ns).",
-                finish.num_milliseconds(),
-                finish.num_nanoseconds().unwrap(),
-            );
-            println!(
-                "GC: {}->{} size, {}/{:.0}% garbage",
-                formatted_size(size_before.unwrap()),
-                formatted_size(sum),
-                formatted_size(garbage),
-                ratio,
-            );
-        }
-    }
-
-    fn mark(&mut self) {
-        for i in 0..self.roots.len() {
-            let root = self.roots[i];
-            root.mark();
-        }
-    }
-
-    fn sweep(&mut self) {
-        let mut new_heap = vec![];
-        for object in self.allocated.iter() {
-            unsafe {
-                if (*object.ptr).mark {
-                    (*object.ptr).mark = false;
-                    new_heap.push(object.clone());
-                } else {
-                    std::alloc::dealloc(
-                        object.ptr as *mut u8,
-                        std::alloc::Layout::for_value(&*object.ptr),
-                    )
-                }
-            }
-        }
-        self.allocated = new_heap;
+impl<T: Trace> Rooted<T> {
+    /// Creates a new garbage-collected unrooted handle to the object.
+    ///
+    /// As long as `self` still exists, the handle will not be invalidated.
+    pub fn new_handle(&self) -> Handle<T> {
+        Handle::from_weak(Rc::downgrade(&self.inner))
     }
 }
 
-impl Drop for GarbageCollector {
-    fn drop(&mut self) {
-        self.allocated.retain(|x| {
-            unsafe {
-                std::alloc::dealloc(x.ptr as *mut _, std::alloc::Layout::for_value(&*x.ptr));
-            }
-            false
+impl<T: Trace> Deref for Rooted<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        &self.inner.object
+    }
+}
+
+/// A garbage collector managing objects of type `T`.
+///
+/// When dropped, all unrooted objects will be destroyed. Any rooted objects
+/// should no longer be used.
+pub struct Gc {
+    /// All allocated objects owned by this GC.
+    ///
+    /// This is basically a large set of `Rooted` that will be culled during
+    /// collection.
+    objs: Vec<Rc<GcData<dyn Trace>>>,
+    traced_color: bool,
+    /// Total number of objects allocated after which we do the next collection.
+    next_gc: usize,
+}
+
+impl Gc {
+    pub fn new() -> Self {
+        Self {
+            objs: Vec::new(),
+            traced_color: true,
+            next_gc: 32,
+        }
+    }
+
+    pub fn allocate<T: 'static + Trace>(&mut self, t: T) -> Rooted<T> {
+        let root = self.allocate_nocollect(t);
+
+        if self.estimate_heap_size() >= self.next_gc {
+            self.do_collect();
+
+            // Do the next collection after the *remaining* heap has doubled
+            self.next_gc = self.estimate_heap_size() * 2;
+        }
+
+        root
+    }
+
+    /// Allocate `t` on the garbage-collected heap without triggering a
+    /// collection.
+    pub fn allocate_nocollect<T: Trace + Sized + 'static>(&mut self, t: T) -> Rooted<T> {
+        let rc = Rc::new(GcData {
+            metadata: Metadata {
+                traced: Cell::new(!self.traced_color), // initially not traced
+            },
+            object: t,
         });
+        self.objs.push(rc.clone());
+
+        Rooted { inner: rc }
     }
-}
 
-macro_rules! collectable_for_simple_types {
-    ($($t: tt),*) => {
-      $(  impl Trace for $t {
-            fn trace(&self) {}
+    /// Collect each and every garbage object, atomically.
+    ///
+    /// The root set is determined by taking all objects whose strong reference
+    /// count `>1`. This only happens during active access (which implies that
+    /// the object is still reachable) and because there's a `Rooted` instance
+    /// pointing to the object.
+    ///
+    /// As an optimization, whenever we come across an object with a weak count
+    /// of 0, we know that it has no traced reference pointing to it. If that
+    /// object also has a strong count of 1, that object isn't rooted (the only
+    /// strong reference coming from the GC itself) and can be freed immediately
+    /// without having to finish the mark phase. Note that this might in turn
+    /// drop the weak count to other objects to 0 and make them collectible.
+    pub fn force_full_collect(&mut self) {
+        let _size_before_collect = self.estimate_heap_size();
+
+        // Keep all objects that are rooted or have references pointing to them
+        // TODO split this into 2 generations (and maybe an additional root list?)
+        for _ in 1.. {
+            let before = self.objs.len();
+            self.objs
+                .retain(|obj| Rc::strong_count(obj) > 1 || Rc::weak_count(obj) > 0);
+
+            // Run until fixpoint
+            if self.objs.len() == before {
+                break;
+            }
         }
-      )*
-    };
-}
 
-collectable_for_simple_types! {
-    u8,u16,u32,u64,u128,
-    i8,i16,i32,i128,i64,
-    bool,String
-}
+        // Do cycle collection via mark-and-sweep GC
 
-use std::collections::HashMap;
-impl<K: Trace, V: Trace> Trace for HashMap<K, V> {
-    fn trace(&self) {
-        for (x, y) in self.iter() {
-            x.trace();
-            y.trace();
-        }
+        // Determine root set
+        let worklist = self
+            .roots()
+            .map(Rc::downgrade)
+            .map(Handle::from_weak)
+            .collect::<Vec<_>>();
+
+        // Mark
+        let mut tracer = Tracer {
+            traced: self.traced_color,
+            worklist,
+        };
+        tracer.mark_all();
+
+        // Sweep. Retain only the objects marked with the current color
+        let traced_color = self.traced_color;
+        self.objs.retain(|obj| obj.traced() == traced_color);
+
+        // Flip colors
+        self.traced_color = !self.traced_color;
+    }
+
+    fn do_collect(&mut self) {
+        // TODO employ smart heuristics for how much to collect
+        self.force_full_collect();
+    }
+
+    fn estimate_heap_size(&self) -> usize {
+        self.objs.len()
+    }
+
+    /// Returns an iterator over all rooted objects.
+    ///
+    /// An object is rooted when it has a strong count of at least 2.
+    fn roots(&self) -> impl Iterator<Item = &Rc<GcData<dyn Trace>>> {
+        self.objs.iter().filter(|rc| Rc::strong_count(rc) > 1)
     }
 }
 
 impl<T: Trace> Trace for Vec<T> {
-    fn trace(&self) {
-        self.iter().for_each(|x| x.trace());
+    fn trace(&self, tracer: &mut Tracer) {
+        for item in self.iter() {
+            item.trace(tracer);
+        }
     }
 }
 
-impl<T: Trace> Trace for GC<T> {
-    fn trace(&self) {
-        self.mark();
+macro_rules! trace_for_simple {
+    ($($t: ty),*) => {
+        $(
+        impl Trace for $t {
+            fn trace(&self,_: &mut Tracer) {}
+        }
+        )*
+    };
+}
+
+trace_for_simple!(u8, u16, u32, u64, bool, i8, i16, i32, i64, i128, u128, f32, f64, String);
+
+impl<K: Trace, V: Trace> Trace for std::collections::HashMap<K, V> {
+    fn trace(&self, tracer: &mut Tracer) {
+        for (key, val) in self.iter() {
+            key.trace(tracer);
+            val.trace(tracer);
+        }
     }
 }
 
-impl Trace for std::fs::File {
-    fn finalize(&mut self) {}
-}
-
-use std::fmt;
-
-impl<T: fmt::Debug + Trace> fmt::Debug for GC<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.borrow())
+impl<K: Trace, V: Trace> Trace for hashlink::LinkedHashMap<K, V> {
+    fn trace(&self, tracer: &mut Tracer) {
+        for (key, val) in self.iter() {
+            key.trace(tracer);
+            val.trace(tracer);
+        }
     }
 }
 
-impl<T: Trace + Eq> Eq for GC<T> {}
-
-impl<T: Trace + PartialEq> PartialEq for GC<T> {
-    fn eq(&self, other: &Self) -> bool {
-        *self.borrow() == *other.borrow()
-    }
-}
-
-use std::cmp::{Ord, Ordering, PartialOrd};
-
-impl<T: Trace + PartialOrd> PartialOrd for GC<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.borrow().partial_cmp(&other.borrow())
-    }
-}
-
-impl<T: Trace + Ord + Eq> Ord for GC<T> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.borrow().cmp(&other.borrow())
-    }
-}
-
-use std::hash::{Hash, Hasher};
-impl<T: Hash + Trace> Hash for GC<T> {
-    fn hash<H: Hasher>(&self, h: &mut H) {
-        self.borrow().hash(h);
-    }
-}
-
-unsafe impl Send for GarbageCollector {}
-unsafe impl Sync for GarbageCollector {}
-
-use parking_lot::RwLock;
-
-/*lazy_static::lazy_static! {
-    pub static ref COLLECTOR: RwLock<GarbageCollector> = RwLock::new(GarbageCollector::new());
-}*/
+use std::cell::RefCell;
 
 thread_local! {
-    static COLLECTOR: RefCell<GarbageCollector> = RefCell::new(GarbageCollector::new());
+    static COLLECTOR: RefCell<Gc> = RefCell::new(Gc::new());
 }
 
-/// Clear roots,should be invoked at end of program when you need cleanup memory.
-pub fn gc_clear_roots() {
-    COLLECTOR.with(|gc| gc.borrow_mut().roots.clear());
-}
-/// Force collection.
-pub fn gc_force_collect(verbose: bool) {
-    unsafe {
-        COLLECTOR.with(|gc| {
-            gc.borrow_mut().collect(verbose);
-        })
-    }
+pub fn gc_alloc<X: Trace + 'static>(x: X) -> Rooted<X> {
+    COLLECTOR.with(|gc: &RefCell<Gc>| gc.borrow_mut().allocate(x))
 }
 
-pub fn gc_alloc<T: Trace + 'static>(x: T) -> GC<T> {
-    COLLECTOR.with(|gc| gc.borrow_mut().alloc(x))
-}
 pub fn gc_collect() {
-    gc_force_collect(false);
+    COLLECTOR.with(|gc: &RefCell<Gc>| {
+        gc.borrow_mut().force_full_collect();
+    })
 }
 
-pub fn gc_add_root(x: GC<dyn Trace>) {
-    COLLECTOR.with(|gc| gc.borrow_mut().add_root(x));
-}
-
-pub fn gc_remove_root(x: GC<dyn Trace>) {
-    COLLECTOR.with(|gc| gc.borrow_mut().remove_root(x));
-}
-
-pub fn gc_total_allocated() -> usize {
-    0
-}
-pub fn gc_allocated_count() -> usize {
-    COLLECTOR.with(|gc| gc.borrow().allocated.len())
+impl<T: Trace> Trace for RefCell<T> {
+    fn trace(&self, t: &mut Tracer) {
+        self.borrow().trace(t);
+    }
 }

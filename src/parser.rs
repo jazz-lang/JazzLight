@@ -152,7 +152,7 @@ impl<'a> Parser<'a> {
         self.expect_token(TokenKind::Catch)?;
         let name = self.expect_identifier()?;
         let catch = self.parse_expression()?;
-        Ok(expr!(ExprDecl::Try(expr,name,catch),pos))
+        Ok(expr!(ExprDecl::Try(expr, name, catch), pos))
     }
     fn parse_self(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::This)?.position;
@@ -180,7 +180,6 @@ impl<'a> Parser<'a> {
         let pos = self.advance_token()?.position;
         let expr = self.parse_expression()?;
         return Ok(expr!(ExprDecl::Throw(expr), pos));
-
     }
 
     fn parse_for(&mut self) -> EResult {

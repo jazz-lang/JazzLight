@@ -28,8 +28,6 @@ fn main() {
                 Value::Int(x) => std::process::exit(x as _),
                 _ => (),
             }
-            jazzlight::gc::gc_clear_roots();
-            jazzlight::gc::gc_force_collect(false);
         }
         Err(e) => {
             eprintln!("{}", e);

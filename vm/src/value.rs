@@ -286,7 +286,7 @@ pub struct Function {
     pub argc: i32,
 }
 
-pub trait UserKind: mopa::Any + fmt::Debug + fmt::Display + Trace {
+pub trait UserKind: mopa::Any + fmt::Debug + fmt::Display {
     fn get_kind(&self) -> &'static str;
 }
 /*
