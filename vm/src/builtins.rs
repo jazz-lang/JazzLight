@@ -1,6 +1,7 @@
 use crate::interp::*;
 use crate::value::*;
 use crate::*;
+pub mod io;
 use std::collections::HashMap;
 
 thread_local! {
@@ -137,6 +138,19 @@ pub fn builtin_sfind(args: &[Value]) -> Result<Value, Value> {
     }
 }
 
+pub fn builtin_instanceof(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::Object(obj) => match &args[1] {
+            Value::Object(obj2) => match &obj.borrow().prototype {
+                Some(proto) => return Ok(Value::Bool(Rc::ptr_eq(proto, obj2))),
+                None => return Ok(Value::Bool(Rc::ptr_eq(obj, obj2))),
+            },
+            _ => return Ok(Value::Bool(false)),
+        },
+        _ => return Ok(Value::Bool(false)),
+    }
+}
+
 pub fn builtin_string(args: &[Value]) -> Result<Value, Value> {
     let value = args[0].to_string();
     return Ok(Value::String(Ref(value)));
@@ -251,7 +265,7 @@ pub fn builtin_load_function(args: &[Value]) -> Result<Value, Value> {
     }
 }
 
-fn new_native_fn(x: fn(&[Value]) -> Result<Value, Value>, argc: i32) -> Value {
+pub fn new_native_fn(x: fn(&[Value]) -> Result<Value, Value>, argc: i32) -> Value {
     Value::Function(Ref(Function {
         native: true,
         address: x as usize,
@@ -289,5 +303,11 @@ pub fn builtins_init() -> HashMap<String, Value> {
         new_native_fn(builtin_str_from_chars, 1),
     );
     map.insert("apply".to_owned(), new_native_fn(builtin_apply, 3));
+    map.insert(
+        "instanceof".to_owned(),
+        new_native_fn(builtin_instanceof, 2),
+    );
+
+    io::file_builtins(&mut map);
     return map;
 }

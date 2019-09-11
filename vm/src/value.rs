@@ -328,3 +328,5 @@ impl Trace for Object {
     }
 }
 */
+
+mopafy!(UserKind);

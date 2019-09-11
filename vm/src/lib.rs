@@ -1,5 +1,9 @@
 #![feature(coerce_unsized)]
 #![feature(unsize)]
+
+#[macro_use]
+extern crate mopa;
+
 #[macro_use]
 pub mod interp;
 pub mod atomic_ref;
