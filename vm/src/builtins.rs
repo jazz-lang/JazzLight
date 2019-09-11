@@ -1,6 +1,7 @@
 use crate::interp::*;
 use crate::value::*;
 use crate::*;
+
 pub mod io;
 use std::collections::HashMap;
 
@@ -226,7 +227,6 @@ pub fn builtin_load_function(args: &[Value]) -> Result<Value, Value> {
     use libloading::{Library, Symbol};
     let lib = format!("{}", args[0]);
     let name = format!("{}", args[1]);
-    let argc = args[2].to_int().unwrap();
 
     let lib = Library::new(&lib);
     match lib {
@@ -246,11 +246,10 @@ pub fn builtin_load_function(args: &[Value]) -> Result<Value, Value> {
                         ))))
                     }
                 }
-                let symbol: Result<Symbol<fn(&[Value]) -> Result<Value, Value>>, _> =
-                    lib.get(format!("{}\0", name).as_bytes());
+                let symbol: Result<Symbol<Value>, _> = lib.get(format!("{}\0", name).as_bytes());
                 match symbol {
                     Ok(sym) => {
-                        return Ok(new_native_fn(*sym, argc as _));
+                        return Ok((*sym).clone());
                     }
                     Err(e) => {
                         return Err(Value::String(Ref(format!(
@@ -290,8 +289,8 @@ pub fn builtins_init() -> HashMap<String, Value> {
     map.insert("string".to_owned(), new_native_fn(builtin_string, 1));
     map.insert("load".to_owned(), new_native_fn(builtin_load, 1));
     map.insert(
-        "load_function".to_owned(),
-        new_native_fn(builtin_load_function, 3),
+        "load_native".to_owned(),
+        new_native_fn(builtin_load_function, 2),
     );
 
     map.insert("scopy".to_owned(), new_native_fn(builtin_scopy, 1));

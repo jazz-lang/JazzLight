@@ -61,6 +61,29 @@ pub fn file_contents(args: &[Value]) -> Result<Value, Value> {
     }
 }
 
+pub fn file_bytes(args: &[Value]) -> Result<Value, Value> {
+    match &args[0] {
+        Value::User(file) => {
+            if let Some(handle) = file.borrow_mut().downcast_mut::<FileHandle>() {
+                let file: &mut File = &mut handle.0;
+                let mut buf = vec![];
+                match file.read_to_end(&mut buf) {
+                    Ok(_) => {
+                        return Ok(Value::Array(Ref(buf
+                            .iter()
+                            .map(|x| Value::Int(*x as _))
+                            .collect())))
+                    }
+                    Err(e) => return Err(Value::String(Ref(e.to_string()))),
+                }
+            } else {
+                return Err(Value::String(Ref("file_flush: File expected".to_string())));
+            }
+        }
+        _ => return Err(Value::String(Ref("file_flush: File expected".to_string()))),
+    }
+}
+
 pub fn file_flush(args: &[Value]) -> Result<Value, Value> {
     match &args[0] {
         Value::User(file) => {
@@ -181,4 +204,5 @@ pub fn file_builtins(map: &mut std::collections::HashMap<String, Value>) {
         "file_write_byte".to_owned(),
         new_native_fn(file_write_byte, 2),
     );
+    map.insert("file_bytes".to_owned(), new_native_fn(file_bytes, 1));
 }
