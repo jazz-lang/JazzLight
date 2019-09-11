@@ -335,8 +335,6 @@ impl Context {
                 self.write(Op::Load);
             }
             ExprDecl::Var(_, name, init) => {
-                let id = self.locals.len() as u16;
-                self.locals.insert(name.to_owned(), id as i32);
                 match init {
                     Some(e) => match &e.decl {
                         ExprDecl::Function(args, body) => {
@@ -346,6 +344,8 @@ impl Context {
                     },
                     None => self.write(Op::LoadNull),
                 }
+                let id = self.locals.len() as u16;
+                self.locals.insert(name.to_owned(), id as i32);
 
                 self.write(Op::StoreLocal(id));
             }
@@ -556,7 +556,7 @@ impl Context {
         }
     }
 
-    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, _: Option<&str>) {
+    pub fn compile_function(&mut self, params: &[String], e: &P<Expr>, vname: Option<&str>) {
         let mut ctx = Context {
             g: self.g.clone(),
             ops: Vec::new(),
@@ -580,12 +580,12 @@ impl Context {
         }
 
         let gid = ctx.g.borrow().table.len();
-        /*if vname.is_some() {
+        if vname.is_some() {
             ctx.g
                 .borrow_mut()
                 .globals
                 .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
-        }*/
+        }
         ctx.g.borrow_mut().table.push(Global::Func(gid as i32, -1));
         ctx.ret_lbl = ctx.new_empty_label();
         ctx.compile(e, true);
