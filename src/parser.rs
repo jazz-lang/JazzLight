@@ -126,7 +126,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_expression(&mut self) -> EResult {
-        match self.token.kind {
+        let expr = match self.token.kind {
             TokenKind::Fun => self.parse_function(),
 
             TokenKind::Match => self.parse_match(),
@@ -144,7 +144,13 @@ impl<'a> Parser<'a> {
             TokenKind::Import => self.parse_import(),
             TokenKind::Try => self.parse_try(),
             _ => self.parse_binary(0),
+        };
+
+        if self.token.is(TokenKind::Semicolon) {
+            self.expect_token(TokenKind::Semicolon)?;
         }
+
+        expr
     }
     fn parse_try(&mut self) -> EResult {
         let pos = self.advance_token()?.position;
