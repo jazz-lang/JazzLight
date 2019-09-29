@@ -53,6 +53,7 @@ pub enum Op {
     BitOr,
     BitAnd,
     BitXor,
+    New,
     OpCount,
 }
 
@@ -110,6 +111,7 @@ impl From<Op> for OpRaw {
             Op::BitOr => BitOr,
             Op::BitAnd => BitAnd,
             Op::BitXor => BitXor,
+            Op::New => New,
             Op::OpCount => OpCount,
         }
     }
@@ -172,5 +174,6 @@ pub enum OpRaw {
     BitOr,
     BitAnd,
     BitXor,
+    New,
     OpCount,
 }

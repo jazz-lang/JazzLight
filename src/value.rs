@@ -159,7 +159,7 @@ impl Hash for Value {
 
 #[derive(GcObject, Clone, Debug)]
 pub struct Function {
-    pub module: Gc<Module>,
+    pub module: Option<Gc<Module>>,
     pub addr: usize,
     pub is_native: bool,
     pub env: Value,

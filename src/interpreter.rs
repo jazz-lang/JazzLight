@@ -158,6 +158,7 @@ impl JThread {
                                 self.locals = Gc::new(HashMap::new());
                                 self.this = Value::Null;
                                 self.pc = func.addr;
+                                module = func.module.unwrap();
                                 for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
@@ -201,6 +202,7 @@ impl JThread {
                                 self.this = this;
                                 self.locals = Gc::new(HashMap::new());
                                 self.pc = func.addr;
+                                module = func.module.unwrap();
                                 for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
@@ -228,7 +230,7 @@ impl JThread {
                 CatchIp(ip) => {
                     let frame = FrameData::Frame {
                         module: Some(module),
-                        pc: self.pc,
+                        pc: ip as _,
                         env: self.env.clone(),
                         locals: self.locals.clone(),
                         this: self.this.clone(),
@@ -265,7 +267,9 @@ impl JThread {
                     let lhs = catch!(self.pop());
                     let rhs = catch!(self.pop());
                     match lhs {
-                        Value::String(x) => unimplemented!(),
+                        Value::String(x) => {
+                            self.push(Value::String(Gc::new(format!("{}{}", x, rhs))))
+                        }
                         Value::Number(x) => match rhs {
                             Value::Number(y) => self.push(Value::Number(x + y)),
                             _ => self.push(Value::Null),
@@ -574,7 +578,7 @@ pub fn call_value(value: Value, this: Value, args: &[Value]) -> Result<Value, Va
                     thread.env = func.env.clone();
                     thread.exit_frame();
 
-                    let value = thread.run(func.module);
+                    let value = thread.run(func.module.unwrap());
                     thread.pc = pc;
                     thread.locals = locals;
                     thread.env = env;
