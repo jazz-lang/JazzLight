@@ -1,13 +1,19 @@
 [package]
-name = "jazzlightc"
+name = "vmm"
 version = "0.1.0"
 authors = ["Adel Prokurov <adel.prokurov@protonmail.com>"]
 edition = "2018"
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-byteorder = "1.3"
-jazzlight = {path = "vm",version = "*"}
-hmap = "0.1"
-hashlink = "0.3"
-structopt = "0.3.1"
-parking_lot = "*"
+lazy_static = "1.4"
+libc = "0.2"
+parking_lot = "0.9"
+time = "0.1"
+pgc = {git = "https://github.com/playxe/pgc"}
+pgc-derive = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["winuser","memoryapi","errhandlingapi"] }
+kernel32-sys = "0.2"
