@@ -2,13 +2,25 @@ use crate::*;
 use pgc::*;
 use std::hash::{Hash, Hasher};
 
-#[derive(GcObject, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum Value {
     Null,
     Number(f64),
     String(Gc<String>),
     Object(Gc<Object>),
     Bool(bool),
+}
+
+unsafe impl GcObject for Value {
+    fn references(&self) -> Vec<Gc<dyn GcObject>> {
+        let mut v: Vec<Gc<dyn GcObject>> = vec![];
+        match self {
+            Value::String(s) => v.push(*s),
+            Value::Object(o) => v.push(*o),
+            _ => (),
+        };
+        v
+    }
 }
 
 impl Value {
@@ -116,6 +128,7 @@ impl fmt::Display for Value {
                             fmt.push('\n');
                         }
                     }
+                    fmt.push('}');
 
                     write!(f, "{}", fmt)
                 }

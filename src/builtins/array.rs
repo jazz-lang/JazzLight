@@ -14,7 +14,6 @@ pub fn pop(this: Value, _: &[Value]) -> Result<Value, Value> {
 }
 
 pub fn array_object() {
-    let state = STATE.lock();
     // we need object to be rooted since it may be deleted by GC.
     let object = Rooted::new(Object {
         kind: ObjectKind::Ordinary,
@@ -26,6 +25,7 @@ pub fn array_object() {
         Value::String(Gc::new("pop".to_owned())),
         new_builtin_fn(pop as usize, 0),
     );
+    let state = STATE.lock();
     state.get_mut().static_variables.insert(
         Value::String(Gc::new("Array".to_owned())),
         Value::Object(object.inner()), // now 'Array' object unrooted,but since global state is rooted it's fine.

@@ -70,7 +70,10 @@ impl JThread {
                 LoadGlobal(idx) => {
                     let global = module.get().globals.get(idx as usize).cloned();
                     match global {
-                        Some(val) => self.push(val),
+                        Some(val) => {
+                            //println!("{}", val);
+                            self.push(val)
+                        }
                         None => self.push(Value::Null),
                     }
                 }

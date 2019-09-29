@@ -6,13 +6,12 @@ use vmm::*;
 
 fn main() {
     init_builtins();
-    println!("Hi!");
     let mut module = Module::new();
-    module
-        .globals
-        .push(Value::String(Gc::new("Object".to_owned())));
+    let s = Rooted::new("Object".to_owned());
+    module.globals.push(Value::String(s.inner()));
     module.code.push(Op::LoadGlobal(0));
     module.code.push(Op::LoadStatic);
+    module.code.push(Op::Return);
     let gc_module = Rooted::new(module);
     let handle = spawn_thread(move || run_module(gc_module.inner()));
 

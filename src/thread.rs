@@ -22,11 +22,6 @@ pub enum FrameData {
     },
 }
 
-thread_local!(
-    pub static THREAD: RefCell<Arc<Gc<JThread>>> =
-        { RefCell::new(Arc::new(Gc::new(JThread::new()))) };
-);
-
 pub struct Threads {
     pub threads: Mutex<Vec<Arc<Gc<JThread>>>>,
     pub cond_join: Condvar,
@@ -42,6 +37,11 @@ pub struct JThread {
     pub frames: Vec<FrameData>,
     pub exceptions: Vec<FrameData>,
 }
+
+thread_local!(
+    pub static THREAD: RefCell<Arc<Gc<JThread>>> =
+        { RefCell::new(Arc::new(Gc::new(JThread::new()))) };
+);
 
 impl JThread {
     pub fn new() -> Self {

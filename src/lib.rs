@@ -54,9 +54,7 @@ lazy_static::lazy_static!(
 
 pub fn init_builtins() {
     builtins::function::function_object();
-    dbg!("Obj");
     builtins::object::object_proto();
-    dbg!("Array");
     builtins::array::array_object();
 }
 
@@ -82,10 +80,21 @@ pub fn run_module(module: Gc<Module>) -> Value {
     })
 }
 
-pub fn spawn_thread<T, F>(f: F) -> std::thread::JoinHandle<T>
+pub fn spawn_thread<T, F>(mut f: F) -> std::thread::JoinHandle<T>
 where
     F: FnMut() -> T + Send + 'static,
     T: Send + 'static,
 {
-    std::thread::spawn(f)
+    std::thread::spawn(move || {
+        {
+            let state = STATE.lock();
+            state.threads.attach_current_thread();
+        }
+        let res = f();
+        {
+            let state = STATE.lock();
+            state.threads.detach_current_thread();
+        }
+        res
+    })
 }

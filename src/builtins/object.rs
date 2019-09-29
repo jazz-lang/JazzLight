@@ -15,14 +15,13 @@ pub fn object_proto() {
         properties: Gc::new(vec![]),
     });
     let fun = new_builtin_fn(to_string as usize, 0);
-    dbg!("FUN");
     object
         .get_mut()
         .set_property(Value::String(Gc::new("toString".to_owned())), fun);
     let state = STATE.lock();
 
     state.get_mut().static_variables.insert(
-        Value::String(Gc::new("Object".to_owned())),
+        Value::String(Rooted::new("Object".to_owned()).inner()),
         Value::Object(object.inner()), // now 'Array' object unrooted,but since global state is rooted it's fine.
     );
 }
