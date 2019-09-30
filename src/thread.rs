@@ -1,12 +1,10 @@
 thread_local!();
 
 use crate::*;
-use bytecode::*;
 use parking_lot::{Condvar, Mutex};
 use pgc::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use value::*;
 

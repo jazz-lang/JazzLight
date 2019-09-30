@@ -23,6 +23,10 @@ unsafe impl GcObject for Value {
     }
 }
 
+pub fn strcpy(x: Gc<String>) -> Gc<String> {
+    Rooted::new(x.get().to_owned()).inner()
+}
+
 impl Value {
     pub fn to_object(&self) -> Result<Value, Value> {
         match self {

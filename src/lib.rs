@@ -86,6 +86,7 @@ where
     T: Send + 'static,
 {
     std::thread::spawn(move || {
+        //gc_attach_current_thread();
         {
             let state = STATE.lock();
             state.threads.attach_current_thread();
@@ -95,6 +96,7 @@ where
             let state = STATE.lock();
             state.threads.detach_current_thread();
         }
+        gc_detach_current_thread();
         res
     })
 }

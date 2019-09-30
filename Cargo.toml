@@ -14,6 +14,10 @@ time = "0.1"
 pgc = {git = "https://github.com/playxe/pgc"}
 pgc-derive = "0.1"
 
+
+[profile.release]
+lto = true
+
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["winuser","memoryapi","errhandlingapi"] }
 kernel32-sys = "0.2"
