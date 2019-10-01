@@ -20,11 +20,10 @@ pub fn array_object() {
         proto: None,
         properties: Gc::new(vec![]),
     });
-
-    object.get_mut().set_property(
-        Value::String(Gc::new("pop".to_owned())),
-        new_builtin_fn(pop as usize, 0),
-    );
+    let pop_ = Rooted::new("pop".to_owned());
+    object
+        .get_mut()
+        .set_property(Value::String(pop_.inner()), new_builtin_fn(pop as usize, 0));
     let state = STATE.lock();
     state.get_mut().static_variables.insert(
         Value::String(Gc::new("Array".to_owned())),

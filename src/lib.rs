@@ -47,13 +47,13 @@ lazy_static::lazy_static!(
             threads: Threads::new()
         });
         add_root(state);
-        state.get_mut().static_variables.insert(Value::String(Gc::new("Object".to_owned())),Value::Object(Gc::new(
-            Object {
+        let obj = Rooted::new("Object".to_owned());
+        let object = Rooted::new(Object {
                 proto: None,
                 properties: Rooted::new(vec![]).inner(),
                 kind: ObjectKind::Ordinary
-            }
-        )));
+            });
+        state.get_mut().static_variables.insert(Value::String(obj.inner()),Value::Object(object.inner()));
 
 
         Mutex::new(state)
@@ -74,7 +74,7 @@ pub fn run_module(module: Gc<Module>) -> Value {
         let env = thread.env.clone();
         let this = thread.this.clone();
         let locals = thread.locals;
-        thread.locals = Gc::new(HashMap::new());
+        thread.locals = Rooted::new(HashMap::new()).inner();
         thread.pc = 0;
         thread.env = Value::Null;
         thread.this = Value::Null;

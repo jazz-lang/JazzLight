@@ -151,29 +151,32 @@ impl JThread {
                     state.get_mut().static_variables.insert(key, value);
                 }
                 Ctor(argc) => {
+                    pgc::gc_collect();
+                    dbg!("here");
                     let object_proto = Rooted::new(Object {
                         kind: ObjectKind::Ordinary,
                         proto: None,
                         properties: Rooted::new(vec![]).inner(),
                     });
                     let value = Rooted::new(catch!(self.pop()));
-                    let args = Rooted::new(vec![]);
+                    let mut args = vec![];
                     for _ in 0..argc {
-                        args.get_mut().push(catch!(self.pop()));
+                        args.push(catch!(self.pop()));
                     }
                     if let Value::Object(object) = *value.inner() {
                         if let ObjectKind::Function(func) = object.kind {
                             if func.argc != -1 {
-                                if args.inner().len() > func.argc as usize {
+                                if args.len() > func.argc as usize {
                                     throw!(Value::String(
                                         Gc::new("Too many arguments".to_owned(),)
                                     ));
-                                } else if args.inner().len() < func.argc as usize {
+                                } else if args.len() < func.argc as usize {
                                     throw!(Value::String(
                                         Gc::new("Too many arguments".to_owned(),)
                                     ));
                                 }
                             }
+                            dbg!("here");
                             object_proto.get_mut().proto =
                                 Some(match func.prototype.to_object().unwrap() {
                                     Value::Object(obj) => obj,
@@ -184,7 +187,7 @@ impl JThread {
                                     unsafe { std::mem::transmute(func.addr) };
 
                                 let result =
-                                    catch!(fun(Value::Object(object_proto.inner()), args.get()));
+                                    catch!(fun(Value::Object(object_proto.inner()), &args));
                                 self.push(result);
                             } else {
                                 self.push_frame(Some(module));
@@ -193,12 +196,13 @@ impl JThread {
                                 self.this = Value::Object(object_proto.inner());
                                 self.pc = func.addr;
                                 module = func.module.unwrap();
-                                for (i, arg) in args.get().iter().enumerate() {
+                                for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
                             }
                         } else {
                             let string = Rooted::new("constructor".to_owned());
+                            dbg!("here");
                             let property = object.get_property(Value::String(string.inner()));
                             if let Some(ctor) = property {
                                 if let Value::Object(object) = ctor.value {
@@ -212,11 +216,10 @@ impl JThread {
                                                 -> Result<Value, Value> =
                                                 unsafe { std::mem::transmute(func.addr) };
                                             dbg!("here");
-                                            pgc::gc_collect();
                                             dbg!("here");
                                             let result = catch!(fun(
                                                 Value::Object(object_proto.inner()),
-                                                args.get()
+                                                &args
                                             ));
                                             self.push(result);
                                         } else {
@@ -226,7 +229,7 @@ impl JThread {
                                             self.this = Value::Object(object_proto.inner());
                                             self.pc = func.addr;
                                             module = func.module.unwrap();
-                                            for (i, arg) in args.get().iter().enumerate() {
+                                            for (i, arg) in args.iter().enumerate() {
                                                 self.locals.get_mut().insert(i as _, arg.clone());
                                             }
                                         }
