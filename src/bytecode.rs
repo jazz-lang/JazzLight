@@ -9,6 +9,8 @@ pub enum Op {
     LoadField,
     LoadIndex(i32),
     LoadLocal(u32),
+    LoadEnv(u32),
+    StoreEnv(u32),
     StoreStatic,
     StoreLocal(u32),
     StoreField,
@@ -54,6 +56,7 @@ pub enum Op {
     BitAnd,
     BitXor,
     New,
+    Ctor(u32),
     OpCount,
 }
 
@@ -70,10 +73,12 @@ impl From<Op> for OpRaw {
             Op::LoadField => LoadField,
             Op::LoadIndex(_) => LoadIndex,
             Op::LoadLocal(_) => LoadLocal,
+            Op::LoadEnv(_) => LoadEnv,
+            Op::StoreEnv(_) => StoreEnv,
             Op::StoreStatic => StoreStatic,
             Op::StoreLocal(_) => StoreLocal,
             Op::StoreField => StoreField,
-
+            Op::Ctor(_) => Ctor,
             Op::Branch(_) => Branch,
             Op::BranchIfTrue(_) => BranchIfTrue,
             Op::BranchIfFalse(_) => BranchIfFalse,
@@ -129,6 +134,8 @@ pub enum OpRaw {
     LoadField,
     LoadIndex,
     LoadLocal,
+    LoadEnv,
+    StoreEnv,
     StoreStatic,
     StoreLocal,
     StoreField,
@@ -175,5 +182,6 @@ pub enum OpRaw {
     BitAnd,
     BitXor,
     New,
+    Ctor,
     OpCount,
 }

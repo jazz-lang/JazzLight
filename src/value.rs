@@ -28,6 +28,13 @@ pub fn strcpy(x: Gc<String>) -> Gc<String> {
 }
 
 impl Value {
+    pub fn unwrap_object(&self) -> Gc<Object> {
+        match self {
+            Value::Object(obj) => *obj,
+            _ => crate::unreachable(),
+        }
+    }
+
     pub fn to_object(&self) -> Result<Value, Value> {
         match self {
             Value::Null => Err(Value::String(Gc::new(
@@ -180,6 +187,7 @@ pub struct Function {
     pub addr: usize,
     pub is_native: bool,
     pub env: Value,
+    pub prototype: Value,
     pub argc: i32,
 }
 
@@ -254,6 +262,28 @@ impl Object {
                     }
                 }
                 _ => return None,
+            },
+            ObjectKind::Function(func) => match key {
+                Value::String(x) => {
+                    let key_: &str = x.get();
+                    if key_ == "prototype" {
+                        let mut property = Property::new();
+                        property.key = key;
+                        property.value = func.get().prototype.clone();
+                        return Some(property);
+                    } else {
+                        for property in self.properties.get().iter() {
+                            if property.key == key {
+                                return Some(property.clone());
+                            }
+                        }
+                        match self.proto {
+                            Some(proto) => return proto.get_property(key),
+                            None => return None,
+                        }
+                    }
+                }
+                _ => (),
             },
             ObjectKind::Array(array) => match key {
                 Value::String(x) => {

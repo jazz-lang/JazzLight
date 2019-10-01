@@ -14,6 +14,16 @@ pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
         .get(&Value::String(Rooted::new("Function".to_owned()).inner()))
         .cloned()
         .unwrap();
+    let object_proto = state
+        .get()
+        .static_variables
+        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .cloned()
+        .unwrap();
+    let object_proto = match object_proto {
+        Value::Object(object) => object,
+        _ => unreachable!(),
+    };
     let object = match object {
         Value::Object(object) => object,
         _ => unreachable!(),
@@ -24,6 +34,7 @@ pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
         is_native: true,
         argc,
         env: Value::Null,
+        prototype: Value::Object(object_proto),
     });
     let func = ObjectKind::Function(fun.inner());
     let function = Value::Object(

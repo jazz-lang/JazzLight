@@ -117,6 +117,29 @@ impl JThread {
                         _ => unreachable!(),
                     }
                 }
+                LoadEnv(var) | StoreEnv(var) => {
+                    let obj = self.env.unwrap_object();
+                    match &obj.kind {
+                        ObjectKind::Array(array) => {
+                            #[cfg(debug_assertions)]
+                            {
+                                if var as usize >= array.len() {
+                                    panic!("Internal error");
+                                }
+                            }
+                            if let StoreEnv(_) = op {
+                                array.get_mut()[var as usize] =
+                                    self.stack.get().last().cloned().unwrap();
+                            } else {
+                                unsafe {
+                                    let value: &Value = array.get_mut().get_unchecked(var as usize);
+                                    self.push(value.clone());
+                                }
+                            }
+                        }
+                        _ => crate::unreachable(),
+                    }
+                }
                 StoreLocal(idx) => {
                     let value = catch!(self.pop());
                     self.locals.get_mut().insert(idx as _, value);
@@ -126,6 +149,63 @@ impl JThread {
                     let value = catch!(self.pop());
                     let state = STATE.lock();
                     state.get_mut().static_variables.insert(key, value);
+                }
+                Ctor(argc) => {
+                    let object_proto = Rooted::new(Object {
+                        kind: ObjectKind::Ordinary,
+                        proto: None,
+                        properties: Rooted::new(vec![]).inner(),
+                    });
+                    let value = catch!(self.pop());
+                    let mut args = vec![];
+                    for _ in 0..argc {
+                        args.push(catch!(self.pop()));
+                    }
+                    if let Value::Object(object) = value {
+                        if let ObjectKind::Function(func) = object.kind {
+                            if func.argc != -1 {
+                                if args.len() > func.argc as usize {
+                                    throw!(Value::String(
+                                        Gc::new("Too many arguments".to_owned(),)
+                                    ));
+                                } else if args.len() < func.argc as usize {
+                                    throw!(Value::String(
+                                        Gc::new("Too many arguments".to_owned(),)
+                                    ));
+                                }
+                            }
+                            object_proto.get_mut().proto =
+                                Some(match func.prototype.to_object().unwrap() {
+                                    Value::Object(obj) => obj,
+                                    _ => unsafe { std::hint::unreachable_unchecked() },
+                                });
+                            if func.is_native {
+                                let fun: extern "C" fn(Value, &[Value]) -> Result<Value, Value> =
+                                    unsafe { std::mem::transmute(func.addr) };
+
+                                let result =
+                                    catch!(fun(Value::Object(object_proto.inner()), &args));
+                                self.push(result);
+                            } else {
+                                if let TailRec(_) = op {
+                                    self.pop_frame(Some(&mut module));
+                                }
+                                self.push_frame(Some(module));
+                                self.env = func.env.clone();
+                                self.locals = Gc::new(HashMap::new());
+                                self.this = Value::Object(object_proto.inner());
+                                self.pc = func.addr;
+                                module = func.module.unwrap();
+                                for (i, arg) in args.iter().enumerate() {
+                                    self.locals.get_mut().insert(i as _, arg.clone());
+                                }
+                            }
+                        } else {
+                            throw!(Value::String(Gc::new("Function expected".to_owned())));
+                        }
+                    } else {
+                        throw!(Value::String(Gc::new("Function expected".to_owned())));
+                    }
                 }
                 Invoke(argc) | TailRec(argc) => {
                     let value = catch!(self.pop());
@@ -172,6 +252,26 @@ impl JThread {
                     } else {
                         throw!(Value::String(Gc::new("Function expected".to_owned())));
                     }
+                }
+                MakeArray(count) => {
+                    let mut values = vec![];
+
+                    for _ in 0..count {
+                        values.push(catch!(self.pop()));
+                    }
+                    let array = Rooted::new(values);
+                    let state = STATE.lock();
+                    let array_proto = state
+                        .static_variables
+                        .get(&Value::String(Rooted::new("Array".to_owned()).inner()))
+                        .unwrap()
+                        .unwrap_object();
+                    let object = Object {
+                        proto: Some(array_proto),
+                        kind: ObjectKind::Array(array.inner()),
+                        properties: Rooted::new(vec![]).inner(),
+                    };
+                    self.push(Value::Object(Gc::new(object)));
                 }
                 InvokeVirtual(argc) => {
                     let value = catch!(self.pop());
@@ -257,13 +357,13 @@ impl JThread {
                                     array.get_mut().extend(values);
                                 }
                             } else {
-                                unreachable!()
+                                crate::unreachable()
                             }
                         } else {
-                            unreachable!()
+                            crate::unreachable()
                         }
                     } else {
-                        unreachable!()
+                        crate::unreachable()
                     }
                 }
                 Add => {

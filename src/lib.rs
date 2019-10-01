@@ -31,7 +31,7 @@ impl Module {
 use std::collections::HashMap;
 
 use parking_lot::Mutex;
-use value::Value;
+use value::*;
 
 #[derive(GcObject)]
 pub struct GlobalState {
@@ -46,6 +46,13 @@ lazy_static::lazy_static!(
             threads: Threads::new()
         });
         add_root(state);
+        state.get_mut().static_variables.insert(Value::String(Gc::new("Object".to_owned())),Value::Object(Gc::new(
+            Object {
+                proto: None,
+                properties: Rooted::new(vec![]).inner(),
+                kind: ObjectKind::Ordinary
+            }
+        )));
 
 
         Mutex::new(state)
@@ -55,6 +62,7 @@ lazy_static::lazy_static!(
 pub fn init_builtins() {
     builtins::function::function_object();
     builtins::object::object_proto();
+    println!("Array");
     builtins::array::array_object();
 }
 
@@ -99,4 +107,16 @@ where
         gc_detach_current_thread();
         res
     })
+}
+
+#[inline(always)]
+pub fn unreachable() -> ! {
+    #[cfg(debug_assertions)]
+    {
+        unreachable!()
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        unsafe { std::hint::unreachable_unchecked() }
+    }
 }

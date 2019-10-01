@@ -8,20 +8,19 @@ pub fn to_string(this: Value, _: &[Value]) -> Result<Value, Value> {
 }
 
 pub fn object_proto() {
-    // we need object to be rooted since it may be deleted by GC.
-    let object = Rooted::new(Object {
-        kind: ObjectKind::Ordinary,
-        proto: None,
-        properties: Gc::new(vec![]),
-    });
+    let state = STATE.lock();
+    let object: Gc<Object> = match state
+        .get()
+        .static_variables
+        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .unwrap()
+    {
+        Value::Object(object) => object.clone(),
+        _ => unreachable!(),
+    };
+    drop(state);
     let fun = new_builtin_fn(to_string as usize, 0);
     object
         .get_mut()
         .set_property(Value::String(Gc::new("toString".to_owned())), fun);
-    let state = STATE.lock();
-
-    state.get_mut().static_variables.insert(
-        Value::String(Rooted::new("Object".to_owned()).inner()),
-        Value::Object(object.inner()), // now 'Array' object unrooted,but since global state is rooted it's fine.
-    );
 }
