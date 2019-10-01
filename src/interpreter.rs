@@ -39,7 +39,7 @@ impl JThread {
                                 self.push(e);
                                 continue;
                             } else {
-                                unreachable!()
+                                crate::unreachable()
                             }
                         }
                     }
@@ -48,10 +48,10 @@ impl JThread {
         }
         'inner: while self.pc < module.get().code.len() {
             let op = unsafe { module.get().code.get_unchecked(self.pc) };
+            println!("{:04} {:?}", self.pc, op);
             self.pc += 1;
             let op: Op = *op;
             use Op::*;
-
             match op {
                 ConstNull => self.push(Value::Null),
                 ConstInt(i) => self.push(Value::Number(i as _)),
@@ -101,7 +101,7 @@ impl JThread {
                                 self.push(Value::Null);
                             }
                         }
-                        _ => unreachable!(),
+                        _ => crate::unreachable(),
                     }
                 }
                 StoreField => {
@@ -114,7 +114,7 @@ impl JThread {
                         Value::Object(obj) => {
                             obj.set_property(field, value);
                         }
-                        _ => unreachable!(),
+                        _ => crate::unreachable(),
                     }
                 }
                 LoadEnv(var) | StoreEnv(var) => {
@@ -156,19 +156,19 @@ impl JThread {
                         proto: None,
                         properties: Rooted::new(vec![]).inner(),
                     });
-                    let value = catch!(self.pop());
-                    let mut args = vec![];
+                    let value = Rooted::new(catch!(self.pop()));
+                    let args = Rooted::new(vec![]);
                     for _ in 0..argc {
-                        args.push(catch!(self.pop()));
+                        args.get_mut().push(catch!(self.pop()));
                     }
-                    if let Value::Object(object) = value {
+                    if let Value::Object(object) = *value.inner() {
                         if let ObjectKind::Function(func) = object.kind {
                             if func.argc != -1 {
-                                if args.len() > func.argc as usize {
+                                if args.inner().len() > func.argc as usize {
                                     throw!(Value::String(
                                         Gc::new("Too many arguments".to_owned(),)
                                     ));
-                                } else if args.len() < func.argc as usize {
+                                } else if args.inner().len() < func.argc as usize {
                                     throw!(Value::String(
                                         Gc::new("Too many arguments".to_owned(),)
                                     ));
@@ -184,24 +184,60 @@ impl JThread {
                                     unsafe { std::mem::transmute(func.addr) };
 
                                 let result =
-                                    catch!(fun(Value::Object(object_proto.inner()), &args));
+                                    catch!(fun(Value::Object(object_proto.inner()), args.get()));
                                 self.push(result);
                             } else {
-                                if let TailRec(_) = op {
-                                    self.pop_frame(Some(&mut module));
-                                }
                                 self.push_frame(Some(module));
                                 self.env = func.env.clone();
                                 self.locals = Gc::new(HashMap::new());
                                 self.this = Value::Object(object_proto.inner());
                                 self.pc = func.addr;
                                 module = func.module.unwrap();
-                                for (i, arg) in args.iter().enumerate() {
+                                for (i, arg) in args.get().iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
                             }
                         } else {
-                            throw!(Value::String(Gc::new("Function expected".to_owned())));
+                            let string = Rooted::new("constructor".to_owned());
+                            let property = object.get_property(Value::String(string.inner()));
+                            if let Some(ctor) = property {
+                                if let Value::Object(object) = ctor.value {
+                                    if let ObjectKind::Function(func) = object.kind.clone() {
+                                        object_proto.get_mut().proto = Some(object);
+                                        if func.is_native {
+                                            let fun: extern "C" fn(
+                                                Value,
+                                                &[Value],
+                                            )
+                                                -> Result<Value, Value> =
+                                                unsafe { std::mem::transmute(func.addr) };
+                                            dbg!("here");
+                                            pgc::gc_collect();
+                                            dbg!("here");
+                                            let result = catch!(fun(
+                                                Value::Object(object_proto.inner()),
+                                                args.get()
+                                            ));
+                                            self.push(result);
+                                        } else {
+                                            self.push_frame(Some(module));
+                                            self.env = func.env.clone();
+                                            self.locals = Gc::new(HashMap::new());
+                                            self.this = Value::Object(object_proto.inner());
+                                            self.pc = func.addr;
+                                            module = func.module.unwrap();
+                                            for (i, arg) in args.get().iter().enumerate() {
+                                                self.locals.get_mut().insert(i as _, arg.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                throw!(Value::String(Gc::new(format!(
+                                    "Function expected,found {}",
+                                    value.inner()
+                                ))));
+                            }
                         }
                     } else {
                         throw!(Value::String(Gc::new("Function expected".to_owned())));
@@ -345,7 +381,7 @@ impl JThread {
                     catch!(Err(value));
                 }
                 MakeEnv(count) => {
-                    let function = catch!(self.pop());
+                    let function = self.stack.get().last().cloned().unwrap();
                     if let Value::Object(object) = function {
                         if let ObjectKind::Function(func) = &object.kind {
                             let values = (0..count)

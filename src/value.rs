@@ -54,7 +54,7 @@ impl Value {
                         .to_object()?
                     {
                         Value::Object(obj) => obj,
-                        _ => unreachable!(),
+                        _ => crate::unreachable(),
                     },
                 ),
             }))),
@@ -71,7 +71,7 @@ impl Value {
                         .to_object()?
                     {
                         Value::Object(obj) => obj,
-                        _ => unreachable!(),
+                        _ => crate::unreachable(),
                     },
                 ),
             }))),
@@ -88,7 +88,7 @@ impl Value {
                         .to_object()?
                     {
                         Value::Object(obj) => obj,
-                        _ => unreachable!(),
+                        _ => crate::unreachable(),
                     },
                 ),
             }))),

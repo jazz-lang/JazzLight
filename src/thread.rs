@@ -97,7 +97,10 @@ impl JThread {
     pub fn pop(&mut self) -> Result<Value, Value> {
         match self.stack.get_mut().pop() {
             Some(val) => Ok(val),
-            None => Err(Value::String(Gc::new("No value to pop".to_owned()))),
+            None => Err(Value::String(Gc::new(format!(
+                "No value to pop at {:04}",
+                self.pc - 1
+            )))),
         }
     }
     pub fn push(&mut self, value: Value) {

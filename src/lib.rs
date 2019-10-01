@@ -4,6 +4,7 @@ extern crate pgc_derive;
 pub mod acell;
 pub mod builtins;
 pub mod bytecode;
+pub mod compiler;
 pub mod interpreter;
 pub mod thread;
 pub mod value;
@@ -62,7 +63,6 @@ lazy_static::lazy_static!(
 pub fn init_builtins() {
     builtins::function::function_object();
     builtins::object::object_proto();
-    println!("Array");
     builtins::array::array_object();
 }
 

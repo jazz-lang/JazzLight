@@ -1,40 +1,65 @@
 extern crate vmm;
-use bytecode::*;
-use pgc::*;
-use value::*;
+use std::path::PathBuf;
+use structopt::StructOpt;
+
 use vmm::*;
+
+use compiler::generator::*;
+use compiler::parser::Parser;
+use compiler::reader::Reader;
+use vmm::compiler;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "jazzc", version = "0.0.1")]
+pub struct Options {
+    #[structopt(name = "FILE", parse(from_os_str))]
+    file: Option<PathBuf>,
+    #[structopt(short = "d", long = "disassemble")]
+    /// Print bytecode to stdout
+    dump_op: bool,
+    #[structopt(short = "v", long = "verbose")]
+    /// Show more information e.g current opcode, field lists etc
+    verbose: bool,
+    #[structopt(long = "run")]
+    run: bool,
+}
 
 fn main() {
     pgc::enable_gc_stats();
     init_builtins();
-    let mut module = Module::new();
-    /*let s = Rooted::new("Object".to_owned());
-    let s2 = Rooted::new("toString".to_owned());
-    module.globals.push(Value::String(s.inner()));
-    module.globals.push(Value::String(s2.inner()));
-    module.code.push(Op::LoadGlobal(1));
-    module.code.push(Op::LoadGlobal(0));
-    module.code.push(Op::LoadStatic);
-    module.code.push(Op::LoadField);
-    module.code.push(Op::Return);*/
 
-    module.code.push(Op::ConstInt(0));
-    module.code.push(Op::StoreLocal(0));
-    module.code.push(Op::LoadLocal(0));
-    module.code.push(Op::ConstInt(100000));
-    module.code.push(Op::CmpGt);
-    module.code.push(Op::BranchIfFalse(11));
-    module.code.push(Op::LoadLocal(0));
-    module.code.push(Op::ConstInt(1));
-    module.code.push(Op::Add);
-    module.code.push(Op::StoreLocal(0));
-    module.code.push(Op::Branch(2));
-    module.code.push(Op::LoadLocal(0));
-    module.code.push(Op::Return);
-    let gc_module = Rooted::new(module);
-    let res = run_module(gc_module.inner());
+    let ops = Options::from_args();
+    if ops.file.is_none() {
+        eprintln!("Please select file");
+        std::process::exit(1);
+    }
+    let string = ops.file.unwrap().to_str().unwrap().to_owned();
+    let r = match Reader::from_file(&string) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to open file '{}': {}", string, e);
+            std::process::exit(1);
+        }
+    };
+    let mut ast = vec![];
+    let mut parser = Parser::new(r, &mut ast);
+    match parser.parse() {
+        Ok(_) => (),
+        Err(e) => {
+            eprintln!("{}", e);
+            std::process::exit(1);
+        }
+    }
+    let mut ctx = compile(ast);
+    let m = module_from_context(&mut ctx);
 
-    println!("{}", res);
-    pgc::gc_collect();
-    pgc::gc_summary();
+    if ops.dump_op || ops.verbose {
+        println!("Byteocde:");
+        for (i, op) in m.get().code.iter().enumerate() {
+            println!("{:04}: {:?}", i, op)
+        }
+        println!();
+    }
+
+    println!("{}", run_module(m.inner()));
 }

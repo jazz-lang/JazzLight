@@ -13,8 +13,9 @@ parking_lot = "0.9"
 time = "0.1"
 pgc = {git = "https://github.com/playxe/pgc"}
 pgc-derive = "0.1"
-
-
+hmap = "0.1"
+structopt = "0.3"
+hashlink = "0.3"
 [profile.release]
 lto = true
 

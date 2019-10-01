@@ -51,6 +51,6 @@ fn function_proto_reg_fns() {
                 new_builtin_fn(apply as usize, 2),
             );
         }
-        _ => unreachable!(),
+        _ => crate::unreachable(),
     }
 }

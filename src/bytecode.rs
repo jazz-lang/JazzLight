@@ -5,6 +5,7 @@ pub enum Op {
     ConstFalse,
     ConstTrue,
     LoadStatic,
+    LoadThis,
     LoadGlobal(u32),
     LoadField,
     LoadIndex(i32),
@@ -14,6 +15,7 @@ pub enum Op {
     StoreStatic,
     StoreLocal(u32),
     StoreField,
+    StoreThis,
 
     Branch(u32),
     BranchIfTrue(u32),
@@ -69,6 +71,7 @@ impl From<Op> for OpRaw {
             Op::ConstFalse => ConstFalse,
             Op::ConstTrue => ConstTrue,
             Op::LoadStatic => LoadStatic,
+            Op::LoadThis => LoadThis,
             Op::LoadGlobal(_) => LoadGlobal,
             Op::LoadField => LoadField,
             Op::LoadIndex(_) => LoadIndex,
@@ -82,7 +85,7 @@ impl From<Op> for OpRaw {
             Op::Branch(_) => Branch,
             Op::BranchIfTrue(_) => BranchIfTrue,
             Op::BranchIfFalse(_) => BranchIfFalse,
-
+            Op::StoreThis => StoreThis,
             Op::Invoke(_) => Invoke,
             Op::InvokeVirtual(_) => InvokeVirtual,
             Op::TailRec(_) => TailRec,
@@ -130,6 +133,7 @@ pub enum OpRaw {
     ConstFalse,
     ConstTrue,
     LoadStatic,
+    LoadThis,
     LoadGlobal,
     LoadField,
     LoadIndex,
@@ -139,6 +143,7 @@ pub enum OpRaw {
     StoreStatic,
     StoreLocal,
     StoreField,
+    StoreThis,
 
     Branch,
     BranchIfTrue,

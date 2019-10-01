@@ -1,0 +1,9 @@
+var foo = new Object(null)
+
+foo.x = 42
+
+foo.bar = function() {
+    return 3
+}
+
+return foo.bar()
