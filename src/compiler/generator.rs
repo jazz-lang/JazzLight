@@ -60,6 +60,7 @@ pub struct GeneratorContext {
     pub used_upvars: LinkedHashMap<String, i32>,
     pub trace_info: HashMap<u32, (usize, String)>,
     pub ret_lbl: String,
+    pub tailrec: bool,
 }
 
 impl GeneratorContext {
@@ -206,7 +207,7 @@ impl GeneratorContext {
                 self.compile(ei);*/
                 return Access::Array(ea.clone(), ei.clone());
             }
-            _ => crate::unreachable(),
+            x => panic!("{:?}", x),
         }
     }
 
@@ -427,7 +428,11 @@ impl GeneratorContext {
                 if !tail {
                     self.write(Op::Invoke(el.len() as _));
                 } else {
-                    self.write(Op::TailRec(el.len() as _));
+                    if self.tailrec {
+                        self.write(Op::TailRec(el.len() as _));
+                    } else {
+                        self.write(Op::Invoke(el.len() as _));
+                    }
                 }
             }
             ExprDecl::Label(label) => {
@@ -525,6 +530,7 @@ impl GeneratorContext {
             used_upvars: LinkedHashMap::new(),
             trace_info: HashMap::new(),
             ret_lbl: String::new(),
+            tailrec: self.tailrec,
         };
         for (idx, p) in params.iter().enumerate() {
             ctx.stack += 1;
@@ -591,6 +597,7 @@ impl GeneratorContext {
             used_upvars: Default::default(),
             trace_info: HashMap::new(),
             ret_lbl: String::new(),
+            tailrec: true,
         }
     }
 
@@ -623,7 +630,7 @@ impl GeneratorContext {
     }
 }
 
-pub fn compile(ast: Vec<P<Expr>>) -> GeneratorContext {
+pub fn compile(ast: Vec<P<Expr>>, tailrec: bool) -> GeneratorContext {
     let mut ctx = GeneratorContext::new();
     let ast = P(Expr {
         pos: super::token::Position::new(
@@ -635,6 +642,7 @@ pub fn compile(ast: Vec<P<Expr>>) -> GeneratorContext {
         ),
         decl: ExprDecl::Block(ast.clone()),
     });
+    ctx.tailrec = tailrec;
 
     ctx.ret_lbl = ctx.new_empty_label();
     ctx.compile(&ast, false);
@@ -651,7 +659,7 @@ pub fn compile(ast: Vec<P<Expr>>) -> GeneratorContext {
         ctx.pos = pos;
         ctx.write(Op::Branch(0));
         let functions = ctx.g.borrow().functions.clone();
-        for (fops, fpos, gid, nargs) in functions.iter().rev() {
+        for (fops, _, gid, nargs) in functions.iter().rev() {
             let mut g = ctx.g.borrow_mut();
 
             g.table[*gid as usize] = Global::Func(ctx.ops.len() as i32, *nargs);
@@ -659,11 +667,9 @@ pub fn compile(ast: Vec<P<Expr>>) -> GeneratorContext {
             for op in fops.iter() {
                 ctx.ops.push(op.clone());
             }
-            ctx.ops[0] = UOP::Op(Op::Branch(ctx.ops.len() as u32 - 1));
-            for op in fpos.iter() {
-                ctx.pos.push(*op);
-            }
         }
+        ctx.ops[0] = UOP::Op(Op::Branch(ctx.ops.len() as u32 - 1));
+        ctx.write(Op::Nop);
         for op in ctxops.iter() {
             ctx.ops.push(op.clone());
         }

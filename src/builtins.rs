@@ -65,7 +65,11 @@ pub fn new_func(fun: Gc<Function>, argc: i32) -> Value {
     };
 
     fun.get_mut().prototype = Value::Object(object_proto);
-    fun.get_mut().env = Value::Null;
+    fun.get_mut().env = Value::Object(Gc::new(Object {
+        kind: ObjectKind::Array(Gc::new(vec![])),
+        properties: Gc::new(vec![]),
+        proto: None,
+    }));
     fun.get_mut().argc = argc;
 
     let func = ObjectKind::Function(fun);

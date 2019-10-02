@@ -80,6 +80,7 @@ impl JThread {
                         None => self.push(Value::Null),
                     }
                 }
+                Nop => (),
                 LoadStatic => {
                     let value = catch!(self.pop());
                     let state: parking_lot::MutexGuard<GlobalState> = STATE.lock();
@@ -283,7 +284,10 @@ impl JThread {
                                 }
                             }
                         } else {
-                            throw!(Value::String(Gc::new("Function expected".to_owned())));
+                            throw!(Value::String(Gc::new(format!(
+                                "Function expected at {:04}",
+                                self.pc - 1
+                            ))));
                         }
                     } else {
                         throw!(Value::String(Gc::new("Function expected".to_owned())));
@@ -389,8 +393,9 @@ impl JThread {
                 }
                 MakeEnv(count) => {
                     let function = self.stack.last().cloned().unwrap();
-                    if let Value::Object(object) = function {
+                    if let Value::Object(object) = &function {
                         if let ObjectKind::Function(func) = &object.get().kind {
+                            self.stack.pop();
                             let values = (0..count)
                                 .into_iter()
                                 .map(|_| self.pop().unwrap_or(Value::Null))
@@ -408,6 +413,7 @@ impl JThread {
                     } else {
                         crate::unreachable()
                     }
+                    self.stack.push(function);
                 }
                 Add => {
                     let lhs = catch!(self.pop());

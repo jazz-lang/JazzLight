@@ -1,7 +1,13 @@
-var foo = function(x) {
-    return x
+// Program to test recursion, should panic at ~997 calls without tail recursion.
+
+var foo = new Array(null)
+
+foo[0] = function(x) {
+    var f = foo[0]
+    if x % 100000 == 0 {
+        println("call #",x)
+    }
+    f(x + 1)
 }
 
-var array = new Array(1,2,3,4)
-
-println(foo.apply(null,new Array(2)))
+foo[0](0)

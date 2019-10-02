@@ -20,8 +20,8 @@ pub struct Options {
     #[structopt(short = "v", long = "verbose")]
     /// Show more information e.g current opcode, field lists etc
     verbose: bool,
-    #[structopt(long = "run")]
-    run: bool,
+    #[structopt(long = "no-tailrec", help = "Disable tail call optimization")]
+    no_tailrec: bool,
 }
 
 fn main() {
@@ -48,7 +48,8 @@ fn main() {
             std::process::exit(1);
         }
     }
-    let mut ctx = compile(ast);
+    let tailrec = if ops.no_tailrec { false } else { true };
+    let mut ctx = compile(ast, tailrec);
     let m = module_from_context(&mut ctx);
 
     if ops.dump_op || ops.verbose {
@@ -59,5 +60,8 @@ fn main() {
         println!();
     }
 
-    println!("{}", run_module(m));
+    println!(
+        "{}",
+        spawn_thread(move || run_module(m.clone())).join().unwrap()
+    );
 }

@@ -103,19 +103,26 @@ where
     F: FnMut() -> T + Send + 'static,
     T: Send + 'static,
 {
-    std::thread::spawn(move || {
-        //gc_attach_current_thread();
-        {
-            let state = STATE.lock();
-            state.threads.attach_current_thread();
-        }
-        let res = f();
-        {
-            let state = STATE.lock();
-            state.threads.detach_current_thread();
-        }
-        res
-    })
+    use std::thread::Builder;
+    Builder::new()
+        .name(format!(
+            "<thread 0x{:x}>",
+            STATE.lock().threads.threads.lock().len()
+        ))
+        .spawn(move || {
+            //gc_attach_current_thread();
+            {
+                let state = STATE.lock();
+                state.threads.attach_current_thread();
+            }
+            let res = f();
+            {
+                let state = STATE.lock();
+                state.threads.detach_current_thread();
+            }
+            res
+        })
+        .unwrap()
 }
 
 #[inline(always)]
