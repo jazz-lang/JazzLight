@@ -1,5 +1,5 @@
 use crate::*;
-use pgc::*;
+
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug)]
@@ -11,6 +11,7 @@ pub enum Value {
     Bool(bool),
 }
 
+/*
 unsafe impl GcObject for Value {
     fn references(&self) -> Vec<Gc<dyn GcObject>> {
         let mut v: Vec<Gc<dyn GcObject>> = vec![];
@@ -21,16 +22,16 @@ unsafe impl GcObject for Value {
         };
         v
     }
-}
+}*/
 
 pub fn strcpy(x: Gc<String>) -> Gc<String> {
-    Rooted::new(x.get().to_owned()).inner()
+    Gc::new(x.get().to_owned())
 }
 
 impl Value {
     pub fn unwrap_object(&self) -> Gc<Object> {
         match self {
-            Value::Object(obj) => *obj,
+            Value::Object(obj) => obj.clone(),
             _ => crate::unreachable(),
         }
     }
@@ -40,7 +41,7 @@ impl Value {
             Value::Null => Err(Value::String(Gc::new(
                 "cannot convert null to object".to_owned(),
             ))),
-            Value::Object(object) => Ok(Value::Object(*object)),
+            Value::Object(object) => Ok(Value::Object(object.clone())),
             Value::Number(n) => Ok(Value::Object(Gc::new(Object {
                 kind: ObjectKind::Number(*n),
                 properties: Gc::new(vec![]),
@@ -76,7 +77,7 @@ impl Value {
                 ),
             }))),
             Value::String(string) => Ok(Value::Object(Gc::new(Object {
-                kind: ObjectKind::String(*string),
+                kind: ObjectKind::String(string.clone()),
                 properties: Gc::new(vec![]),
                 proto: Some(
                     match STATE
@@ -105,15 +106,15 @@ impl fmt::Display for Value {
             Value::Bool(x) => write!(f, "{}", x),
             Value::Number(x) => write!(f, "{}", x),
             Value::String(s) => write!(f, "{}", s),
-            Value::Object(object) => match &object.kind {
+            Value::Object(object) => match &object.get().kind {
                 ObjectKind::String(x) => write!(f, "{}", x),
                 ObjectKind::Array(array) => {
                     let mut fmt = String::new();
                     fmt.push('[');
-                    for (idx, value) in array.iter().enumerate() {
+                    for (idx, value) in array.get().iter().enumerate() {
                         fmt.push_str(&value.to_string());
 
-                        if idx < array.len() - 1 {
+                        if idx < array.get().len() - 1 {
                             fmt.push(',');
                         }
                     }
@@ -128,12 +129,14 @@ impl fmt::Display for Value {
                 ObjectKind::Ordinary => {
                     let mut fmt = String::new();
                     fmt.push_str("{\n");
-                    for (i, property) in object.properties.iter().enumerate() {
+                    let object = object.get();
+                    let properties = object.properties.get();
+                    for (i, property) in properties.iter().enumerate() {
                         if property.enumerated {
                             let key = property.key.to_string();
                             let value = property.value.to_string();
                             fmt.push_str(&format!("  {} => {}", key, value));
-                            if i < object.properties.len() - 1 {
+                            if i < properties.len() - 1 {
                                 fmt.push(',');
                             }
                             fmt.push('\n');
@@ -162,7 +165,7 @@ impl Hash for Value {
             }
             Value::Object(object) => {
                 3.hash(state);
-                for property in object.properties.iter() {
+                for property in object.get().properties.get().iter() {
                     let property: &Property = property;
                     property.key.hash(state);
                     property.value.hash(state);
@@ -171,7 +174,7 @@ impl Hash for Value {
                     property.private.hash(state);
                     property.enumerated.hash(state);
                 }
-                object.properties.len().hash(state);
+                object.get().properties.get().len().hash(state);
             }
             Value::Bool(x) => {
                 4.hash(state);
@@ -181,7 +184,7 @@ impl Hash for Value {
     }
 }
 
-#[derive(GcObject, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Function {
     pub module: Option<Gc<Module>>,
     pub addr: usize,
@@ -207,11 +210,11 @@ impl PartialEq for Value {
                 _ => false,
             },
             Value::Object(x) => match other {
-                Value::Object(y) => x.get().properties.ref_eq(y.properties),
+                Value::Object(y) => x.get().properties.ref_eq(&y.get().properties),
                 _ => false,
             },
             Value::String(x) => match other {
-                Value::String(y) => x.get() == y.get(),
+                Value::String(y) => x == y,
                 _ => false,
             },
         }
@@ -220,7 +223,7 @@ impl PartialEq for Value {
 
 impl Eq for Value {}
 
-#[derive(GcObject, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum ObjectKind {
     Array(Gc<Vec<Value>>),
     Number(f64),
@@ -231,32 +234,51 @@ pub enum ObjectKind {
     Ordinary,
 }
 
-#[derive(GcObject, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Object {
     pub kind: ObjectKind,
     pub proto: Option<Gc<Object>>,
     pub properties: Gc<Vec<Property>>,
 }
-
+/*
+unsafe impl GcObject for Object {
+    fn references(&self) -> Vec<Gc<dyn GcObject>> {
+        let mut v: Vec<Gc<dyn GcObject>> = vec![];
+        match &self.kind {
+            ObjectKind::Array(array) => v.push(*array),
+            ObjectKind::Function(function) => v.push(*function),
+            ObjectKind::String(string) => v.push(*string),
+            _ => (),
+        }
+        v.push(self.properties);
+        match self.proto {
+            Some(value) => v.push(value),
+            _ => (),
+        }
+        v
+    }
+}
+*/
 impl Object {
     pub fn get_property(&self, key: Value) -> Option<Property> {
-        match self.kind {
+        match &self.kind {
             ObjectKind::String(s) => match key {
                 Value::String(x) => {
-                    let key_: &str = x.get();
-                    if key_ == "length" {
+                    let key_ = x.get();
+                    if (&*key_).eq("length") {
                         let mut property = Property::new();
-                        property.key = key;
-                        property.value = Value::Number(s.len() as _);
+                        property.key = Value::String(x.clone());
+                        property.value = Value::Number(s.get().len() as _);
                         return Some(property);
                     } else {
+                        let key = Value::String(x.clone());
                         for property in self.properties.get().iter() {
                             if property.key == key {
                                 return Some(property.clone());
                             }
                         }
-                        match self.proto {
-                            Some(proto) => return proto.get_property(key),
+                        match &self.proto {
+                            Some(proto) => return proto.get().get_property(key),
                             None => return None,
                         }
                     }
@@ -265,20 +287,22 @@ impl Object {
             },
             ObjectKind::Function(func) => match key {
                 Value::String(x) => {
-                    let key_: &str = x.get();
-                    if key_ == "prototype" {
+                    let key_ = x.get();
+                    if (&*key_).eq("prototype") {
+                        drop(key_);
                         let mut property = Property::new();
-                        property.key = key;
+                        property.key = Value::String(x);
                         property.value = func.get().prototype.clone();
                         return Some(property);
                     } else {
+                        let key = Value::String(x.clone());
                         for property in self.properties.get().iter() {
                             if property.key == key {
                                 return Some(property.clone());
                             }
                         }
-                        match self.proto {
-                            Some(proto) => return proto.get_property(key),
+                        match &self.proto {
+                            Some(proto) => return proto.get().get_property(key),
                             None => return None,
                         }
                     }
@@ -287,18 +311,24 @@ impl Object {
             },
             ObjectKind::Array(array) => match key {
                 Value::String(x) => {
-                    let key_: &str = x.get();
-                    if key_ == "length" {
+                    let key_ = x.get();
+                    if (&*key_).eq("prototype") {
+                        drop(key_);
                         let mut property = Property::new();
-                        property.key = key;
-                        property.value = Value::Number(array.len() as _);
+                        property.key = Value::String(x.clone());
+                        property.value = Value::Number(array.get().len() as _);
                         return Some(property);
                     } else {
-                        return self.proto.as_ref().unwrap().get_property(key);
+                        return self
+                            .proto
+                            .as_ref()
+                            .unwrap()
+                            .get()
+                            .get_property(Value::String(x.clone()));
                     }
                 }
                 Value::Number(x) => {
-                    if x >= array.len() as f64 {
+                    if x >= array.get().len() as f64 {
                         for _ in 0..=x as usize {
                             array.get_mut().push(Value::Null);
                         }
@@ -317,8 +347,8 @@ impl Object {
                 return Some(property.clone());
             }
         }
-        match self.proto {
-            Some(proto) => return proto.get_property(key),
+        match &self.proto {
+            Some(proto) => return proto.get().get_property(key),
             None => return None,
         }
     }
@@ -326,7 +356,7 @@ impl Object {
         match &self.kind {
             ObjectKind::Array(array) => match key {
                 Value::Number(x) => {
-                    if x >= array.len() as f64 {
+                    if x >= array.get().len() as f64 {
                         for _ in 0..=x as usize {
                             array.get_mut().push(Value::Null);
                         }
@@ -351,7 +381,7 @@ impl Object {
     }
 }
 
-#[derive(GcObject, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Property {
     pub key: Value,
     pub value: Value,

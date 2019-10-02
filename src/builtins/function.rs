@@ -1,15 +1,15 @@
 use super::*;
 use crate::interpreter::*;
 use crate::*;
-use pgc::*;
+
 use value::*;
 
-pub fn apply(this: Value, args: &[Value]) -> Result<Value, Value> {
+pub extern "C" fn apply(this: Value, args: &[Value]) -> Result<Value, Value> {
     let this_val = args[0].clone();
     match &args[1] {
-        Value::Object(object) => match &object.kind {
+        Value::Object(object) => match &object.get().kind {
             ObjectKind::Array(args) => {
-                return call_value(this, this_val, &args);
+                return call_value(this, this_val, &args.get());
             }
             _ => return Ok(Value::Null),
         },
@@ -19,16 +19,16 @@ pub fn apply(this: Value, args: &[Value]) -> Result<Value, Value> {
 
 pub fn function_object() {
     {
-        let object = Rooted::new(Object {
+        let object = Gc::new(Object {
             kind: ObjectKind::Ordinary,
             proto: None,
             properties: Gc::new(vec![]),
         });
-        let state = STATE.lock();
+        let mut state = STATE.lock();
 
-        state.get_mut().static_variables.insert(
+        state.static_variables.insert(
             Value::String(Gc::new("Function".to_owned())),
-            Value::Object(object.inner()),
+            Value::Object(object),
         );
     }
     function_proto_reg_fns();
@@ -38,7 +38,6 @@ fn function_proto_reg_fns() {
     let object = {
         let state = STATE.lock();
         state
-            .get()
             .static_variables
             .get(&Value::String(Gc::new("Function".to_owned())))
             .cloned()

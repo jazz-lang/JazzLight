@@ -372,9 +372,11 @@ impl<T: ?Sized + Debug> Debug for AtomicRefCell<T> {
         write!(f, "AtomicRefCell {{ ... }}")
     }
 }
+/*
 use pgc::*;
 unsafe impl<T: GcObject + Sync> GcObject for AtomicRefCell<T> {
     fn references(&self) -> Vec<Gc<dyn GcObject>> {
         self.borrow().references()
     }
 }
+*/

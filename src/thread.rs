@@ -2,13 +2,11 @@ thread_local!();
 
 use crate::*;
 use parking_lot::{Condvar, Mutex};
-use pgc::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 use value::*;
 
-#[derive(GcObject)]
 pub enum FrameData {
     ExitFrame,
     Frame {
@@ -17,18 +15,18 @@ pub enum FrameData {
         locals: Gc<HashMap<u32, Value>>,
         this: Value,
         env: Value,
+        ctor_call: bool,
     },
 }
 
 pub struct Threads {
-    pub threads: Mutex<Vec<Arc<Gc<JThread>>>>,
+    pub threads: Mutex<Vec<Arc<Ptr<JThread>>>>,
     pub cond_join: Condvar,
 }
 
-#[derive(GcObject)]
 pub struct JThread {
     pub pc: usize,
-    pub stack: Gc<Vec<Value>>,
+    pub stack: Vec<Value>,
     pub locals: Gc<HashMap<u32, Value>>,
     pub env: Value,
     pub this: Value,
@@ -36,16 +34,59 @@ pub struct JThread {
     pub exceptions: Vec<FrameData>,
 }
 
+/*
+unsafe impl GcObject for JThread {
+    fn references(&self) -> Vec<Gc<dyn GcObject>> {
+        let mut v: Vec<Gc<dyn GcObject>> = vec![];
+        for value in self.stack.iter() {
+            v.extend(value.references());
+        }
+        v.extend(self.this.references());
+        v.extend(self.env.references());
+        v.extend(self.frames.references());
+        v.extend(self.exceptions.references());
+        v.push(self.locals);
+        for (_, val) in self.locals.iter() {
+            println!("{}", val);
+        }
+
+        v
+    }
+}
+*/
+
+pub struct Ptr<T> {
+    ptr: *mut T,
+}
+
+unsafe impl<T: Send> Send for Ptr<T> {}
+unsafe impl<T: Sync> Sync for Ptr<T> {}
+
+impl<T> Ptr<T> {
+    pub fn new(val: T) -> Self {
+        Self {
+            ptr: Box::into_raw(Box::new(val)),
+        }
+    }
+
+    pub fn get_mut(&self) -> &mut T {
+        unsafe { &mut *self.ptr }
+    }
+    pub fn get(&self) -> &T {
+        unsafe { &*self.ptr }
+    }
+}
+
 thread_local!(
-    pub static THREAD: RefCell<Arc<Gc<JThread>>> =
-        { RefCell::new(Arc::new(Gc::new(JThread::new()))) };
+    pub static THREAD: RefCell<Arc<Ptr<JThread>>> =
+        { RefCell::new(Arc::new(Ptr::new(JThread::new()))) };
 );
 
 impl JThread {
     pub fn new() -> Self {
         Self {
             pc: 0,
-            stack: Gc::new(vec![]),
+            stack: vec![],
             locals: Gc::new(HashMap::new()),
             env: Value::Null,
             this: Value::Null,
@@ -58,7 +99,7 @@ impl JThread {
         self.frames.push(FrameData::ExitFrame);
     }
 
-    pub fn push_frame(&mut self, m: Option<Gc<Module>>) {
+    pub fn push_frame(&mut self, m: Option<Gc<Module>>, ctor: bool) {
         if self.frames.len() >= 999 {
             panic!("CallStack overflow");
         }
@@ -67,18 +108,20 @@ impl JThread {
             module: m,
             env: self.env.clone(),
             this: self.this.clone(),
-            locals: self.locals,
+            locals: self.locals.clone(),
+            ctor_call: ctor,
         })
     }
-    pub fn pop_frame(&mut self, m: Option<&mut Gc<Module>>) -> bool {
+    pub fn pop_frame(&mut self, m: Option<&mut Gc<Module>>) -> (bool, bool) {
         match self.frames.pop().unwrap() {
-            FrameData::ExitFrame => true,
+            FrameData::ExitFrame => (true, false),
             FrameData::Frame {
                 pc,
                 env,
                 this,
                 module,
                 locals,
+                ctor_call,
             } => {
                 self.pc = pc;
                 self.env = env;
@@ -89,13 +132,13 @@ impl JThread {
                     }
                 }
                 self.locals = locals;
-                false
+                (false, ctor_call)
             }
         }
     }
 
     pub fn pop(&mut self) -> Result<Value, Value> {
-        match self.stack.get_mut().pop() {
+        match self.stack.pop() {
             Some(val) => Ok(val),
             None => Err(Value::String(Gc::new(format!(
                 "No value to pop at {:04}",
@@ -104,10 +147,11 @@ impl JThread {
         }
     }
     pub fn push(&mut self, value: Value) {
-        self.stack.get_mut().push(value);
+        self.stack.push(value);
     }
 }
 
+/*
 unsafe impl GcObject for Threads {
     fn references(&self) -> Vec<Gc<dyn GcObject>> {
         let lock = self.threads.lock();
@@ -117,7 +161,7 @@ unsafe impl GcObject for Threads {
         }
         v
     }
-}
+}*/
 
 impl Threads {
     pub fn new() -> Threads {
@@ -134,7 +178,7 @@ impl Threads {
         });
     }
 
-    pub fn attach_thread(&self, thread: Arc<Gc<JThread>>) {
+    pub fn attach_thread(&self, thread: Arc<Ptr<JThread>>) {
         let mut threads = self.threads.lock();
         threads.push(thread);
     }
@@ -157,7 +201,7 @@ impl Threads {
 
     pub fn each<F>(&self, mut f: F)
     where
-        F: FnMut(&Arc<Gc<JThread>>),
+        F: FnMut(&Arc<Ptr<JThread>>),
     {
         let threads = self.threads.lock();
 

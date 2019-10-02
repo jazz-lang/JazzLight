@@ -1,52 +1,43 @@
 use super::*;
 use crate::*;
-use pgc::*;
+
 use value::*;
 
-pub fn to_string(this: Value, _: &[Value]) -> Result<Value, Value> {
+pub extern "C" fn to_string(this: Value, _: &[Value]) -> Result<Value, Value> {
     Ok(Value::String(Gc::new(this.to_string())))
 }
 
-pub fn ctor(_: Value, args: &[Value]) -> Result<Value, Value> {
-    println!("ctor");
+pub extern "C" fn ctor(_: Value, args: &[Value]) -> Result<Value, Value> {
     let state = STATE.lock();
     let object: Gc<Object> = match state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Object".to_owned())))
         .unwrap()
     {
         Value::Object(object) => object.clone(),
         _ => crate::unreachable(),
     };
     drop(state);
-    if let Value::Object(proto) = args[0] {
-        return Ok(Value::Object(
-            Rooted::new(Object {
-                proto: Some(proto),
-                properties: Rooted::new(vec![]).inner(),
-                kind: ObjectKind::Ordinary,
-            })
-            .inner(),
-        ));
+    if let Value::Object(proto) = &args[0] {
+        return Ok(Value::Object(Gc::new(Object {
+            proto: Some(proto.clone()),
+            properties: Gc::new(vec![]),
+            kind: ObjectKind::Ordinary,
+        })));
     } else {
-        return Ok(Value::Object(
-            Rooted::new(Object {
-                proto: Some(object),
-                properties: Rooted::new(vec![]).inner(),
-                kind: ObjectKind::Ordinary,
-            })
-            .inner(),
-        ));
+        return Ok(Value::Object(Gc::new(Object {
+            proto: Some(object),
+            properties: Gc::new(vec![]),
+            kind: ObjectKind::Ordinary,
+        })));
     }
 }
 
 pub fn object_proto() {
     let state = STATE.lock();
     let object: Gc<Object> = match state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Object".to_owned())))
         .unwrap()
     {
         Value::Object(object) => object.clone(),

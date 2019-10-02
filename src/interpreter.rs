@@ -26,6 +26,7 @@ impl JThread {
                                 this,
                                 env,
                                 module: m,
+                                ctor_call: _,
                             }) = self.exceptions.pop()
                             {
                                 self.pc = pc;
@@ -47,10 +48,8 @@ impl JThread {
             };
         }
         'inner: while self.pc < module.get().code.len() {
-            let op = unsafe { module.get().code.get_unchecked(self.pc) };
-            println!("{:04} {:?}", self.pc, op);
+            let op = unsafe { module.get().code.get_unchecked(self.pc).clone() };
             self.pc += 1;
-            let op: Op = *op;
             use Op::*;
             match op {
                 ConstNull => self.push(Value::Null),
@@ -69,9 +68,13 @@ impl JThread {
                 }
                 LoadGlobal(idx) => {
                     let global = module.get().globals.get(idx as usize).cloned();
+                    let new_string = Gc::new("".to_owned());
                     match global {
                         Some(val) => match val {
-                            Value::String(s) => self.push(Value::String(strcpy(s))),
+                            Value::String(s) => {
+                                *new_string.get_mut() = s.get().clone();
+                                self.push(Value::String(new_string));
+                            }
                             _ => self.push(val),
                         },
                         None => self.push(Value::Null),
@@ -79,7 +82,7 @@ impl JThread {
                 }
                 LoadStatic => {
                     let value = catch!(self.pop());
-                    let state: parking_lot::MutexGuard<Gc<GlobalState>> = STATE.lock();
+                    let state: parking_lot::MutexGuard<GlobalState> = STATE.lock();
                     let var = state
                         .static_variables
                         .get(&value)
@@ -94,7 +97,7 @@ impl JThread {
                         Value::Object(object) => {
                             let key = catch!(self.pop());
 
-                            let property = object.get_property(key);
+                            let property = object.get().get_property(key);
                             if let Some(property) = property {
                                 self.push(property.value.clone());
                             } else {
@@ -112,27 +115,28 @@ impl JThread {
 
                     match object {
                         Value::Object(obj) => {
-                            obj.set_property(field, value);
+                            obj.get_mut().set_property(field, value);
                         }
                         _ => crate::unreachable(),
                     }
                 }
                 LoadEnv(var) | StoreEnv(var) => {
                     let obj = self.env.unwrap_object();
+                    let obj = obj.get();
                     match &obj.kind {
                         ObjectKind::Array(array) => {
                             #[cfg(debug_assertions)]
                             {
-                                if var as usize >= array.len() {
+                                if var as usize >= array.get().len() {
                                     panic!("Internal error");
                                 }
                             }
                             if let StoreEnv(_) = op {
-                                array.get_mut()[var as usize] =
-                                    self.stack.get().last().cloned().unwrap();
+                                array.get_mut()[var as usize] = self.stack.last().cloned().unwrap();
                             } else {
                                 unsafe {
-                                    let value: &Value = array.get_mut().get_unchecked(var as usize);
+                                    let array = array.get();
+                                    let value: &Value = array.get_unchecked(var as usize);
                                     self.push(value.clone());
                                 }
                             }
@@ -147,24 +151,23 @@ impl JThread {
                 StoreStatic => {
                     let key = catch!(self.pop());
                     let value = catch!(self.pop());
-                    let state = STATE.lock();
-                    state.get_mut().static_variables.insert(key, value);
+                    let mut state = STATE.lock();
+                    state.static_variables.insert(key, value);
                 }
                 Ctor(argc) => {
-                    pgc::gc_collect();
-                    dbg!("here");
-                    let object_proto = Rooted::new(Object {
+                    let object_proto = Gc::new(Object {
                         kind: ObjectKind::Ordinary,
                         proto: None,
-                        properties: Rooted::new(vec![]).inner(),
+                        properties: Gc::new(vec![]),
                     });
-                    let value = Rooted::new(catch!(self.pop()));
+                    let value = catch!(self.pop());
                     let mut args = vec![];
                     for _ in 0..argc {
                         args.push(catch!(self.pop()));
                     }
-                    if let Value::Object(object) = *value.inner() {
-                        if let ObjectKind::Function(func) = object.kind {
+                    if let Value::Object(object) = &value {
+                        if let ObjectKind::Function(func) = &object.get().kind {
+                            let func = func.get();
                             if func.argc != -1 {
                                 if args.len() > func.argc as usize {
                                     throw!(Value::String(
@@ -176,7 +179,6 @@ impl JThread {
                                     ));
                                 }
                             }
-                            dbg!("here");
                             object_proto.get_mut().proto =
                                 Some(match func.prototype.to_object().unwrap() {
                                     Value::Object(obj) => obj,
@@ -186,28 +188,27 @@ impl JThread {
                                 let fun: extern "C" fn(Value, &[Value]) -> Result<Value, Value> =
                                     unsafe { std::mem::transmute(func.addr) };
 
-                                let result =
-                                    catch!(fun(Value::Object(object_proto.inner()), &args));
+                                let result = catch!(fun(Value::Object(object_proto), &args));
                                 self.push(result);
                             } else {
-                                self.push_frame(Some(module));
+                                self.push_frame(Some(module), true);
                                 self.env = func.env.clone();
                                 self.locals = Gc::new(HashMap::new());
-                                self.this = Value::Object(object_proto.inner());
+                                self.this = Value::Object(object_proto);
                                 self.pc = func.addr;
-                                module = func.module.unwrap();
+                                module = func.module.clone().unwrap();
                                 for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
                             }
                         } else {
-                            let string = Rooted::new("constructor".to_owned());
-                            dbg!("here");
-                            let property = object.get_property(Value::String(string.inner()));
+                            let string = Gc::new("constructor".to_owned());
+                            let property = object.get().get_property(Value::String(string));
                             if let Some(ctor) = property {
                                 if let Value::Object(object) = ctor.value {
-                                    if let ObjectKind::Function(func) = object.kind.clone() {
-                                        object_proto.get_mut().proto = Some(object);
+                                    if let ObjectKind::Function(func) = object.get().kind.clone() {
+                                        let func = func.get();
+                                        object_proto.get_mut().proto = Some(object.clone());
                                         if func.is_native {
                                             let fun: extern "C" fn(
                                                 Value,
@@ -215,20 +216,16 @@ impl JThread {
                                             )
                                                 -> Result<Value, Value> =
                                                 unsafe { std::mem::transmute(func.addr) };
-                                            dbg!("here");
-                                            dbg!("here");
-                                            let result = catch!(fun(
-                                                Value::Object(object_proto.inner()),
-                                                &args
-                                            ));
+                                            let result =
+                                                catch!(fun(Value::Object(object_proto), &args));
                                             self.push(result);
                                         } else {
-                                            self.push_frame(Some(module));
+                                            self.push_frame(Some(module), true);
                                             self.env = func.env.clone();
                                             self.locals = Gc::new(HashMap::new());
-                                            self.this = Value::Object(object_proto.inner());
+                                            self.this = Value::Object(object_proto);
                                             self.pc = func.addr;
-                                            module = func.module.unwrap();
+                                            module = func.module.clone().unwrap();
                                             for (i, arg) in args.iter().enumerate() {
                                                 self.locals.get_mut().insert(i as _, arg.clone());
                                             }
@@ -238,7 +235,7 @@ impl JThread {
                             } else {
                                 throw!(Value::String(Gc::new(format!(
                                     "Function expected,found {}",
-                                    value.inner()
+                                    value
                                 ))));
                             }
                         }
@@ -247,13 +244,14 @@ impl JThread {
                     }
                 }
                 Invoke(argc) | TailRec(argc) => {
-                    let value = catch!(self.pop());
                     let mut args = vec![];
+                    let value = self.pop().unwrap();
                     for _ in 0..argc {
-                        args.push(catch!(self.pop()));
+                        args.push(self.pop().unwrap());
                     }
                     if let Value::Object(object) = value {
-                        if let ObjectKind::Function(func) = object.kind {
+                        if let ObjectKind::Function(func) = &object.get().kind {
+                            let func = func.get();
                             if func.argc != -1 {
                                 if args.len() > func.argc as usize {
                                     throw!(Value::String(
@@ -268,19 +266,18 @@ impl JThread {
                             if func.is_native {
                                 let fun: extern "C" fn(Value, &[Value]) -> Result<Value, Value> =
                                     unsafe { std::mem::transmute(func.addr) };
-
                                 let result = catch!(fun(Value::Null, &args));
                                 self.push(result);
                             } else {
                                 if let TailRec(_) = op {
                                     self.pop_frame(Some(&mut module));
                                 }
-                                self.push_frame(Some(module));
+                                self.push_frame(Some(module), false);
                                 self.env = func.env.clone();
                                 self.locals = Gc::new(HashMap::new());
                                 self.this = Value::Null;
                                 self.pc = func.addr;
-                                module = func.module.unwrap();
+                                module = func.module.clone().unwrap();
                                 for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
@@ -298,17 +295,17 @@ impl JThread {
                     for _ in 0..count {
                         values.push(catch!(self.pop()));
                     }
-                    let array = Rooted::new(values);
+                    let array = Gc::new(values);
                     let state = STATE.lock();
                     let array_proto = state
                         .static_variables
-                        .get(&Value::String(Rooted::new("Array".to_owned()).inner()))
+                        .get(&Value::String(Gc::new("Array".to_owned())))
                         .unwrap()
                         .unwrap_object();
                     let object = Object {
                         proto: Some(array_proto),
-                        kind: ObjectKind::Array(array.inner()),
-                        properties: Rooted::new(vec![]).inner(),
+                        kind: ObjectKind::Array(array),
+                        properties: Gc::new(vec![]),
                     };
                     self.push(Value::Object(Gc::new(object)));
                 }
@@ -320,7 +317,8 @@ impl JThread {
                         args.push(catch!(self.pop()));
                     }
                     if let Value::Object(object) = value {
-                        if let ObjectKind::Function(func) = object.kind {
+                        if let ObjectKind::Function(func) = &object.get().kind {
+                            let func = func.get();
                             if func.argc != -1 {
                                 if args.len() > func.argc as usize {
                                     throw!(Value::String(
@@ -339,12 +337,12 @@ impl JThread {
                                 let result = catch!(fun(this, &args));
                                 self.push(result);
                             } else {
-                                self.push_frame(Some(module));
+                                self.push_frame(Some(module), false);
                                 self.env = func.env.clone();
                                 self.this = this;
                                 self.locals = Gc::new(HashMap::new());
                                 self.pc = func.addr;
-                                module = func.module.unwrap();
+                                module = func.module.clone().unwrap();
                                 for (i, arg) in args.iter().enumerate() {
                                     self.locals.get_mut().insert(i as _, arg.clone());
                                 }
@@ -357,25 +355,31 @@ impl JThread {
                     }
                 }
                 Return => {
-                    let exit = self.pop_frame(Some(&mut module));
+                    let this = self.this.clone();
+                    let (exit, ctor) = self.pop_frame(Some(&mut module));
                     if exit {
                         return match self.pop() {
                             Ok(val) => val,
                             Err(_) => Value::Null,
                         };
                     } else {
-                        if self.stack.is_empty() {
-                            self.push(Value::Null);
+                        if ctor {
+                            self.push(this);
+                        } else {
+                            if self.stack.is_empty() {
+                                self.push(Value::Null);
+                            }
                         }
                     }
                 }
                 CatchIp(ip) => {
                     let frame = FrameData::Frame {
-                        module: Some(module),
+                        module: Some(module.clone()),
                         pc: ip as _,
                         env: self.env.clone(),
                         locals: self.locals.clone(),
                         this: self.this.clone(),
+                        ctor_call: false,
                     };
                     self.exceptions.push(frame);
                 }
@@ -384,15 +388,15 @@ impl JThread {
                     catch!(Err(value));
                 }
                 MakeEnv(count) => {
-                    let function = self.stack.get().last().cloned().unwrap();
+                    let function = self.stack.last().cloned().unwrap();
                     if let Value::Object(object) = function {
-                        if let ObjectKind::Function(func) = &object.kind {
+                        if let ObjectKind::Function(func) = &object.get().kind {
                             let values = (0..count)
                                 .into_iter()
                                 .map(|_| self.pop().unwrap_or(Value::Null))
                                 .collect::<Vec<Value>>();
                             if let Value::Object(object) = &func.get().env {
-                                if let ObjectKind::Array(array) = &object.kind {
+                                if let ObjectKind::Array(array) = &object.get().kind {
                                     array.get_mut().extend(values);
                                 }
                             } else {
@@ -571,11 +575,10 @@ impl JThread {
                             _ => self.push(Value::Bool(false)),
                         },
                         Value::Object(x) => match rhs {
-                            Value::Object(y) => match &x.kind {
-                                ObjectKind::Array(array) => match &y.kind {
-                                    ObjectKind::Array(yarray) => {
-                                        self.push(Value::Bool(array.len() > yarray.len()))
-                                    }
+                            Value::Object(y) => match &x.get().kind {
+                                ObjectKind::Array(array) => match &y.get().kind {
+                                    ObjectKind::Array(yarray) => self
+                                        .push(Value::Bool(array.get().len() > yarray.get().len())),
                                     _ => self.push(Value::Bool(false)),
                                 },
                                 _ => self.push(Value::Bool(false)),
@@ -583,7 +586,9 @@ impl JThread {
                             _ => self.push(Value::Bool(false)),
                         },
                         Value::String(x) => match rhs {
-                            Value::String(y) => self.push(Value::Bool(x.len() > y.len())),
+                            Value::String(y) => {
+                                self.push(Value::Bool(x.get().len() > y.get().len()))
+                            }
                             _ => self.push(Value::Bool(false)),
                         },
                         _ => self.push(Value::Bool(false)),
@@ -628,11 +633,10 @@ impl JThread {
                             _ => self.push(Value::Bool(false)),
                         },
                         Value::Object(x) => match rhs {
-                            Value::Object(y) => match &x.kind {
-                                ObjectKind::Array(array) => match &y.kind {
-                                    ObjectKind::Array(yarray) => {
-                                        self.push(Value::Bool(array.len() < yarray.len()))
-                                    }
+                            Value::Object(y) => match &x.get().kind {
+                                ObjectKind::Array(array) => match &y.get().kind {
+                                    ObjectKind::Array(yarray) => self
+                                        .push(Value::Bool(array.get().len() < yarray.get().len())),
                                     _ => self.push(Value::Bool(false)),
                                 },
                                 _ => self.push(Value::Bool(false)),
@@ -640,7 +644,9 @@ impl JThread {
                             _ => self.push(Value::Bool(false)),
                         },
                         Value::String(x) => match rhs {
-                            Value::String(y) => self.push(Value::Bool(x.len() < y.len())),
+                            Value::String(y) => {
+                                self.push(Value::Bool(x.get().len() < y.get().len()))
+                            }
                             _ => self.push(Value::Bool(false)),
                         },
                         _ => self.push(Value::Bool(false)),
@@ -675,7 +681,12 @@ impl JThread {
                         _ => (),
                     }
                 }
-
+                LoadThis => self.push(self.this.clone()),
+                StoreThis => {
+                    let last = self.stack.last().unwrap().clone();
+                    self.this = last;
+                    let _ = self.pop();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -689,38 +700,39 @@ impl JThread {
 
 pub fn call_value(value: Value, this: Value, args: &[Value]) -> Result<Value, Value> {
     if let Value::Object(object) = value {
-        if let ObjectKind::Function(func) = object.kind {
-            if func.argc != -1 {
-                if args.len() > func.argc as usize {
+        if let ObjectKind::Function(func) = &object.get().kind {
+            let fun = func.get();
+            if func.get().argc != -1 {
+                if args.len() > fun.argc as usize {
                     return Err(Value::String(Gc::new("Too many arguments".to_owned())));
-                } else if args.len() < func.argc as usize {
+                } else if args.len() < fun.argc as usize {
                     return Err(Value::String(Gc::new("Too many arguments".to_owned())));
                 }
             }
-            if func.is_native {
+            if fun.is_native {
                 let fun: extern "C" fn(Value, &[Value]) -> Result<Value, Value> =
-                    unsafe { std::mem::transmute(func.addr) };
+                    unsafe { std::mem::transmute(fun.addr) };
 
                 return fun(this, args);
             } else {
                 let val = THREAD.with(|thread| {
                     let thread = thread.borrow();
-                    let thread: &mut JThread = thread.get_mut();
+                    let thread: &mut JThread = &mut thread.get_mut();
                     let pc = thread.pc;
-                    let locals = thread.locals;
+                    let locals = thread.locals.clone();
                     let env = thread.env.clone();
                     let tthis = thread.this.clone();
-                    thread.pc = func.addr;
+                    thread.pc = fun.addr;
                     thread.locals = Gc::new(HashMap::new());
                     for i in 0..args.len() {
                         thread.locals.get_mut().insert(i as _, args[i].clone());
                     }
 
                     thread.this = this;
-                    thread.env = func.env.clone();
+                    thread.env = fun.env.clone();
                     thread.exit_frame();
 
-                    let value = thread.run(func.module.unwrap());
+                    let value = thread.run(fun.module.as_ref().unwrap().clone());
                     thread.pc = pc;
                     thread.locals = locals;
                     thread.env = env;

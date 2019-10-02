@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate pgc_derive;
-
 pub mod acell;
 pub mod builtins;
 pub mod bytecode;
@@ -8,12 +5,11 @@ pub mod compiler;
 pub mod interpreter;
 pub mod thread;
 pub mod value;
-use pgc::*;
+
 use thread::*;
 
-#[derive(GcObject, Debug)]
+#[derive(Debug)]
 pub struct Module {
-    #[unsafe_ignore_trace]
     pub code: Vec<bytecode::Op>,
     pub globals: Vec<value::Value>,
     pub exports: value::Value,
@@ -34,47 +30,61 @@ use std::collections::HashMap;
 use parking_lot::Mutex;
 use value::*;
 
-#[derive(GcObject)]
 pub struct GlobalState {
     pub static_variables: HashMap<Value, Value>,
     pub threads: Threads,
 }
 
 lazy_static::lazy_static!(
-    pub static ref STATE: Mutex<Gc<GlobalState>> = {
-        let state = Gc::new(GlobalState {
+    pub static ref STATE: Mutex<GlobalState> = {
+        let mut state = GlobalState {
             static_variables: HashMap::new(),
             threads: Threads::new()
-        });
-        add_root(state);
-        let obj = Rooted::new("Object".to_owned());
-        let object = Rooted::new(Object {
+        };
+        let obj = Gc::new("Object".to_owned());
+        let object = Gc::new(Object {
                 proto: None,
-                properties: Rooted::new(vec![]).inner(),
+                properties: Gc::new(vec![]),
                 kind: ObjectKind::Ordinary
             });
-        state.get_mut().static_variables.insert(Value::String(obj.inner()),Value::Object(object.inner()));
+        state.static_variables.insert(Value::String(obj),Value::Object(object));
 
 
         Mutex::new(state)
     };
 );
 
+/*
+unsafe impl GcObject for GlobalState {
+    fn references(&self) -> Vec<Gc<dyn GcObject>> {
+        let mut v: Vec<Gc<dyn GcObject>> = vec![];
+        for (key, val) in self.static_variables.iter() {
+            v.extend(key.references());
+            v.extend(val.references());
+        }
+        let _ = self.threads.each(|thread| {
+            v.push(**thread);
+        });
+        v
+    }
+}
+*/
 pub fn init_builtins() {
     builtins::function::function_object();
     builtins::object::object_proto();
     builtins::array::array_object();
+    builtins::builtin_fns();
 }
 
 pub fn run_module(module: Gc<Module>) -> Value {
     THREAD.with(|thread| {
         let thread = thread.borrow();
-        let thread: &mut JThread = thread.get_mut();
+        let mut thread = thread.get_mut();
         let pc = thread.pc;
         let env = thread.env.clone();
         let this = thread.this.clone();
-        let locals = thread.locals;
-        thread.locals = Rooted::new(HashMap::new()).inner();
+        let locals = thread.locals.clone();
+        thread.locals = Gc::new(HashMap::new());
         thread.pc = 0;
         thread.env = Value::Null;
         thread.this = Value::Null;
@@ -104,7 +114,6 @@ where
             let state = STATE.lock();
             state.threads.detach_current_thread();
         }
-        gc_detach_current_thread();
         res
     })
 }
@@ -118,5 +127,72 @@ pub fn unreachable() -> ! {
     #[cfg(not(debug_assertions))]
     {
         unsafe { std::hint::unreachable_unchecked() }
+    }
+}
+
+use std::sync::Arc;
+
+pub struct Gc<T: ?Sized> {
+    val: Arc<acell::AtomicRefCell<T>>,
+}
+impl<T> Gc<T> {
+    pub fn new(val: T) -> Self {
+        Gc {
+            val: Arc::new(acell::AtomicRefCell::new(val)),
+        }
+    }
+}
+
+impl<T: ?Sized> Gc<T> {
+    pub fn ref_eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.val, &other.val)
+    }
+
+    pub fn get(&self) -> acell::AtomicRef<'_, T> {
+        self.val.borrow()
+    }
+    pub fn get_mut(&self) -> acell::AtomicRefMut<'_, T> {
+        self.val.borrow_mut()
+    }
+}
+
+impl<T: ?Sized> Clone for Gc<T> {
+    fn clone(&self) -> Self {
+        Self {
+            val: self.val.clone(),
+        }
+    }
+}
+
+use std::fmt;
+impl<T: ?Sized + fmt::Debug> fmt::Debug for Gc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.get())
+    }
+}
+
+impl<T: fmt::Display> fmt::Display for Gc<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", *self.get())
+    }
+}
+
+impl<T: PartialEq> PartialEq for Gc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.get().eq(&other.get())
+    }
+}
+impl<T: Eq> Eq for Gc<T> {}
+
+impl<T: PartialOrd> PartialOrd for Gc<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.get().partial_cmp(&other.get())
+    }
+}
+
+use std::hash::*;
+impl<T: Hash> Hash for Gc<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.get().hash(state);
     }
 }

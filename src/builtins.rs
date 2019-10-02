@@ -4,20 +4,17 @@ pub mod object;
 
 use crate::value::*;
 use crate::*;
-use pgc::*;
 
 pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
     let state = STATE.lock();
     let object = state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Function".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Function".to_owned())))
         .cloned()
         .unwrap();
     let object_proto = state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Object".to_owned())))
         .cloned()
         .unwrap();
     let object_proto = match object_proto {
@@ -28,7 +25,7 @@ pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
         Value::Object(object) => object,
         _ => crate::unreachable(),
     };
-    let fun = Rooted::new(Function {
+    let fun = Gc::new(Function {
         module: None,
         addr: f,
         is_native: true,
@@ -36,15 +33,12 @@ pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
         env: Value::Null,
         prototype: Value::Object(object_proto),
     });
-    let func = ObjectKind::Function(fun.inner());
-    let function = Value::Object(
-        Rooted::new(Object {
-            proto: Some(object),
-            kind: func,
-            properties: Rooted::new(vec![]).inner(),
-        })
-        .inner(),
-    );
+    let func = ObjectKind::Function(fun);
+    let function = Value::Object(Gc::new(Object {
+        proto: Some(object),
+        kind: func,
+        properties: Gc::new(vec![]),
+    }));
 
     function
 }
@@ -52,15 +46,13 @@ pub fn new_builtin_fn(f: usize, argc: i32) -> Value {
 pub fn new_func(fun: Gc<Function>, argc: i32) -> Value {
     let state = STATE.lock();
     let object = state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Function".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Function".to_owned())))
         .cloned()
         .unwrap();
     let object_proto = state
-        .get()
         .static_variables
-        .get(&Value::String(Rooted::new("Object".to_owned()).inner()))
+        .get(&Value::String(Gc::new("Object".to_owned())))
         .cloned()
         .unwrap();
     let object_proto = match object_proto {
@@ -77,14 +69,27 @@ pub fn new_func(fun: Gc<Function>, argc: i32) -> Value {
     fun.get_mut().argc = argc;
 
     let func = ObjectKind::Function(fun);
-    let function = Value::Object(
-        Rooted::new(Object {
-            proto: Some(object),
-            kind: func,
-            properties: Rooted::new(vec![]).inner(),
-        })
-        .inner(),
-    );
+    let function = Value::Object(Gc::new(Object {
+        proto: Some(object),
+        kind: func,
+        properties: Gc::new(vec![]),
+    }));
 
     function
+}
+
+pub extern "C" fn println(_: Value, args: &[Value]) -> Result<Value, Value> {
+    for arg in args.iter() {
+        print!("{}", arg);
+    }
+    println!();
+    Ok(Value::Null)
+}
+
+pub fn builtin_fns() {
+    let println = new_builtin_fn(println as _, -1);
+    let mut state = STATE.lock();
+    state
+        .static_variables
+        .insert(Value::String(Gc::new("println".to_owned())), println);
 }

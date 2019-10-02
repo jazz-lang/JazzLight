@@ -25,9 +25,7 @@ pub struct Options {
 }
 
 fn main() {
-    pgc::enable_gc_stats();
     init_builtins();
-
     let ops = Options::from_args();
     if ops.file.is_none() {
         eprintln!("Please select file");
@@ -61,5 +59,5 @@ fn main() {
         println!();
     }
 
-    println!("{}", run_module(m.inner()));
+    println!("{}", run_module(m));
 }

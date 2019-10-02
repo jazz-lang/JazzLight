@@ -1,9 +1,7 @@
-var foo = new Object(null)
-
-foo.x = 42
-
-foo.bar = function() {
-    return 3
+var foo = function(x) {
+    return x
 }
 
-return foo.bar()
+var array = new Array(1,2,3,4)
+
+println(foo.apply(null,new Array(2)))

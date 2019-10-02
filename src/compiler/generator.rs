@@ -673,14 +673,14 @@ pub fn compile(ast: Vec<P<Expr>>) -> GeneratorContext {
 }
 
 /// Construct new VM Module from compilation context.
-pub fn module_from_context(ctx: &mut GeneratorContext) -> Rooted<Module> {
-    let exports = Rooted::new(Object {
+pub fn module_from_context(ctx: &mut GeneratorContext) -> Gc<Module> {
+    let exports = Gc::new(Object {
         kind: ObjectKind::Ordinary,
         proto: None,
         properties: Gc::new(vec![]),
     });
-    let m = Rooted::new(Module {
-        exports: Value::Object(exports.inner()),
+    let m = Gc::new(Module {
+        exports: Value::Object(exports),
         code: vec![],
         globals: vec![Value::Null; ctx.g.borrow().table.len()],
     });
@@ -688,19 +688,19 @@ pub fn module_from_context(ctx: &mut GeneratorContext) -> Rooted<Module> {
     for (i, g) in ctx.g.borrow().table.iter().enumerate() {
         match g {
             Global::Func(off, nargs) => {
-                let func = Rooted::new(Function {
+                let func = Gc::new(Function {
                     is_native: false,
                     addr: *off as _,
                     argc: *nargs,
                     env: Value::Null,
                     prototype: Value::Null,
-                    module: Some(m.inner()),
+                    module: Some(m.clone()),
                 });
 
-                m.get_mut().globals[i] = crate::builtins::new_func(func.inner(), *nargs);
+                m.get_mut().globals[i] = crate::builtins::new_func(func, *nargs);
             }
             Global::Str(s) => {
-                m.get_mut().globals[i] = Value::String(Rooted::new(s.to_owned()).inner());
+                m.get_mut().globals[i] = Value::String(Gc::new(s.to_owned()));
             }
             Global::Float(x) => {
                 m.get_mut().globals[i] = Value::Number(f64::from_bits(*x));
