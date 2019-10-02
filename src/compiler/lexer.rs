@@ -46,11 +46,8 @@ impl Lexer {
             "throw" => TokenKind::Throw,
             "new" => TokenKind::New,
             "do" => TokenKind::Do,
-            "import" => TokenKind::Import,
-            "internal" => TokenKind::Internal,
             "try" => TokenKind::Try,
             "catch" => TokenKind::Catch,
-            "include" => TokenKind::Include,
             "for" => TokenKind::For,
             "goto" => TokenKind::Goto
         );
@@ -112,19 +109,11 @@ impl Lexer {
                 return self.read_char_literal();
             } else if is_operator(ch) {
                 return self.read_operator();
-            } else if ch == Some('$') {
+            } else if ch == Some('@') {
                 self.read_char();
-                let tok = self.read_identifier()?;
-                if let TokenKind::Identifier(ident) = tok.kind {
-                    return Ok(Token::new(TokenKind::Builtin(ident.clone()), pos));
-                } else {
-                    return Err(MsgWithPos::new(
-                        self.path(),
-                        pos,
-                        Msg::ExpectedIdentifier("builtin".into()),
-                    ));
-                }
-            } else {
+                return Ok(self.build_token(TokenKind::At));
+            }
+            {
                 let ch = ch.unwrap();
 
                 return Err(MsgWithPos::new(self.filename(), pos, Msg::UnknownChar(ch)));
@@ -239,8 +228,8 @@ impl Lexer {
         self.read_char();
 
         let nch = self.cur().unwrap_or('x');
-
         tok.kind = match ch {
+            '@' => TokenKind::At,
             '+' => TokenKind::Add,
             '-' => {
                 if nch == '>' {
@@ -250,7 +239,6 @@ impl Lexer {
                     TokenKind::Sub
                 }
             }
-
             '*' => TokenKind::Mul,
             '/' => TokenKind::Div,
             '%' => TokenKind::Mod,

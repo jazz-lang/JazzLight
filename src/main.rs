@@ -60,8 +60,13 @@ fn main() {
         println!();
     }
 
+    let start = time::PreciseTime::now();
+    let res = run_module(m);
+    let end = time::PreciseTime::now();
     println!(
-        "{}",
-        spawn_thread(move || run_module(m.clone())).join().unwrap()
+        "Program finished in {}ms({}ns)",
+        start.to(end).num_milliseconds(),
+        start.to(end).num_nanoseconds().unwrap()
     );
+    println!("Program returned {}", res);
 }

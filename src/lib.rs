@@ -74,6 +74,7 @@ pub fn init_builtins() {
     builtins::object::object_proto();
     builtins::array::array_object();
     builtins::builtin_fns();
+    builtins::common::init_common();
 }
 
 pub fn run_module(module: Gc<Module>) -> Value {

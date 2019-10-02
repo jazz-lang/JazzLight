@@ -155,6 +155,21 @@ impl JThread {
                     let mut state = STATE.lock();
                     state.static_variables.insert(key, value);
                 }
+                New => {
+                    let state = STATE.lock();
+                    let proto = state
+                        .static_variables
+                        .get(&Value::String(Gc::new("Object".to_owned())))
+                        .unwrap()
+                        .unwrap_object();
+                    let object = Gc::new(Object {
+                        kind: ObjectKind::Ordinary,
+                        proto: Some(proto),
+                        properties: Gc::new(vec![]),
+                    });
+
+                    self.push(Value::Object(object));
+                }
                 Ctor(argc) => {
                     let object_proto = Gc::new(Object {
                         kind: ObjectKind::Ordinary,

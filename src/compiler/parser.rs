@@ -235,6 +235,18 @@ impl<'a> Parser<'a> {
         Ok(expr!(ExprDecl::While(cond, block), pos))
     }
 
+    fn parse_object(&mut self) -> EResult {
+        let pos = self.expect_token(TokenKind::At)?.position;
+        self.expect_token(TokenKind::LBrace)?;
+        let body = self.parse_comma_list(TokenKind::RBrace, |parser: &mut Parser| {
+            let name = parser.expect_identifier()?;
+            parser.expect_token(TokenKind::Colon)?;
+            let expr = parser.parse_expression()?;
+            Ok((name, expr))
+        })?;
+        Ok(expr!(ExprDecl::Object(body), pos))
+    }
+
     fn parse_match(&mut self) -> EResult {
         let pos = self.expect_token(TokenKind::Match)?.position;
         let value = self.parse_expression()?;
@@ -511,8 +523,9 @@ impl<'a> Parser<'a> {
             TokenKind::LitInt(_, _, _) => self.lit_int(),
             TokenKind::LitFloat(_) => self.lit_float(),
             TokenKind::String(_) => self.lit_str(),
-            TokenKind::Builtin(_) => self.parse_builtin(),
+            //TokenKind::Builtin(_) => self.parse_builtin(),
             TokenKind::Identifier(_) => self.ident(),
+            TokenKind::At => self.parse_object(),
             TokenKind::This => self.parse_self(),
             TokenKind::BitOr | TokenKind::Or => self.parse_lambda(),
             TokenKind::True => self.parse_bool_literal(),
@@ -528,7 +541,7 @@ impl<'a> Parser<'a> {
 
         expr
     }
-
+    #[allow(unused, dead_code)]
     fn parse_builtin(&mut self) -> EResult {
         let b = if let TokenKind::Builtin(b) = &self.token.kind {
             b.clone()

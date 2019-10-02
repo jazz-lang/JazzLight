@@ -309,6 +309,23 @@ impl GeneratorContext {
                 self.compile(ea, false);
                 self.write(Op::LoadField);
             }
+
+            ExprDecl::Object(decl) => {
+                self.write(Op::New);
+                if !decl.is_empty() {
+                    let id = self.locals.len() as u32;
+                    self.locals.insert("1_obj".to_owned(), id as i32);
+                    self.write(Op::StoreLocal(id));
+                    for (name, expr) in decl.iter() {
+                        self.compile(expr, tail);
+                        let g = self.global(&Global::Str(name.to_owned()));
+                        self.write(Op::LoadGlobal(g as _));
+                        self.write(Op::LoadLocal(id));
+                        self.write(Op::StoreField);
+                    }
+                    self.write(Op::LoadLocal(id));
+                }
+            }
             ExprDecl::Var(_, name, init) => {
                 match init {
                     Some(e) => match &e.decl {

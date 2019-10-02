@@ -38,6 +38,7 @@ pub enum TokenKind {
 
     // Keywords
     Include,
+    At,
     This,
     Match,
     Fun,
@@ -119,6 +120,7 @@ impl TokenKind {
                 IntSuffix::Int => "int number",
                 IntSuffix::Long => "long number",
             },
+            TokenKind::At => "@",
 
             TokenKind::LitChar(_) => "char",
 
