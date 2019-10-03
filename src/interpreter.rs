@@ -185,14 +185,14 @@ impl JThread {
                         if let ObjectKind::Function(func) = &object.get().kind {
                             let func = func.get();
                             if func.argc != -1 {
-                                if args.len() > func.argc as usize {
-                                    throw!(Value::String(
-                                        Gc::new("Too many arguments".to_owned(),)
-                                    ));
-                                } else if args.len() < func.argc as usize {
-                                    throw!(Value::String(
-                                        Gc::new("Too many arguments".to_owned(),)
-                                    ));
+                                if args.len() > func.argc as usize
+                                    || args.len() < func.argc as usize
+                                {
+                                    throw!(Value::String(Gc::new(format!(
+                                        "Function takes {} positional arguments but {} were given",
+                                        func.argc,
+                                        args.len()
+                                    ))));
                                 }
                             }
                             object_proto.get_mut().proto =
@@ -724,10 +724,12 @@ pub fn call_value(value: Value, this: Value, args: &[Value]) -> Result<Value, Va
         if let ObjectKind::Function(func) = &object.get().kind {
             let fun = func.get();
             if func.get().argc != -1 {
-                if args.len() > fun.argc as usize {
-                    return Err(Value::String(Gc::new("Too many arguments".to_owned())));
-                } else if args.len() < fun.argc as usize {
-                    return Err(Value::String(Gc::new("Too many arguments".to_owned())));
+                if args.len() > fun.argc as usize || args.len() < fun.argc as usize {
+                    return Err(Value::String(Gc::new(format!(
+                        "Function takes {} positional arguments but {} were given",
+                        fun.argc,
+                        args.len()
+                    ))));
                 }
             }
             if fun.is_native {

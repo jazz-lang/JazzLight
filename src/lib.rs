@@ -75,6 +75,8 @@ pub fn init_builtins() {
     builtins::array::array_object();
     builtins::builtin_fns();
     builtins::common::init_common();
+    builtins::number::number_object();
+    builtins::math::math_object();
 }
 
 pub fn run_module(module: Gc<Module>) -> Value {

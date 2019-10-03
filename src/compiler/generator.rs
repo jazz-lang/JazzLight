@@ -23,6 +23,7 @@ pub enum Global {
     Func(i32, i32),
     Str(String),
     Float(u64),
+    Predef(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -559,13 +560,11 @@ impl GeneratorContext {
             ctx.g
                 .borrow_mut()
                 .globals
-                .insert(Global::Var(vname.unwrap().to_owned()), gid as i32);
+                .insert(Global::Predef(vname.unwrap().to_owned()), gid as i32);
         }
         ctx.g.borrow_mut().table.push(Global::Func(gid as i32, -1));
         ctx.ret_lbl = ctx.new_empty_label();
         ctx.compile(e, true);
-        let ret_lbl = ctx.ret_lbl.clone();
-        ctx.label_here(&ret_lbl);
         ctx.write(Op::Return);
         //ctx.check_stack(s, "");
 

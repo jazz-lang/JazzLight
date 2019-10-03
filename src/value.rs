@@ -29,6 +29,19 @@ pub fn strcpy(x: Gc<String>) -> Gc<String> {
 }
 
 impl Value {
+    pub fn to_number(&self) -> f64 {
+        match self {
+            Value::Null => 0.0,
+            Value::Number(x) => *x,
+            Value::Bool(x) => *x as i32 as f64,
+            Value::String(x) => x.get().parse().unwrap(),
+            Value::Object(object) => match &object.get().kind {
+                ObjectKind::Number(x) => *x,
+                _ => std::f64::NAN,
+            },
+        }
+    }
+
     pub fn unwrap_object(&self) -> Gc<Object> {
         match self {
             Value::Object(obj) => obj.clone(),

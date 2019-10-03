@@ -1,6 +1,8 @@
 pub mod array;
 pub mod common;
 pub mod function;
+pub mod math;
+pub mod number;
 pub mod object;
 
 use crate::value::*;
