@@ -100,3 +100,121 @@ pub fn builtin_fns() {
         .static_variables
         .insert(Value::String(Gc::new("println".to_owned())), println);
 }
+
+#[macro_export]
+macro_rules! define_global {
+    ($global_name: ident $static_name: expr; {
+        $($t: tt)*
+    }
+    ) => {
+        #[allow(non_snake_case)]
+        pub mod $global_name {
+            pub use crate::*;
+            pub use value::*;
+            use super::*;
+                define_global!(@parse $($t)*);
+
+            pub fn init() {
+                let object = Gc::new(Object {
+                    proto: None,
+                    kind: ObjectKind::Ordinary,
+                    properties: Gc::new(vec![])
+                });
+
+                define_global!(@set_properties object;$($t)*);
+
+                let mut state = STATE.lock();
+                state.static_variables.insert(Value::String(Gc::new($static_name.to_owned())),Value::Object(object));
+            }
+        }
+    };
+
+    (@set_properties $object: expr; function $name: ident ($($arg: ident),*) $b: block; $($rest: tt)* ) => {
+        {
+            let mut argc = 0;
+            $(
+                let $arg = Value::Null;
+                argc += 1;
+            )*
+
+
+            $object.get_mut().set_property(Value::String(Gc::new(stringify!($name).to_owned())),new_builtin_fn($name as _,argc));
+
+            define_global!(@set_properties $object; $($rest)*);
+        }
+    };
+    (@set_properties $object: expr; function ($this: ident) $name: ident ($($arg: ident),*) $b: block; $($rest: tt)* ) => {
+        {
+            let mut argc = 0;
+            $(
+                let $arg = Value::Null;
+                argc += 1;
+            )*
+
+
+            $object.get_mut().set_property(Value::String(Gc::new(stringify!($name).to_owned())),new_builtin_fn($name as _,argc));
+
+            define_global!(@set_properties $object; $($rest)*);
+        }
+    };
+    (@set_properties $object: expr; $name: ident = $val: expr; $($rest: tt)*) => {
+        $object.get_mut().set_property(Value::String(Gc::new(stringify!($name).to_owned())),$val);
+        define_global!(@set_properties $object; $($rest)*);
+    };
+    (@set_properties $object: expr;) => {};
+
+    (@parse function $name: ident ($($arg: ident),*) $b: block; $($rest: tt)*) => {
+        #[allow(unused_variables,unused_mut)]
+        pub extern "C" fn $name(_: $crate::value::Value, args: &[$crate::value::Value]) -> Result<$crate::value::Value, $crate::value::Value> {
+            let mut _i = 0;
+            $(
+                let $arg = args[_i].clone();
+                _i += 1;
+            )*
+            $b
+        }
+        define_global!(@parse $($rest)*);
+    };
+
+    (@parse function ($this: ident) $name: ident ($($arg: ident),*) $b: block; $($rest: tt)*) => {
+        #[allow(unused_variables,unused_mut)]
+        pub extern "C" fn $name(this: $crate::value::Value, args: &[$crate::value::Value]) -> Result<$crate::value::Value, $crate::value::Value> {
+            let mut i = 0;
+            $(
+                let $arg = args[i].clone();
+                i += 1;
+            )*
+            let $this = this;
+            $b
+        }
+        define_global!(@parse $($rest)*);
+    };
+    (@parse $name: ident = $val: expr; $($rest: tt)*) => {
+        define_global!(@parse $($rest)*);
+    };
+    (@parse) => {}
+}
+
+define_global!(StringBuiltin "String"; {
+    function empty() {
+        return Ok(Value::String(Gc::new(String::new())));
+    };
+
+    function (this) pushStr(arg) {
+        let string = arg.to_string();
+        match this {
+            Value::Object(object) => {
+                match &object.get().kind {
+                    ObjectKind::String(s) => {
+                        s.get_mut().push_str(&string);
+                    }
+                    _ => crate::unreachable()
+                }
+            }
+            _ => crate::unreachable()
+        }
+        Ok(Value::Null)
+    };
+
+    EMPTY = Value::String(Gc::new(String::new()));
+});

@@ -1,4 +1,7 @@
+#![allow(unused_mut, unused_variables, unused_assignments)]
+
 pub mod acell;
+#[macro_use]
 pub mod builtins;
 pub mod bytecode;
 pub mod compiler;

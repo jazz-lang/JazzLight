@@ -14,6 +14,7 @@ time = "0.1"
 hmap = "0.1"
 structopt = "0.3"
 hashlink = "0.3"
+rand = "0.7"
 [profile.release]
 lto = true
 

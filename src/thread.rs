@@ -19,6 +19,11 @@ pub enum FrameData {
     },
 }
 
+thread_local!(
+    pub static THREAD: RefCell<Arc<Ptr<JThread>>> =
+        { RefCell::new(Arc::new(Ptr::new(JThread::new()))) };
+);
+
 pub struct Threads {
     pub threads: Mutex<Vec<Arc<Ptr<JThread>>>>,
     pub cond_join: Condvar,
@@ -32,6 +37,54 @@ pub struct JThread {
     pub this: Value,
     pub frames: Vec<FrameData>,
     pub exceptions: Vec<FrameData>,
+}
+
+impl Threads {
+    pub fn new() -> Threads {
+        Threads {
+            threads: Mutex::new(Vec::new()),
+            cond_join: Condvar::new(),
+        }
+    }
+
+    pub fn attach_current_thread(&self) {
+        THREAD.with(|thread| {
+            let mut threads = self.threads.lock();
+            threads.push(thread.borrow().clone());
+        });
+    }
+
+    pub fn attach_thread(&self, thread: Arc<Ptr<JThread>>) {
+        let mut threads = self.threads.lock();
+        threads.push(thread);
+    }
+
+    pub fn detach_current_thread(&self) {
+        THREAD.with(|thread| {
+            let mut threads = self.threads.lock();
+            threads.retain(|elem| !Arc::ptr_eq(elem, &*thread.borrow()));
+            self.cond_join.notify_all();
+        });
+    }
+
+    pub fn join_all(&self) {
+        let mut threads = self.threads.lock();
+
+        while threads.len() > 0 {
+            self.cond_join.wait(&mut threads);
+        }
+    }
+
+    pub fn each<F>(&self, mut f: F)
+    where
+        F: FnMut(&Arc<Ptr<JThread>>),
+    {
+        let threads = self.threads.lock();
+
+        for thread in threads.iter() {
+            f(thread)
+        }
+    }
 }
 
 /*
@@ -76,11 +129,6 @@ impl<T> Ptr<T> {
         unsafe { &*self.ptr }
     }
 }
-
-thread_local!(
-    pub static THREAD: RefCell<Arc<Ptr<JThread>>> =
-        { RefCell::new(Arc::new(Ptr::new(JThread::new()))) };
-);
 
 impl JThread {
     pub fn new() -> Self {
@@ -162,51 +210,3 @@ unsafe impl GcObject for Threads {
         v
     }
 }*/
-
-impl Threads {
-    pub fn new() -> Threads {
-        Threads {
-            threads: Mutex::new(Vec::new()),
-            cond_join: Condvar::new(),
-        }
-    }
-
-    pub fn attach_current_thread(&self) {
-        THREAD.with(|thread| {
-            let mut threads = self.threads.lock();
-            threads.push(thread.borrow().clone());
-        });
-    }
-
-    pub fn attach_thread(&self, thread: Arc<Ptr<JThread>>) {
-        let mut threads = self.threads.lock();
-        threads.push(thread);
-    }
-
-    pub fn detach_current_thread(&self) {
-        THREAD.with(|thread| {
-            let mut threads = self.threads.lock();
-            threads.retain(|elem| !Arc::ptr_eq(elem, &*thread.borrow()));
-            self.cond_join.notify_all();
-        });
-    }
-
-    pub fn join_all(&self) {
-        let mut threads = self.threads.lock();
-
-        while threads.len() > 0 {
-            self.cond_join.wait(&mut threads);
-        }
-    }
-
-    pub fn each<F>(&self, mut f: F)
-    where
-        F: FnMut(&Arc<Ptr<JThread>>),
-    {
-        let threads = self.threads.lock();
-
-        for thread in threads.iter() {
-            f(thread)
-        }
-    }
-}
