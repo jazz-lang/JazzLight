@@ -5,7 +5,7 @@ authors = ["Adel Prokurov <adel.prokurov@protonmail.com>"]
 edition = "2018"
 
 [dependencies]
-time = "0.1"
+time = "0.2"
 parking_lot = "0.9"
 lazy_static = "1.4"
 rand = "0.7"
